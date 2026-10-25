@@ -1,0 +1,14 @@
+[Unit]
+Description=Heimherz (Brücke PC und iPhone: Passwörter, Fotos, Dateien)
+After=network.target
+
+[Service]
+ExecStart=/home/tobi/.bun/bin/bun /home/tobi/projects/heimherz-ios/server/index.ts
+Restart=on-failure
+RestartSec=3
+# Dienst lauscht nur auf 127.0.0.1:8790, nach außen macht das `tailscale serve`
+Environment=HEIMHERZ_PORT=8790
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target
