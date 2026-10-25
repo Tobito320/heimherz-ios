@@ -9,8 +9,8 @@ enum AutoFillFehler: Error, Equatable, LocalizedError {
 
     var nutzerText: String {
         switch self {
-        case .nichtGekoppelt: return "Heim ist noch nicht mit dem PC gekoppelt. Öffne die App und koppel das Handy."
-        case .keinSpeicher: return "Heim kann seinen Tresor nicht finden. Bitte die App einmal öffnen."
+        case .nichtGekoppelt: return "Heimcloud ist noch nicht mit dem PC gekoppelt. Öffne die App und koppel das Handy."
+        case .keinSpeicher: return "Heimcloud kann seinen Tresor nicht finden. Bitte die App einmal öffnen."
         }
     }
 
@@ -54,7 +54,7 @@ final class AutoFillSitzung {
     /// Der Kontext mit Text für die Face-ID-Abfrage des Schlüsselbunds.
     nonisolated static func neuerKontext() -> EntsperrKontext {
         let c = LAContext()
-        c.localizedReason = "Heim entsperren"
+        c.localizedReason = "Heimcloud entsperren"
         return EntsperrKontext(c)
     }
 

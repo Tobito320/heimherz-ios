@@ -8,7 +8,7 @@ struct AutoFillAnleitung: View {
     private let schritte = [
         "Einstellungen öffnen",
         "Allgemein, dann AutoFill & Passwörter",
-        "Unter „Ausfüllen von“ Heim einschalten",
+        "Unter „Ausfüllen von“ Heimcloud einschalten",
         "Erst wenn alles sicher läuft: iCloud-Passwörter ausschalten"
     ]
 
@@ -30,7 +30,7 @@ struct AutoFillAnleitung: View {
                     .heimherzZeile()
                 }
             } header: {
-                GruppenText(text: "Damit füllt iOS Passwörter und Einmalcodes aus Heim aus, in Safari und in Apps.", fuss: true)
+                GruppenText(text: "Damit füllt iOS Passwörter und Einmalcodes aus Heimcloud aus, in Safari und in Apps.", fuss: true)
             }
             Section {
                 Button {
@@ -115,7 +115,7 @@ struct SichernErklaerung: View {
     private let punkte: [(titel: String, text: String)] = [
         ("Start", "Mit „Abgleich starten“ geht es in kleinen Stücken los: erst alle Fotos, dann die Videos, jeweils die neuesten zuerst. Was lokal auf dem Handy liegt, kommt vor den iCloud-Originalen."),
         ("Anhalten", "Stoppt sofort. Was schon am PC liegt, zählt; die Datei dazwischen wird verworfen und beim nächsten Start neu gesendet."),
-        ("App geschlossen", "Schließt du die App oder sperrst das Handy, macht iOS mit einer Anzeige weiter, solange es das zulässt. Wischst du Heim im App-Umschalter weg, endet der Abgleich, bis du ihn wieder startest."),
+        ("App geschlossen", "Schließt du die App oder sperrst das Handy, macht iOS mit einer Anzeige weiter, solange es das zulässt. Wischst du Heimcloud im App-Umschalter weg, endet der Abgleich, bis du ihn wieder startest."),
         ("Nachts", "Am Ladegerät im WLAN setzt iOS den Abgleich fort, wenn du ihn nicht angehalten hast. Wann, entscheidet iOS."),
         ("Im Hintergrund hochladen", "iOS lädt dann auch bei geschlossener App hoch, wenn es ihm passt. „Anhalten“ hält das nicht auf: Dafür schaltest du es aus."),
         ("Originale aus iCloud", "Mit „iPhone-Speicher optimieren“ liegen viele Originale nur in iCloud. iOS muss sie erst laden, das dauert und braucht Platz und Netz. Aus: Solche Dateien werden übersprungen und bleiben offen."),

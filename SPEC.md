@@ -1,6 +1,6 @@
 # SPEC: Heimherz
 
-Sichtbarer Name: **Heim** (Ahmed 25.10.: "Ich möchte rename. Ohne herz. Apps die nur für mich sich ohne herz."). Home-Bildschirm, Texte in der App und Rechte-Texte sagen "Heim", App-Store-Connect-Name "Heim Tresor" ("Heim" ist weltweit vergeben). Intern bleibt alles `heimherz` (Bundle IDs, App Group, Repo, Typen, CLI, Dienst, Ordner `~/Heimherz`, AAD).
+Sichtbarer Name: **Heimcloud** (Ahmed 25.10.: erst "Ohne herz" → Heim, dann "Das name sollte zu der app passen zu was sie macht. Also wie icloud." → "Heimcloud ist gut"). Home-Bildschirm, Texte in der App und Rechte-Texte sagen "Heimcloud", App-Store-Connect-Name "Heimcloud". Intern bleibt alles `heimherz` (Bundle IDs, App Group, Repo, Typen, CLI, Dienst, Ordner `~/Heimherz`, AAD).
 
 Eigene Brücke zwischen Ahmeds PC und seinem iPhone für Passwörter, Fotos und Dateien. Ersetzt Bitwarden und iCloud (Passwörter, Fotos) am Handy. Stand 25.10.2026. Idee und Recherche: Vault `01 Inbox/Idee – Eigene Cloud (Passwörter, Fotos, Dateien).md`, `01 Inbox/Eigene Cloud – Recherche 25.10.2026.md`.
 

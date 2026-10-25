@@ -260,8 +260,8 @@ struct PasswoerterListe: View {
         switch kategorie {
         case .sicherheit:
             HinweisKarte(text: GeteilteEinstellungen().leckPruefung
-                         ? "Heim prüft auf diesem Handy, ob Passwörter mehrfach vorkommen oder leicht zu erraten sind. Für Datenlecks geht nur ein kurzer Teil einer Prüfsumme ins Netz, nie ein Passwort."
-                         : "Heim prüft auf diesem Handy, ob Passwörter mehrfach vorkommen oder leicht zu erraten sind. Die Prüfung auf Datenlecks ist ausgeschaltet.",
+                         ? "Heimcloud prüft auf diesem Handy, ob Passwörter mehrfach vorkommen oder leicht zu erraten sind. Für Datenlecks geht nur ein kurzer Teil einer Prüfsumme ins Netz, nie ein Passwort."
+                         : "Heimcloud prüft auf diesem Handy, ob Passwörter mehrfach vorkommen oder leicht zu erraten sind. Die Prüfung auf Datenlecks ist ausgeschaltet.",
                          symbol: "lock.shield")
         case .passkeys:
             HinweisKarte(text: "Passkeys aus Bitwarden sind gespeichert. Anmelden damit kommt in einem späteren Build.", symbol: "info.circle")

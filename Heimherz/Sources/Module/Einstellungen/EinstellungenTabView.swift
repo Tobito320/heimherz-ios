@@ -191,7 +191,7 @@ struct EinstellungenTabView: View {
         } header: {
             GruppenText(text: "Sicherheit")
         } footer: {
-            GruppenText(text: "Solange füllt Heim ohne neue Abfrage aus.", fuss: true)
+            GruppenText(text: "Solange füllt Heimcloud ohne neue Abfrage aus.", fuss: true)
         }
     }
 
@@ -259,7 +259,7 @@ struct EinstellungenTabView: View {
 
     /// Eine Zeile, die gerade am meisten hilft: erst was einen Schalter wirkungslos macht, sonst die feste Regel für Videos.
     private func fotosFuss(_ m: FotosModell) -> String {
-        if fotoMitteilung, mitteilungErlaubt == false { return "Mitteilungen sind für Heim in den iOS-Einstellungen ausgeschaltet." }
+        if fotoMitteilung, mitteilungErlaubt == false { return "Mitteilungen sind für Heimcloud in den iOS-Einstellungen ausgeschaltet." }
         if m.erlaubnis != .voll { return "Hochladen im Hintergrund braucht vollen Zugriff auf deine Fotos." }
         return "Videos gehen immer nur im WLAN. Ist das Handy nicht im WLAN, hält der Abgleich an und wartet auf dich."
     }

@@ -95,7 +95,7 @@ final class FotosErweiterung: PHBackgroundResourceUploadExtension {
             } else if job.state == .failed {
                 // Die Datei kommt beim nächsten Durchgang wieder in die Liste; der Grund steht in der App.
                 let code = fehlerCode(job).map { " (\($0.rawValue))" } ?? ""
-                ablage.aendere { $0.fehler = "Ein Upload im Hintergrund ist fehlgeschlagen\(code). Heim versucht es später noch einmal." }
+                ablage.aendere { $0.fehler = "Ein Upload im Hintergrund ist fehlgeschlagen\(code). Heimcloud versucht es später noch einmal." }
             }
             try bib.performChangesAndWait {
                 guard let r = PHAssetResourceUploadJobChangeRequest(for: job) else { return }

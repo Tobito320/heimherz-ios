@@ -79,13 +79,13 @@ private struct FotosInhalt: View {
             switch modell.erlaubnis {
             case .offen:
                 seite {
-                    LeerZustand(titel: "Fotos sichern", text: "Heim braucht Zugriff auf alle deine Fotos, um sie auf deinen PC zu bringen. Am Handy wird nie etwas gelöscht oder geändert.",
+                    LeerZustand(titel: "Fotos sichern", text: "Heimcloud braucht Zugriff auf alle deine Fotos, um sie auf deinen PC zu bringen. Am Handy wird nie etwas gelöscht oder geändert.",
                                 aktionTitel: "Zugriff erlauben") { Task { await modell.erlaube() } }
                 }
             case .verweigert:
-                seite { keinZugriff("Heim darf deine Fotos nicht lesen. Schalte den Zugriff in den Einstellungen ein.") }
+                seite { keinZugriff("Heimcloud darf deine Fotos nicht lesen. Schalte den Zugriff in den Einstellungen ein.") }
             case .begrenzt:
-                seite { keinZugriff("Heim sieht nur einen Teil deiner Fotos. Zum Sichern braucht es den Zugriff auf alle Fotos.") }
+                seite { keinZugriff("Heimcloud sieht nur einen Teil deiner Fotos. Zum Sichern braucht es den Zugriff auf alle Fotos.") }
             case .voll:
                 voll
             }
