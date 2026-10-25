@@ -38,7 +38,7 @@ export function modellVon(env: Env, cmdline: (pid: string) => string = pid => re
   return /opus/i.test(roh) ? 'opus' : /sonnet/i.test(roh) ? 'sonnet' : /haiku/i.test(roh) ? 'haiku' : 'unbekannt';
 }
 
-const FREIGABE = (z: string) => /sparkasse/i.test(z) && /(meld\w* dich\b.*\ban|anmeld|einlogg|log dich ein|login)/i.test(z) && /(allein|nicht zu ?hause)/i.test(z);
+const FREIGABE = (z: string) => /sparkasse/i.test(z) && /(meld\w* dich\b.*\ban|anmeld|einlogg|log dich ein|login)/i.test(z) && /(allein|selbe?r|selbst|nicht zu ?hause)/i.test(z);
 
 export function auftragGilt(pfad: string, env: Env): { ok: boolean; grund: string } {
   const home = env.HOME ?? '';

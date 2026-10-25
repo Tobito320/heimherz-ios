@@ -392,7 +392,7 @@ Was der Agent danach auf der Seite tun darf (senden, kündigen, zahlen), regeln 
 `CLAUDE_PID` → `/proc/<pid>/cmdline` → `--model`. Fehlt es: `ANTHROPIC_MODEL`, sonst unbekannt. Ehrliche Grenze: Unteragenten haben dieselbe Umgebung wie die Hauptsitzung (geprüft 25.10.), ein Sonnet-Unteragent einer Opus-Sitzung zählt darum als Opus. Die Regel "Bank nie an Unteragenten" bleibt Regel, die Mitteilung an Ahmed ist die Kontrolle.
 
 ### Auftrag-Datei (Stufe 1)
-`--auftrag DATEI` oder Umgebung `HEIMHERZ_AUFTRAG`. Gültig nur, wenn die Datei unter `~/.claude/buero-stand/`, `~/Documents/Obsidian/Personal/` oder `~/projects/` liegt, höchstens 24 Stunden alt ist und eine Zeile enthält, die Sparkasse, anmelden oder einloggen und allein oder "nicht zuhause" nennt. Ehrliche Grenze: auch ein Agent kann so eine Datei schreiben (alles läuft als `tobi`); darum die Mitteilung bei jedem Bank-Füllen und das Protokoll.
+`--auftrag DATEI` oder Umgebung `HEIMHERZ_AUFTRAG`. Gültig nur, wenn die Datei unter `~/.claude/buero-stand/`, `~/Documents/Obsidian/Personal/` oder `~/projects/` liegt, höchstens 24 Stunden alt ist und eine Zeile enthält, die Sparkasse, anmelden oder einloggen und allein, selber/selbst oder "nicht zuhause" nennt (selber seit Ahmed 25.10.: "Sparkasse prüft … ich helfe bei der Anmeldung … Er soll alles selber machen"). Ehrliche Grenze: auch ein Agent kann so eine Datei schreiben (alles läuft als `tobi`); darum die Mitteilung bei jedem Bank-Füllen und das Protokoll.
 
 ### Protokoll
 `~/.local/state/heimherz/fuell.log` (0600): Zeit, Host, Eintrag-id, Feldart, Stufe, Modell, erlaubt/verweigert, Auftrag-Pfad. Nie Werte.
