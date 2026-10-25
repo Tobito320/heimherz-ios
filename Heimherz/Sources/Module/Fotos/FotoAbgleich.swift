@@ -387,6 +387,11 @@ actor FotoAbgleich {
             try await schranke.hole()
             puffer -= bytes
             imPuffer = false
+            // Ein Anhalten kann den Platz und den Abbruch gleichzeitig bringen: dann nicht mehr senden.
+            if Task.isCancelled {
+                await schranke.gib()
+                return .abgebrochen(r)
+            }
             do { try await sender.sende(datei: temp, anfrage: anfrage) } catch {
                 await schranke.gib()
                 throw error
