@@ -51,6 +51,71 @@ final class SperreTests: XCTestCase {
         XCTAssertTrue(s.gesperrt)
     }
 
+    func testLogikMitDauerUndFenster() {
+        let spaet = t0.addingTimeInterval(61)
+        XCTAssertFalse(SperrLogik.sollSperren(hintergrundSeit: t0, jetzt: spaet, dauer: .viertelStunde))
+        XCTAssertTrue(SperrLogik.sollSperren(hintergrundSeit: t0, jetzt: spaet, dauer: .eineMinute))
+        XCTAssertTrue(SperrLogik.sollSperren(hintergrundSeit: t0, jetzt: t0, dauer: .aus), "Jedes Mal: sofort")
+        XCTAssertFalse(SperrLogik.sollSperren(hintergrundSeit: t0, jetzt: t0.addingTimeInterval(9999), dauer: .aus, fensterOffen: true),
+                       "wer in der Erweiterung entsperrt hat, muss die App nicht entsperren")
+    }
+
+    private func bundMitFenster(dauer: EntsperrDauer = .fuenfMinuten, offen: Bool) throws -> (Schluesselbund, MemorySpeicher) {
+        let speicher = MemorySpeicher()
+        let bund = Schluesselbund(speicher: speicher, dauer: { dauer })
+        try bund.speichereSchluessel(TestSchluessel.schluessel)
+        if offen { bund.oeffneFenster(TestSchluessel.schluessel) }
+        return (bund, speicher)
+    }
+
+    func testKaltstartBleibtEntsperrtSolangeDasFensterOffenIst() throws {
+        let (offen, _) = try bundMitFenster(offen: true)
+        XCTAssertFalse(AppSperre(gesperrt: true, aktiv: true, bund: offen).gesperrt)
+        let (zu, _) = try bundMitFenster(offen: false)
+        XCTAssertTrue(AppSperre(gesperrt: true, aktiv: true, bund: zu).gesperrt)
+    }
+
+    func testRueckkehrNachLangerPauseBleibtOffenMitFensterAberNichtOhne() throws {
+        let (offen, _) = try bundMitFenster(offen: true)
+        let s = AppSperre(gesperrt: false, aktiv: true, bund: offen)
+        s.szene(.background, jetzt: t0)
+        s.szene(.active, jetzt: t0.addingTimeInterval(3600))
+        XCTAssertFalse(s.gesperrt)
+        let (zu, _) = try bundMitFenster(offen: false)
+        let z = AppSperre(gesperrt: false, aktiv: true, bund: zu)
+        z.szene(.background, jetzt: t0)
+        z.szene(.active, jetzt: t0.addingTimeInterval(3600))
+        XCTAssertTrue(z.gesperrt)
+    }
+
+    func testJedesMalSperrtSofortBeimWechselInDenHintergrund() throws {
+        let (bund, _) = try bundMitFenster(dauer: .aus, offen: false)
+        let s = AppSperre(gesperrt: false, aktiv: true, bund: bund)
+        s.szene(.inactive, jetzt: t0)
+        XCTAssertFalse(s.gesperrt, "inaktiv (Face-ID-Blatt, Kontrollzentrum) sperrt nicht")
+        s.szene(.background, jetzt: t0)
+        XCTAssertTrue(s.gesperrt)
+    }
+
+    func testSperrenSchliesstDasFensterFuerAutoFill() throws {
+        let (bund, speicher) = try bundMitFenster(offen: true)
+        let s = AppSperre(gesperrt: false, aktiv: true, bund: bund)
+        s.sperren()
+        XCTAssertTrue(s.gesperrt)
+        XCTAssertNil(try speicher.lesen(Schluesselbund.kontoFenster, kontext: nil))
+        let aus = AppSperre(gesperrt: false, aktiv: false, bund: bund)
+        aus.sperren()
+        XCTAssertFalse(aus.gesperrt, "Test-Host und Demo bleiben ohne Sperre")
+    }
+
+    func testEntkoppelnLoeschtDasFenster() throws {
+        let (bund, speicher) = try bundMitFenster(offen: true)
+        try bund.speichereGeraet(Geraet(url: URL(string: "https://pc.ts.net") ?? URL(fileURLWithPath: "/"), token: "t"))
+        let u = AppUmgebung(bund: bund, ablage: TresorAblage(ordner: try tempOrdner()), sperreAktiv: false)
+        try u.entkoppeln()
+        XCTAssertNil(try speicher.lesen(Schluesselbund.kontoFenster, kontext: nil))
+    }
+
     func testKaltstartGekoppeltIstGesperrtUngekoppeltNicht() {
         XCTAssertTrue(AppSperre(gesperrt: true, aktiv: true).gesperrt)
         XCTAssertFalse(AppSperre(gesperrt: false, aktiv: true).gesperrt)
@@ -171,7 +236,7 @@ final class AppUmgebungTests: XCTestCase {
         final class Klemmt: KeychainSpeicher, @unchecked Sendable {
             let innen = MemorySpeicher()
             func lesen(_ konto: String, kontext: EntsperrKontext?) throws -> Data? { try innen.lesen(konto, kontext: kontext) }
-            func schreiben(_ konto: String, daten: Data, mitAbfrage: Bool) throws { try innen.schreiben(konto, daten: daten, mitAbfrage: mitAbfrage) }
+            func schreiben(_ konto: String, daten: Data, schutz: KeychainSchutz) throws { try innen.schreiben(konto, daten: daten, schutz: schutz) }
             func loeschen(_ konto: String) throws {
                 if konto == Schluesselbund.kontoToken { throw SchluesselbundFehler.loeschen(-25244) }
                 try innen.loeschen(konto)

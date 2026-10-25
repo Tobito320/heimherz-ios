@@ -70,6 +70,20 @@ final class AutoFillSitzung {
         tresor = lokal
     }
 
+    /// Nur mit offenem Entsperr-Fenster (K-Kopie ohne Abfrage, nie eine Face-ID-Abfrage): öffnet den lokalen Stand. false = es braucht Face ID.
+    func entsperrenOhneAbfrage() async -> Bool {
+        if tresor != nil { return true }
+        guard let k = bund.fensterSchluessel() else { return false }
+        do {
+            let lokal = try await dienst.lokal(schluessel: k) ?? Tresor()
+            schluessel = k
+            tresor = lokal
+            return true
+        } catch {
+            return false
+        }
+    }
+
     /// Speichert verschlüsselt im lokalen Cache und gleicht danach höchstens `sekunden` lang mit dem PC ab (Erweiterungen dürfen nicht lange laufen).
     /// Ohne PC bleibt es lokal; die App gleicht beim nächsten Öffnen ab.
     func speichere(_ aktion: SpeicherAktion, abgleichSekunden sekunden: Double = 6) async throws {

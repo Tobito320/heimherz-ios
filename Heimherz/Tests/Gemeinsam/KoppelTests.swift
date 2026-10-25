@@ -90,7 +90,7 @@ final class KoppelLinkTests: XCTestCase {
         final class Klemmt: KeychainSpeicher, @unchecked Sendable {
             let innen = MemorySpeicher()
             func lesen(_ konto: String, kontext: EntsperrKontext?) throws -> Data? { try innen.lesen(konto, kontext: kontext) }
-            func schreiben(_ konto: String, daten: Data, mitAbfrage: Bool) throws { try innen.schreiben(konto, daten: daten, mitAbfrage: mitAbfrage) }
+            func schreiben(_ konto: String, daten: Data, schutz: KeychainSchutz) throws { try innen.schreiben(konto, daten: daten, schutz: schutz) }
             func loeschen(_ konto: String) throws {
                 if konto == Schluesselbund.kontoSchluessel { throw SchluesselbundFehler.loeschen(-1) }
                 try innen.loeschen(konto)

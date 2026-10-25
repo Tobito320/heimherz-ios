@@ -7,22 +7,25 @@ import Synchronization
 /// Schlüsselbund im Speicher für Demo (Screenshots), Vorschau und Test-Host; es gibt dort keinen echten Schlüsselbund.
 final class SpeicherImRAM: KeychainSpeicher {
     private let werte = Mutex<[String: Data]>([:])
-    private let abfragen = Mutex<[String: Bool]>([:])
+    private let schuetze = Mutex<[String: KeychainSchutz]>([:])
 
     func lesen(_ konto: String, kontext: EntsperrKontext?) throws -> Data? { werte.withLock { $0[konto] } }
 
-    func schreiben(_ konto: String, daten: Data, mitAbfrage: Bool) throws {
+    func schreiben(_ konto: String, daten: Data, schutz: KeychainSchutz) throws {
         werte.withLock { $0[konto] = daten }
-        abfragen.withLock { $0[konto] = mitAbfrage }
+        schuetze.withLock { $0[konto] = schutz }
     }
 
     func loeschen(_ konto: String) throws {
         werte.withLock { $0[konto] = nil }
-        abfragen.withLock { $0[konto] = nil }
+        schuetze.withLock { $0[konto] = nil }
     }
 
     /// Ob der Eintrag mit Face-ID-Abfrage gespeichert wurde (für Tests).
-    func mitAbfrage(_ konto: String) -> Bool? { abfragen.withLock { $0[konto] } }
+    func mitAbfrage(_ konto: String) -> Bool? { schuetze.withLock { $0[konto] }.map { $0 == .abfrage } }
+
+    /// Wie der Eintrag geschützt gespeichert wurde (für Tests).
+    func schutz(_ konto: String) -> KeychainSchutz? { schuetze.withLock { $0[konto] } }
 }
 
 /// Was vor dem Entkoppeln über den Stand dieses Handys bekannt ist (nach einem letzten Abgleichversuch).
@@ -72,7 +75,7 @@ final class AppUmgebung {
         self.istDemo = istDemo
         let geraet = try? bund.ladeGeraet()
         self.geraet = geraet
-        self.sperre = AppSperre(gesperrt: geraet != nil, aktiv: sperreAktiv)
+        self.sperre = AppSperre(gesperrt: geraet != nil, aktiv: sperreAktiv, bund: bund)
     }
 
     // MARK: Andockpunkte
