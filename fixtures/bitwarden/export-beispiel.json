@@ -1,0 +1,144 @@
+{
+ "encrypted": false,
+ "folders": [
+  { "id": "f0000000-0000-4000-8000-000000000001", "name": "Erfunden" }
+ ],
+ "items": [
+  {
+   "id": "b0000000-0000-4000-8000-000000000001",
+   "organizationId": null,
+   "folderId": "f0000000-0000-4000-8000-000000000001",
+   "type": 1,
+   "reprompt": 0,
+   "name": "Beispiel Shop",
+   "notes": "Erfundene Notiz zum Shop",
+   "favorite": true,
+   "login": {
+    "uris": [
+     { "match": null, "uri": "https://shop.example.org/login" },
+     { "match": null, "uri": "https://www.shop.example.org/" }
+    ],
+    "username": "erika@example.org",
+    "password": "Erfunden-Passwort-111!",
+    "totp": "otpauth://totp/Shop:erika?secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ&issuer=Shop"
+   },
+   "collectionIds": null,
+   "revisionDate": "2026-09-01T10:00:00.000Z",
+   "creationDate": "2026-01-01T10:00:00.000Z",
+   "deletedDate": null
+  },
+  {
+   "id": "b0000000-0000-4000-8000-000000000002",
+   "organizationId": null,
+   "folderId": null,
+   "type": 1,
+   "reprompt": 0,
+   "name": "Passkey-Seite",
+   "notes": null,
+   "favorite": false,
+   "login": {
+    "uris": [
+     { "match": null, "uri": "https://passkey.example.net" }
+    ],
+    "username": "max",
+    "password": "Erfunden-Passwort-222?",
+    "totp": null,
+    "fido2Credentials": [
+     {
+      "credentialId": "ZXJmdW5kZW4tY3JlZGVudGlhbC1pZA",
+      "keyType": "public-key",
+      "keyAlgorithm": "ECDSA",
+      "keyCurve": "P-256",
+      "keyValue": "ZXJmdW5kZW5lci1zY2hsdWVzc2Vs",
+      "rpId": "passkey.example.net",
+      "rpName": "Passkey Example",
+      "userHandle": "dXNlci1oYW5kbGU",
+      "userName": "max",
+      "counter": "0",
+      "discoverable": "true",
+      "creationDate": "2026-02-02T08:00:00.000Z"
+     }
+    ]
+   },
+   "collectionIds": null,
+   "revisionDate": "2026-08-15T12:30:00.000Z",
+   "creationDate": "2026-02-02T08:00:00.000Z",
+   "deletedDate": null
+  },
+  {
+   "id": "b0000000-0000-4000-8000-000000000003",
+   "organizationId": null,
+   "folderId": null,
+   "type": 1,
+   "reprompt": 0,
+   "name": "Ohne Adresse",
+   "notes": null,
+   "favorite": false,
+   "login": { "uris": [], "username": null, "password": "Erfunden-Passwort-333#", "totp": null },
+   "collectionIds": null,
+   "revisionDate": "2026-07-01T00:00:00.000Z",
+   "creationDate": "2026-07-01T00:00:00.000Z",
+   "deletedDate": null
+  },
+  {
+   "id": "b0000000-0000-4000-8000-000000000004",
+   "organizationId": null,
+   "folderId": null,
+   "type": 2,
+   "reprompt": 0,
+   "name": "WLAN-Zettel",
+   "notes": "Erfundenes WLAN: Heimnetz\nSchlüssel: nicht-echt-123",
+   "favorite": false,
+   "secureNote": { "type": 0 },
+   "collectionIds": null,
+   "revisionDate": "2026-06-06T06:06:06.000Z",
+   "creationDate": "2026-06-06T06:06:06.000Z",
+   "deletedDate": null
+  },
+  {
+   "id": "b0000000-0000-4000-8000-000000000005",
+   "organizationId": null,
+   "folderId": null,
+   "type": 3,
+   "reprompt": 0,
+   "name": "Erfundene Karte",
+   "notes": null,
+   "favorite": false,
+   "card": { "cardholderName": "Erika Beispiel", "brand": "Visa", "number": "4111111111111111", "expMonth": "12", "expYear": "2030", "code": "000" },
+   "collectionIds": null,
+   "revisionDate": "2026-05-05T05:05:05.000Z",
+   "creationDate": "2026-05-05T05:05:05.000Z",
+   "deletedDate": null
+  },
+  {
+   "id": "b0000000-0000-4000-8000-000000000006",
+   "organizationId": null,
+   "folderId": null,
+   "type": 4,
+   "reprompt": 0,
+   "name": "Erfundene Identität",
+   "notes": null,
+   "favorite": false,
+   "identity": { "firstName": "Erika", "lastName": "Beispiel" },
+   "collectionIds": null,
+   "revisionDate": "2026-04-04T04:04:04.000Z",
+   "creationDate": "2026-04-04T04:04:04.000Z",
+   "deletedDate": null
+  },
+  {
+   "id": "b0000000-0000-4000-8000-000000000007",
+   "organizationId": null,
+   "folderId": null,
+   "type": 1,
+   "reprompt": 0,
+   "name": "Im Papierkorb",
+   "notes": null,
+   "favorite": false,
+   "login": { "uris": [{ "match": null, "uri": "https://weg.example.org" }], "username": "weg", "password": "Erfunden-Papierkorb-999", "totp": null },
+   "collectionIds": null,
+   "revisionDate": "2026-03-03T03:03:03.000Z",
+   "creationDate": "2026-03-03T03:03:03.000Z",
+   "deletedDate": "2026-10-01T00:00:00.000Z"
+  }
+ ]
+}

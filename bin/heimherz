@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+exec /home/tobi/.bun/bin/bun "$(dirname "$(readlink -f "$0")")/heimherz.ts" "$@"
