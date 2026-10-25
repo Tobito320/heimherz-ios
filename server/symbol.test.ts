@@ -1,7 +1,8 @@
 import { afterAll, describe, expect, test } from 'bun:test';
 import { readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { bildTyp, gueltigerHost, ipBytes, istOeffentlich, symbolLinks, type Antwort, type Holer } from './symbol';
+import { createServer } from 'node:net';
+import { bildTyp, echterHoler, gueltigerHost, ipBytes, istOeffentlich, symbolLinks, type Antwort, type Holer } from './symbol';
 import { baue } from './testhilfe';
 
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 1, 2, 3]);
@@ -79,6 +80,28 @@ describe('Bilder und Links', () => {
       <link rel="stylesheet" href="/x.css"><link rel="icon">
     </head>`, basis).map(u => u.href);
     expect(links).toEqual(['https://example.org/apple.png', 'https://cdn.example.net/gross.png?a=1&b=2', 'https://example.org/klein.png', 'https://example.org/app/sym.ico']);
+  });
+});
+
+describe('echter Holer', () => {
+  test('ein Server, der nie antwortet oder nur tröpfelt, wird nach der Frist hart abgebrochen', async () => {
+    const offen: import('node:net').Socket[] = [];
+    const srv = createServer(s => { offen.push(s); s.on('error', () => {}); });   // nimmt an und schweigt
+    await new Promise<void>(r => srv.listen(0, '127.0.0.1', r));
+    const port = (srv.address() as any).port;
+    const t0 = Date.now();
+    let fehler: unknown;
+    try { await echterHoler(new URL(`https://schweigt.example:${port}/x`), { address: '127.0.0.1', family: 4 }, 300); } catch (e) { fehler = e; }
+    expect(fehler).toBeInstanceOf(Error);
+    expect(Date.now() - t0).toBeLessThan(2000);
+    offen.forEach(s => s.destroy());
+    srv.close();
+  });
+
+  test('nicht erreichbarer Port: Fehler statt Hängen', async () => {
+    const t0 = Date.now();
+    await expect(echterHoler(new URL('https://zu.example:9/'), { address: '127.0.0.1', family: 4 }, 300)).rejects.toBeInstanceOf(Error);
+    expect(Date.now() - t0).toBeLessThan(2000);
   });
 });
 

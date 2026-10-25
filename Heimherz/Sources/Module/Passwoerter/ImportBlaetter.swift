@@ -6,7 +6,7 @@ struct ImportAnleitungBlatt: View {
 
     private let schritte = [
         "Öffne die App „Passwörter“ von Apple.",
-        "Tippe oben rechts auf die drei Punkte und wähle „Daten an andere App exportieren“.",
+        "Öffne das Menü (drei Punkte) und wähle „Daten an andere App exportieren“. Der Menüpunkt kann je nach iOS-Version etwas anders heißen.",
         "Bestätige mit Face ID und wähle „Heim“ in der Liste.",
         "Heim öffnet sich, nimmt alles auf und gleicht gleich mit deinem PC ab."
     ]
@@ -15,7 +15,7 @@ struct ImportAnleitungBlatt: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: Abstand.l) {
-                    Text("Alle Konten, Einmalcodes, Passkeys und Notizen auf einmal. Die Daten gehen direkt von Apple Passwörter an Heim, nie über das Netz und nie über eine Datei.")
+                    Text("Alle Konten, Einmalcodes, Passkeys und Notizen auf einmal. Das System vermittelt zwischen Apple Passwörter und Heim und schreibt dabei nichts in eine Datei.")
                         .font(.body)
                         .foregroundStyle(Color.tinte)
                         .fixedSize(horizontal: false, vertical: true)

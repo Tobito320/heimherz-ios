@@ -65,6 +65,8 @@ struct PasswoerterListe: View {
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
+            // Platz für die A bis Z Leiste, damit sie Ring und Ausrufezeichen am Zeilenende nicht überdeckt.
+            .contentMargins(.trailing, zeigeLeiste ? 22 : 0, for: .scrollContent)
             .overlay(alignment: .trailing) { leiste(proxy) }
             .overlay { leer }
         }
@@ -205,10 +207,14 @@ struct PasswoerterListe: View {
 
     // MARK: Leiste
 
+    private var zeigeLeiste: Bool {
+        sortierung == .name && !istBearbeiten && abschnitte.count >= 2 && suche.isEmpty
+    }
+
     @ViewBuilder
     private func leiste(_ proxy: ScrollViewProxy) -> some View {
         let a = abschnitte
-        if sortierung == .name, !istBearbeiten, a.count >= 2, suche.isEmpty {
+        if zeigeLeiste {
             AlphabetLeiste(buchstaben: a.map(\.kennung)) { b in
                 if let id = a.first(where: { $0.kennung == b })?.eintraege.first?.id { proxy.scrollTo(id, anchor: .top) }
             }

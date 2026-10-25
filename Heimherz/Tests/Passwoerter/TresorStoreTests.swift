@@ -45,6 +45,14 @@ final class PCAttrappe: Sendable {
     }
 }
 
+/// Eine Uhr, die der Test vorrücken kann.
+final class Uhr: Sendable {
+    private let zeit: Mutex<Date>
+    init(_ start: Date) { zeit = Mutex(start) }
+    var jetzt: Date { zeit.withLock { $0 } }
+    func vor(sekunden: Double) { zeit.withLock { $0 = $0.addingTimeInterval(sekunden) } }
+}
+
 /// Merkt, welche Tresore als Identitäten ans System gegangen wären (das echte System gibt es im Test nicht).
 final class IdentitaetenMerker: Sendable {
     private let staende = Mutex<[Tresor]>([])
@@ -63,6 +71,8 @@ final class TresorStoreTests: XCTestCase {
         let ablage: TresorAblage
         let identitaeten: IdentitaetenMerker
         let umgebung: AppUmgebung
+        /// Die Uhr des Stores; vorrücken, damit zwei Änderungen nacheinander verschiedene Zeitstempel bekommen (gleicher Stempel: der Grabstein gewinnt).
+        let uhr: Uhr
     }
 
     private func aufbau(gekoppelt: Bool = true, mitSchluessel: Bool = true, serverTresor: Tresor? = nil, lokalTresor: Tresor? = nil) throws -> Aufbau {
@@ -77,8 +87,9 @@ final class TresorStoreTests: XCTestCase {
         let umgebung = AppUmgebung(bund: bund, ablage: ablage, sitzung: sitzung, sperreAktiv: false)
         let merker = IdentitaetenMerker()
         let suite = UserDefaults(suiteName: "heimherz-test-\(UUID().uuidString)") ?? .standard
-        let store = TresorStore(umgebung: umgebung, identitaeten: { merker.merke($0) }, jetzt: { [jetzt] in jetzt }, merker: suite)
-        return Aufbau(store: store, pc: pc, ablage: ablage, identitaeten: merker, umgebung: umgebung)
+        let uhr = Uhr(jetzt)
+        let store = TresorStore(umgebung: umgebung, identitaeten: { merker.merke($0) }, jetzt: { uhr.jetzt }, merker: suite)
+        return Aufbau(store: store, pc: pc, ablage: ablage, identitaeten: merker, umgebung: umgebung, uhr: uhr)
     }
 
     func testOeffnenZeigtLokalenStandUndGleichtMitPCAb() async throws {
@@ -146,13 +157,15 @@ final class TresorStoreTests: XCTestCase {
         XCTAssertEqual(a.pc.puts, puts + 1, "drei Einträge, ein Speichern und ein Abgleich")
         XCTAssertEqual(a.store.eintraege, [])
         XCTAssertEqual(Set(a.store.geloeschte.map(\.id)), ["a", "b", "c"])
+        a.uhr.vor(sekunden: 60)
         await a.store.stelleWiederHer(ids: ["a"])
         await a.store.warteAufAbgleich()
+        a.uhr.vor(sekunden: 60)
         await a.store.loescheEndgueltig(ids: ["b"])
         await a.store.warteAufAbgleich()
         XCTAssertEqual(a.store.eintraege.map(\.id), ["a"])
         XCTAssertEqual(a.store.eintrag("a")?.passwort, "geheim")
-        XCTAssertEqual(a.store.eintrag("a")?.geaendert, Zeit.iso(jetzt))
+        XCTAssertEqual(a.store.eintrag("a")?.geaendert, Zeit.iso(jetzt.addingTimeInterval(60)))
         XCTAssertEqual(a.store.geloeschte.map(\.id), ["c"], "endgültig Gelöschtes erscheint nirgends mehr")
         let amPC = try XCTUnwrap(try a.pc.umschlag?.oeffne(schluessel: k))
         XCTAssertFalse(try XCTUnwrap(amPC.eintraege.first { $0.id == "a" }).geloescht)

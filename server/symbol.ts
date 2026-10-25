@@ -147,11 +147,13 @@ export const echterHoler: Holer = (url, ip, frist) => new Promise((ok, fehler) =
       if (n > MAX_BYTES) { teile.length = 0; r.destroy(new Error('zu gross')); return; }
       teile.push(d);
     });
-    res.on('end', () => ok({ status: res.statusCode ?? 0, kopf: Object.fromEntries(Object.entries(res.headers).map(([k, v]) => [k, String(v)])), body: Buffer.concat(teile) }));
-    res.on('error', fehler);
+    res.on('end', () => { clearTimeout(hart); ok({ status: res.statusCode ?? 0, kopf: Object.fromEntries(Object.entries(res.headers).map(([k, v]) => [k, String(v)])), body: Buffer.concat(teile) }); });
+    res.on('error', e => { clearTimeout(hart); fehler(e); });
   });
+  // `timeout` greift nur bei Stille am Socket; ein Server, der tröpfelt, wird hier nach `frist` hart abgebrochen.
+  const hart = setTimeout(() => r.destroy(new Error('Zeit')), frist);
   r.on('timeout', () => r.destroy(new Error('Zeit')));
-  r.on('error', fehler);
+  r.on('error', e => { clearTimeout(hart); fehler(e); });
   r.end();
 });
 

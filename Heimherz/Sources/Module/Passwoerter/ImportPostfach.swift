@@ -17,6 +17,9 @@ final class ImportPostfach {
     static let geteilt = ImportPostfach()
 
     private(set) var paket: ImportPaket?
+    /// So lange darf ein angenommener Import auf das Entsperren warten; danach ist der Klartext weg (der Tresor leert sich nach 5 Minuten ohne App genauso).
+    static let wartezeit: TimeInterval = 300
+    @ObservationIgnored private var paketVon = Date.distantPast
     private(set) var ergebnis: ImportZaehler?
     private(set) var fehler: String?
     private(set) var holt = false
@@ -39,14 +42,20 @@ final class ImportPostfach {
             let daten = try await ASCredentialImportManager().importCredentials(token: token)
             let gelesen = CredentialImportAdapter.konten(aus: daten)
             paket = ImportPaket(konten: gelesen.konten, uebersprungen: gelesen.uebersprungen)
+            paketVon = Date()
         } catch {
             fehler = "Der Import von Apple Passwörter hat nicht geklappt. Bitte versuche es noch einmal."
         }
     }
 
     /// Gibt das Paket genau einmal heraus.
-    func nimm() -> ImportPaket? {
+    func nimm(jetzt: Date = Date()) -> ImportPaket? {
         defer { paket = nil }
+        guard let paket else { return nil }
+        guard jetzt.timeIntervalSince(paketVon) <= Self.wartezeit else {
+            fehler = "Der Import war zu lange offen und wurde verworfen. Starte den Export in Apple Passwörter bitte noch einmal."
+            return nil
+        }
         return paket
     }
 
