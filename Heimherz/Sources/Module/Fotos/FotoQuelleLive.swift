@@ -39,13 +39,47 @@ final class EinmalFortsetzung<T: Sendable>: Sendable {
     }
 }
 
+/// Was ein Lauf von der Mediathek schon gelesen hat: die Köpfe und die Dateilisten der Assets, die schon nachgeschlagen wurden.
+/// Ändert sich die Mediathek mitten im Lauf, sieht erst der nächste Lauf das (neue Aufnahmen kommen dann dran).
+final class PlanSpeicher: Sendable {
+    struct Gelesen: @unchecked Sendable {   // shortcut: PHFetchResult ist unveränderlich und wird nur mit `object(at:)` gelesen
+        let treffer: PHFetchResult<PHAsset>
+        let koepfe: [FotoKopf]
+        let stelle: [String: Int]
+    }
+
+    private let inhalt = Mutex<(gelesen: Gelesen?, dateien: [Int: [FotoRessource]])>((nil, [:]))
+
+    var gelesen: Gelesen? { inhalt.withLock { $0.gelesen } }
+    func setze(_ g: Gelesen) { inhalt.withLock { $0.gelesen = g } }
+    func dateien(_ i: Int) -> [FotoRessource]? { inhalt.withLock { $0.dateien[i] } }
+    func merke(_ liste: [FotoRessource], _ i: Int) { inhalt.withLock { $0.dateien[i] = liste } }
+}
+
 /// Liest die Mediathek. Ändert und löscht nie etwas.
 struct FotoQuelleLive: FotoQuelle {
     /// Unter dieser Grenze freien Speichers wird nichts mehr exportiert.
     static let mindestFrei: Int64 = 1_000_000_000
 
+    /// Pro Lauf (`FotosModell.beginne` legt für jeden Lauf eine neue Quelle an) wird die Mediathek nur einmal gelesen, nicht bei jedem Planen neu.
+    private let speicher = PlanSpeicher()
+
     @concurrent
     func plane(stand: FotoStand, hoechstens: Int, nur: [String]?, uebersprungen: Set<String>) async -> FotoPlan.Ergebnis {
+        // Einzel-Upload (`nur`): klein, immer frisch. Sonst: Köpfe (Abfrage und SHA-256 je Asset) und Dateilisten kommen aus dem Lauf-Speicher.
+        let g = nur == nil ? speicher.gelesen : nil
+        let gelesen = g ?? Self.lese(nur: nur)
+        if nur == nil, g == nil { speicher.setze(gelesen) }
+        return FotoPlan.plane(koepfe: gelesen.koepfe, stand: stand, uebersprungen: uebersprungen, hoechstens: hoechstens, zaehleAlles: true) { kopf in
+            guard let i = gelesen.stelle[kopf.kennung] else { return [] }
+            if nur == nil, let schon = speicher.dateien(i) { return schon }
+            let liste = FotoBibliothek.ressourcen(gelesen.treffer.object(at: i)).map(\.ressource)
+            if nur == nil { speicher.merke(liste, i) }
+            return liste
+        }
+    }
+
+    private static func lese(nur: [String]?) -> PlanSpeicher.Gelesen {
         let treffer = nur.map { PHAsset.fetchAssets(withLocalIdentifiers: $0, options: nil) } ?? FotoBibliothek.abfrage()
         var koepfe: [FotoKopf] = []
         var stelle: [String: Int] = [:]
@@ -55,10 +89,7 @@ struct FotoQuelleLive: FotoQuelle {
             koepfe.append(k)
             stelle[k.kennung] = i
         }
-        return FotoPlan.plane(koepfe: koepfe, stand: stand, uebersprungen: uebersprungen, hoechstens: hoechstens, zaehleAlles: true) { kopf in
-            guard let i = stelle[kopf.kennung] else { return [] }
-            return FotoBibliothek.ressourcen(treffer.object(at: i)).map(\.ressource)
-        }
+        return PlanSpeicher.Gelesen(treffer: treffer, koepfe: koepfe, stelle: stelle)
     }
 
     /// Schreibt die Datei Stück für Stück in eine Temp-Datei (`requestData`, anders als `writeData` mit Abbruch).
