@@ -111,6 +111,9 @@ struct FotoQuelleLive: FotoQuelle {
         let treffer = PHAsset.fetchAssets(withLocalIdentifiers: [r.assetId], options: nil)
         guard let asset = treffer.firstObject,
               let objekt = FotoBibliothek.ressourcen(asset).first(where: { $0.ressource.name == r.name })?.objekt else { throw FotoFehler.nichtGefunden }
+        // Ursache des Stillstands (26.10.): ohne Netz bleibt `requestData` bei Dateien, die nur in iCloud liegen, einfach stehen (weder Daten noch Fehler).
+        // Bei Ahmed liegen die meisten noch offenen Originale nur in iCloud; jede belegte einen Platz für immer. Darum vorher fragen und sofort zurückstellen.
+        if !iCloud, Self.liegtAufDemHandy(objekt) == false { throw FotoFehler.nurInICloud }
         let ziel = FotoTemp.ordner.appending(path: "\(UUID().uuidString)-\(r.name)")
         guard FileManager.default.createFile(atPath: ziel.path, contents: nil) else { throw FotoFehler.speicherKnapp }
         let optionen = PHAssetResourceRequestOptions()
@@ -122,10 +125,18 @@ struct FotoQuelleLive: FotoQuelle {
         } catch {
             try? FileManager.default.removeItem(at: ziel)
             if Task.isCancelled { throw CancellationError() }
-            // Ist das Laden aus iCloud aus, heißt jeder Fehler hier: das Original liegt nicht auf dem Handy.
+            // Ist das Laden aus iCloud aus, heißt jeder Fehler hier: das Original liegt nicht auf dem Handy. Ein Hänger bleibt ein Hänger (Zählung).
+            if (error as? FotoFehler) == .haengt { throw FotoFehler.haengt }
             throw iCloud ? error : FotoFehler.nurInICloud
         }
         return ziel
+    }
+
+    /// Ob die Datei schon auf dem Handy liegt. PhotoKit sagt das nur über den Schlüssel `locallyAvailable` (nicht dokumentiert, seit iOS 9 da);
+    /// fehlt er, `nil`, dann entscheidet der Export selbst (mit `Stillstand` als Grenze).
+    static func liegtAufDemHandy(_ r: PHAssetResource) -> Bool? {
+        guard r.responds(to: NSSelectorFromString("locallyAvailable")) else { return nil }
+        return r.value(forKey: "locallyAvailable") as? Bool
     }
 
     private static func schreibe(_ objekt: PHAssetResource, in datei: FileHandle, optionen: PHAssetResourceRequestOptions) async throws {
@@ -136,6 +147,8 @@ struct FotoQuelleLive: FotoQuelle {
         let wache = Stillstand()
         // Lokal kommt das erste Byte sofort; aus iCloud darf es dauern.
         let grenze: Duration = optionen.isNetworkAccessAllowed ? .seconds(120) : .seconds(30)
+        // Aus iCloud lädt PhotoKit erst herunter und liefert dann Daten: der Fortschritt des Downloads zählt auch als Lebenszeichen.
+        optionen.progressHandler = { _ in wache.regt() }
         let anfrage = Mutex<PHAssetResourceDataRequestID?>(nil)
         let zu = Mutex(false)
         let schreibFehler = Mutex<(any Error)?>(nil)

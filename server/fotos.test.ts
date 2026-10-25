@@ -218,16 +218,16 @@ test('neue Foto-Dateien 0600, neue Ordner 0700', async () => {
 
 test('Tempo: je Upload eine Zeile mit nur Zahlen, Datei 0600, ungültige Kopfzeilen werden null', async () => {
   const datei = join(t.daten, 'foto-tempo.jsonl');
-  const h = { 'x-heim-export-ms': '120', 'x-heim-warte-ms': '35', 'x-heim-aktiv': '6', 'x-heim-exporte': '3', 'x-heim-vordergrund': '1', 'x-heim-durchgang': 'lokal', 'x-heim-session': 'vorder' };
+  const h = { 'x-heim-export-ms': '120', 'x-heim-warte-ms': '35', 'x-heim-aktiv': '6', 'x-heim-exporte': '3', 'x-heim-vordergrund': '1', 'x-heim-durchgang': 'lokal', 'x-heim-session': 'vorder', 'x-heim-aufgeschoben': '412', 'x-heim-haenger': '2' };
   expect((await foto('T1', 'foto-0', new Uint8Array(10), { ...h, 'x-dateiname': 'GEHEIM.HEIC' })).status).toBe(200);
   expect((await foto('T2', 'alternative-0', new Uint8Array(7), { 'x-heim-export-ms': 'abc', 'x-heim-durchgang': 'quatsch', 'x-heim-vordergrund': '2' })).status).toBe(200);
   const zeilen = readFileSync(datei, 'utf8').trim().split('\n').map(z => JSON.parse(z));
   const a = zeilen.find(z => z.bytes === 10 && z.exportMs === 120)!, b = zeilen.find(z => z.bytes === 7 && z.art === 'alternative')!;
-  expect(a).toMatchObject({ bytes: 10, ergebnis: 'neu', exportMs: 120, warteMs: 35, aktiv: 6, exporte: 3, vordergrund: 1, durchgang: 'lokal', session: 'vorder' });
+  expect(a).toMatchObject({ bytes: 10, ergebnis: 'neu', exportMs: 120, warteMs: 35, aktiv: 6, exporte: 3, vordergrund: 1, durchgang: 'lokal', session: 'vorder', aufgeschoben: 412, haenger: 2 });
   expect(a.empfangMs).toBeGreaterThanOrEqual(0);
   expect(a.gesamtMs).toBeGreaterThanOrEqual(a.empfangMs);
   expect(new Date(a.zeit).getTime()).toBeGreaterThan(0);
-  expect(b).toMatchObject({ bytes: 7, exportMs: null, warteMs: null, vordergrund: null, durchgang: null, session: null });
+  expect(b).toMatchObject({ bytes: 7, exportMs: null, warteMs: null, vordergrund: null, durchgang: null, session: null, aufgeschoben: null, haenger: null });
   expect(readFileSync(datei, 'utf8')).not.toContain('GEHEIM');
   expect(statSync(datei).mode & 0o777).toBe(0o600);
 });

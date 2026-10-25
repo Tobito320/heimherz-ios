@@ -66,6 +66,9 @@ struct FotoMessung: Sendable, Equatable {
     var aktiv: Int
     var exporte: Int
     var iCloud: Bool
+    /// Bis hierher in diesem Lauf: nach iCloud zurückgestellt, wegen Stillstand abgebrochen.
+    var aufgeschoben = 0
+    var haenger = 0
 
     func setze(in anfrage: inout URLRequest) {
         anfrage.setValue(String(max(0, exportMs)), forHTTPHeaderField: "X-Heim-Export-Ms")
@@ -73,6 +76,8 @@ struct FotoMessung: Sendable, Equatable {
         anfrage.setValue(String(max(0, aktiv)), forHTTPHeaderField: "X-Heim-Aktiv")
         anfrage.setValue(String(max(0, exporte)), forHTTPHeaderField: "X-Heim-Exporte")
         anfrage.setValue(iCloud ? "icloud" : "lokal", forHTTPHeaderField: "X-Heim-Durchgang")
+        anfrage.setValue(String(max(0, aufgeschoben)), forHTTPHeaderField: "X-Heim-Aufgeschoben")
+        anfrage.setValue(String(max(0, haenger)), forHTTPHeaderField: "X-Heim-Haenger")
     }
 
     /// Was erst der Sender weiß: ob die App vorn war und über welche Sitzung es ging. `zusatzWarteMs`: Zeit, die der Sender selbst noch verbraucht hat.
