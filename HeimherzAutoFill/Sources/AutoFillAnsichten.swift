@@ -18,13 +18,14 @@ struct AutoFillWurzel: View {
                 SpeichernAnsicht(aktion: aktion, anfrageHost: modell.anfrageHost, sichern: { Task { await modell.bestaetigeSpeichern() } }, abbrechen: { modell.abbrechen() })
             case .konfiguration:
                 KonfigurationAnsicht(fertig: { modell.fertigKonfiguration() })
+            case .fremdesKonto(let eintrag, let seite):
+                FremdesKontoAnsicht(eintrag: eintrag, seite: seite, ausfuellen: { modell.bestaetigeFremdes() }, abbrechen: { modell.lehneFremdesAb() })
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background { Color.grund.ignoresSafeArea() }
         .tint(Color.knopf)
         .fontDesign(.rounded)
-        .task { await modell.starte() }
     }
 }
 
@@ -187,6 +188,40 @@ private struct SpeichernAnsicht: View {
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
             Button("Abbrechen", action: abbrechen)
+                .frame(minHeight: Abstand.tippflaeche)
+        }
+        .padding(Abstand.xl)
+    }
+}
+
+/// Phishing-Fall: Ahmed hat in der Suche ein Konto gewählt, das nicht zur Seite gehört.
+private struct FremdesKontoAnsicht: View {
+    let eintrag: Eintrag
+    let seite: String
+    let ausfuellen: () -> Void
+    let abbrechen: () -> Void
+
+    var body: some View {
+        VStack(spacing: Abstand.l) {
+            Spacer()
+            HausherzView(stimmung: .sorry, groesse: 100)
+            Text("Passt nicht zur Seite")
+                .font(.title2.weight(.bold))
+                .foregroundStyle(Color.tinte)
+            Text("Dieses Konto gehört zu \(EintragSuche.hosts(von: eintrag).first ?? eintrag.name), die Seite ist \(seite). Trotzdem ausfüllen?")
+                .font(.body)
+                .foregroundStyle(Color.tinte2)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer()
+            Button(action: abbrechen) {
+                Text("Abbrechen")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity, minHeight: Abstand.tippflaeche)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            Button("Trotzdem ausfüllen", role: .destructive, action: ausfuellen)
                 .frame(minHeight: Abstand.tippflaeche)
         }
         .padding(Abstand.xl)

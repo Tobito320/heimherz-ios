@@ -1,4 +1,6 @@
+import AuthenticationServices
 import CryptoKit
+import Synchronization
 import XCTest
 @testable import Heimherz
 
@@ -152,7 +154,7 @@ private struct AbbruchSpeicher: KeychainSpeicher {
         if konto == Schluesselbund.kontoSchluessel { throw SchluesselbundFehler.entsperrenAbgebrochen }
         return Data("x".utf8)
     }
-    func schreiben(_ konto: String, daten: Data, mitAbfrage: Bool) throws {}
+    func schreiben(_ konto: String, daten: Data, schutz: KeychainSchutz) throws {}
     func loeschen(_ konto: String) throws {}
 }
 
@@ -258,21 +260,32 @@ final class AutoFillSitzungTests: XCTestCase {
 
     // MARK: Modell
 
-    private func modell(_ auftrag: AutoFillAuftrag, tresor: Tresor?, sitzung: AutoFillSitzung? = nil, ergebnis: @escaping (AutoFillErgebnis) -> Void) throws -> (AutoFillModell, Aufbau) {
+    private func modell(_ auftrag: AutoFillAuftrag, tresor: Tresor?, sitzung: AutoFillSitzung? = nil, einstellungen: GeteilteEinstellungen? = nil,
+                        nutzung: Nutzung? = nil, ergebnis: @escaping (AutoFillErgebnis) -> Void) throws -> (AutoFillModell, Aufbau) {
         let a = try aufbau(tresor: tresor)
-        let m = AutoFillModell(auftrag: auftrag, sitzung: sitzung ?? a.sitzung, jetzt: { Date(timeIntervalSince1970: 59) })
+        let m = AutoFillModell(auftrag: auftrag, sitzung: sitzung ?? a.sitzung, jetzt: { Date(timeIntervalSince1970: 59) },
+                               einstellungen: einstellungen ?? Self.frischeEinstellungen(), nutzung: nutzung ?? Nutzung(speicher: Self.frischerSpeicher()),
+                               warten: { _ in })
         m.abschluss = ergebnis
+        m.zwischenablage = { _ in }
         return (m, a)
     }
 
-    private var beispiel: Tresor {
+    private nonisolated static func frischerSpeicher() -> UserDefaults {
+        UserDefaults(suiteName: "heimherz-test-\(UUID().uuidString)") ?? .standard
+    }
+
+    private nonisolated static func frischeEinstellungen() -> GeteilteEinstellungen { GeteilteEinstellungen(speicher: frischerSpeicher()) }
+
+    /// Fest einmal gebaut: `Eintrag` stempelt `geaendert` mit der Uhr, zwei Aufrufe wären nie gleich.
+    private let beispiel: Tresor = {
         Tresor(eintraege: [
             Eintrag(id: "1", name: "Zebra", benutzer: "mia", passwort: "pw1", urls: ["https://example.com"], totp: "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"),
             Eintrag(id: "2", name: "Anker", benutzer: "tom", passwort: "pw2", urls: ["https://m.example.com"]),
             Eintrag(id: "3", name: "Fremd", benutzer: "x", passwort: "pw3", urls: ["https://andere.org"], totp: "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"),
             Eintrag(id: "4", art: Eintrag.artNotiz, name: "Notiz", notiz: "n")
         ])
-    }
+    }()
 
     func testListeZeigtPassendeZuerstUndFiltertNachSuche() async throws {
         let (m, _) = try modell(.liste(hosts: ["example.com"], codes: false), tresor: beispiel) { _ in }
@@ -406,5 +419,244 @@ final class AutoFillSitzungTests: XCTestCase {
         XCTAssertEqual(m.phase, .konfiguration)
         m.fertigKonfiguration()
         XCTAssertEqual(e, [.konfigurationFertig])
+    }
+
+    // MARK: Schneller (W-010): -25308, Start erst bei sichtbarer Ansicht
+
+    /// Schlüsselbund, der K zuerst mit -25308 verweigert (Erweiterung noch nicht aktiv) und danach herausgibt.
+    private final class ZuFrueh: KeychainSpeicher, @unchecked Sendable {
+        let innen = MemorySpeicher()
+        private let uebrig: Mutex<Int>
+        init(fehlversuche: Int) { uebrig = Mutex(fehlversuche) }
+        func lesen(_ konto: String, kontext: EntsperrKontext?) throws -> Data? {
+            if konto == Schluesselbund.kontoSchluessel {
+                let werfen = uebrig.withLock { n -> Bool in
+                    guard n > 0 else { return false }
+                    n -= 1
+                    return true
+                }
+                if werfen { throw SchluesselbundFehler.abfrageNochNichtMoeglich }
+            }
+            return try innen.lesen(konto, kontext: kontext)
+        }
+        func schreiben(_ konto: String, daten: Data, schutz: KeychainSchutz) throws { try innen.schreiben(konto, daten: daten, schutz: schutz) }
+        func loeschen(_ konto: String) throws { try innen.loeschen(konto) }
+    }
+
+    private func zuFruehModell(fehlversuche: Int) throws -> AutoFillModell {
+        let speicher = ZuFrueh(fehlversuche: fehlversuche)
+        let bund = Schluesselbund(speicher: speicher, dauer: { .aus })
+        try bund.speichereSchluessel(k)
+        try bund.speichereGeraet(Geraet(url: URL(string: "https://pc.ts.net") ?? URL(fileURLWithPath: "/"), token: TestSchluessel.token))
+        let ablage = TresorAblage(ordner: try tempOrdner())
+        try ablage.speichere(Umschlag.verschliesse(beispiel, schluessel: k, rev: 1))
+        let s = AutoFillSitzung(bund: bund, ablage: ablage, client: nil, identitaeten: { _ in })
+        let m = AutoFillModell(auftrag: .anfrage(id: "2", codes: false), sitzung: s, einstellungen: Self.frischeEinstellungen(),
+                               nutzung: Nutzung(speicher: Self.frischerSpeicher()), warten: { _ in })
+        m.zwischenablage = { _ in }
+        return m
+    }
+
+    func testFehler25308WirdStillNachgeholtUndNieGezeigt() async throws {
+        var e: [AutoFillErgebnis] = []
+        let m = try zuFruehModell(fehlversuche: 2)
+        m.abschluss = { e.append($0) }
+        await m.ansichtIstAktiv()
+        XCTAssertEqual(e, [.passwort(benutzer: "tom", passwort: "pw2")])
+    }
+
+    func testBleibt25308ZeigtDieOberflaecheDenKnopfOhneFehlertext() async throws {
+        let m = try zuFruehModell(fehlversuche: 99)
+        await m.ansichtIstAktiv()
+        XCTAssertEqual(m.phase, .entsperren(fehler: nil), "weder die Nummer noch ein Satz")
+        XCTAssertFalse(SchluesselbundFehler.abfrageNochNichtMoeglich.nutzerText.contains("25308"))
+    }
+
+    func testAnsichtIstAktivStartetNurEinmal() async throws {
+        var e: [AutoFillErgebnis] = []
+        let (m, _) = try modell(.anfrage(id: "2", codes: false), tresor: beispiel) { e.append($0) }
+        XCTAssertEqual(m.phase, .start, "vor der sichtbaren Ansicht passiert nichts")
+        await m.ansichtIstAktiv()
+        await m.ansichtIstAktiv()
+        XCTAssertEqual(e.count, 1)
+    }
+
+    // MARK: Fenster (W-009): Ausfüllen ohne Blatt
+
+    private func fensterModell(host: String?, id: String = "1", codes: Bool = false, fensterOffen: Bool = true,
+                               einstellungen: GeteilteEinstellungen? = nil, nutzung: Nutzung? = nil,
+                               ergebnis: @escaping (AutoFillErgebnis) -> Void, kopiert: @escaping (String) -> Void = { _ in }) throws -> AutoFillModell {
+        let bund = Schluesselbund(speicher: MemorySpeicher(), dauer: { .fuenfMinuten })
+        try bund.speichereSchluessel(k)
+        try bund.speichereGeraet(Geraet(url: URL(string: "https://pc.ts.net") ?? URL(fileURLWithPath: "/"), token: TestSchluessel.token))
+        if fensterOffen { bund.oeffneFenster(k) }
+        let ablage = TresorAblage(ordner: try tempOrdner())
+        try ablage.speichere(Umschlag.verschliesse(beispiel, schluessel: k, rev: 1))
+        let s = AutoFillSitzung(bund: bund, ablage: ablage, client: nil, identitaeten: { _ in })
+        let m = AutoFillModell(auftrag: .anfrage(id: id, codes: codes, host: host), sitzung: s, jetzt: { Date(timeIntervalSince1970: 59) },
+                               einstellungen: einstellungen ?? Self.frischeEinstellungen(), nutzung: nutzung ?? Nutzung(speicher: Self.frischerSpeicher()), warten: { _ in })
+        m.abschluss = ergebnis
+        m.zwischenablage = { kopiert($0) }
+        return m
+    }
+
+    func testOhneBlattMitOffenemFensterLiefertPasswortUndCode() async throws {
+        var e: [AutoFillErgebnis] = []
+        let p = try fensterModell(host: "example.com") { e.append($0) }
+        await p.starteOhneAbfrage()
+        let c = try fensterModell(host: "example.com", codes: true) { e.append($0) }
+        await c.starteOhneAbfrage()
+        XCTAssertEqual(e, [.passwort(benutzer: "mia", passwort: "pw1"), .code("287082")])
+    }
+
+    func testOhneBlattBeiGeschlossenemFensterVerlangtDasBlatt() async throws {
+        var e: [AutoFillErgebnis] = []
+        let m = try fensterModell(host: "example.com", fensterOffen: false) { e.append($0) }
+        await m.starteOhneAbfrage()
+        XCTAssertEqual(e, [.abfrageNoetig])
+    }
+
+    func testOhneBlattNurBeiPassendemHostSonstBlatt() async throws {
+        // Eintrag 1 gehört zu example.com. Nahe Verwandte und Fälschungen dürfen ohne Blatt nie durch.
+        var e: [AutoFillErgebnis] = []
+        for host in ["example.com.evil.com", "evilexample.com", "example-com.com", "example.org", "com", ""] {
+            let m = try fensterModell(host: host) { e.append($0) }
+            await m.starteOhneAbfrage()
+        }
+        let ohneHost = try fensterModell(host: nil) { e.append($0) }   // `.app`-Bezeichner ohne Host
+        await ohneHost.starteOhneAbfrage()
+        XCTAssertEqual(e, Array(repeating: .abfrageNoetig, count: 7))
+    }
+
+    func testOhneBlattGrabsteinUndNotizBleibenDraussen() async throws {
+        var e: [AutoFillErgebnis] = []
+        let m = try fensterModell(host: "example.com", id: "4") { e.append($0) }   // Notiz
+        await m.starteOhneAbfrage()
+        XCTAssertEqual(e, [.nichtGefunden])
+        var t = beispiel
+        t.eintraege[0].geloescht = true
+        let bund = Schluesselbund(speicher: MemorySpeicher(), dauer: { .fuenfMinuten })
+        try bund.speichereSchluessel(k)
+        bund.oeffneFenster(k)
+        let ablage = TresorAblage(ordner: try tempOrdner())
+        try ablage.speichere(Umschlag.verschliesse(t, schluessel: k, rev: 1))
+        let s = AutoFillSitzung(bund: bund, ablage: ablage, client: nil, identitaeten: { _ in })
+        let g = AutoFillModell(auftrag: .anfrage(id: "1", codes: false, host: "example.com"), sitzung: s, einstellungen: Self.frischeEinstellungen(),
+                               nutzung: Nutzung(speicher: Self.frischerSpeicher()), warten: { _ in })
+        g.abschluss = { e.append($0) }
+        await g.starteOhneAbfrage()
+        XCTAssertEqual(e, [.nichtGefunden, .nichtGefunden], "ein Grabstein wird nie geliefert")
+    }
+
+    func testUnterdomainDesEintragsDarfOhneBlattAberKeineFremdeDomain() async throws {
+        var e: [AutoFillErgebnis] = []
+        let m = try fensterModell(host: "login.example.com") { e.append($0) }
+        await m.starteOhneAbfrage()
+        XCTAssertEqual(e, [.passwort(benutzer: "mia", passwort: "pw1")])
+    }
+
+    // MARK: Phishing-Schutz in der Liste
+
+    func testSparkasseGegenFaelschungen() {
+        let e = Eintrag(id: "s", name: "Sparkasse", benutzer: "x", passwort: "p", urls: ["https://sparkasse.de"])
+        for fremd in ["sparkasse.de.evil.com", "evilsparkasse.de", "sparkasse-de.com", "sparkasse.com", "de"] {
+            XCTAssertEqual(AutoFillModell.passung(e, hosts: [fremd]), .fremd(seite: fremd), fremd)
+        }
+        XCTAssertEqual(AutoFillModell.passung(e, hosts: ["sparkasse.de"]), .passt)
+        XCTAssertEqual(AutoFillModell.passung(e, hosts: ["www.sparkasse.de"]), .passt)
+        XCTAssertEqual(AutoFillModell.passung(e, hosts: []), .unbekannt)
+        XCTAssertEqual(AutoFillModell.passung(Eintrag(id: "o", name: "o", urls: []), hosts: ["sparkasse.de"]), .fremd(seite: "sparkasse.de"), "Konto ohne Host passt zu keiner Seite")
+    }
+
+    func testFremdesKontoInDerListeFragtErstNachUndFuelltNurNachBestaetigung() async throws {
+        var e: [AutoFillErgebnis] = []
+        var kopiert: [String] = []
+        let (m, _) = try modell(.liste(hosts: ["evil-example.com"], codes: false), tresor: beispiel) { e.append($0) }
+        m.zwischenablage = { kopiert.append($0) }
+        await m.starte()
+        m.waehle(beispiel.eintraege[0])
+        XCTAssertEqual(m.phase, .fremdesKonto(beispiel.eintraege[0], seite: "evil-example.com"))
+        XCTAssertTrue(e.isEmpty, "nichts wurde geliefert")
+        m.lehneFremdesAb()
+        XCTAssertEqual(m.phase, .liste)
+        XCTAssertTrue(e.isEmpty)
+        m.waehle(beispiel.eintraege[0])
+        m.bestaetigeFremdes()
+        XCTAssertEqual(e, [.passwort(benutzer: "mia", passwort: "pw1")])
+        XCTAssertTrue(kopiert.isEmpty, "bei einem fremden Konto nie ein Code in die Zwischenablage")
+    }
+
+    func testPassendesKontoInDerListeFuelltOhneRueckfrage() async throws {
+        var e: [AutoFillErgebnis] = []
+        let (m, _) = try modell(.liste(hosts: ["example.com"], codes: false), tresor: beispiel) { e.append($0) }
+        await m.starte()
+        m.waehle(beispiel.eintraege[0])
+        XCTAssertEqual(e, [.passwort(benutzer: "mia", passwort: "pw1")])
+    }
+
+    func testFremdeAnfrageMitBlattFragtNach() async throws {
+        let (m, _) = try modell(.anfrage(id: "1", codes: false, host: "fremd.org"), tresor: beispiel) { _ in }
+        await m.starte()
+        XCTAssertEqual(m.phase, .fremdesKonto(beispiel.eintraege[0], seite: "fremd.org"))
+    }
+
+    // MARK: Code in die Zwischenablage (W-011) und Nutzung (W-020)
+
+    func testCodeLiegtNachDemPasswortInDerAblageNurAufPassendemHost() async throws {
+        var kopiert: [String] = []
+        var e: [AutoFillErgebnis] = []
+        let m = try fensterModell(host: "example.com") { e.append($0) } kopiert: { kopiert.append($0) }
+        await m.starteOhneAbfrage()
+        XCTAssertEqual(kopiert, ["287082"])
+        // Eintrag 2 hat kein TOTP: nichts kopieren. Den Code selbst zu liefern kopiert auch nichts.
+        var k2: [String] = []
+        let ohneTotp = try fensterModell(host: "m.example.com", id: "2") { _ in } kopiert: { k2.append($0) }
+        await ohneTotp.starteOhneAbfrage()
+        let code = try fensterModell(host: "example.com", codes: true) { _ in } kopiert: { k2.append($0) }
+        await code.starteOhneAbfrage()
+        XCTAssertTrue(k2.isEmpty)
+    }
+
+    func testCodeKopierenAusKopiertNichts() async throws {
+        let einst = Self.frischeEinstellungen()
+        einst.codeKopieren = false
+        var kopiert: [String] = []
+        let m = try fensterModell(host: "example.com", einstellungen: einst) { _ in } kopiert: { kopiert.append($0) }
+        await m.starteOhneAbfrage()
+        XCTAssertTrue(kopiert.isEmpty)
+    }
+
+    func testAusfuellenMerktDieNutzungBeiPasswortUndCode() async throws {
+        let n = Nutzung(speicher: Self.frischerSpeicher())
+        let p = try fensterModell(host: "example.com", nutzung: n) { _ in }
+        await p.starteOhneAbfrage()
+        XCTAssertEqual(Array(n.zuletzt.keys), ["1"])
+        let n2 = Nutzung(speicher: Self.frischerSpeicher())
+        let c = try fensterModell(host: "example.com", codes: true, nutzung: n2) { _ in }
+        await c.starteOhneAbfrage()
+        XCTAssertEqual(Array(n2.zuletzt.keys), ["1"])
+        let n3 = Nutzung(speicher: Self.frischerSpeicher())
+        let (l, _) = try modell(.liste(hosts: [], codes: false), tresor: beispiel, nutzung: n3) { _ in }
+        await l.starte()
+        l.waehle(beispiel.eintraege[1])
+        XCTAssertEqual(Array(n3.zuletzt.keys), ["2"])
+    }
+
+    @MainActor
+    func testCodeAblageIstLokalMitAblaufNach60Sekunden() {
+        let jetzt = Date(timeIntervalSince1970: 1000)
+        let o = CodeAblage.optionen(jetzt: jetzt)
+        XCTAssertEqual(o[.localOnly] as? Bool, true)
+        XCTAssertEqual(o[.expirationDate] as? Date, jetzt.addingTimeInterval(60))
+    }
+
+    // MARK: Einmalcode-Identitäten (W-011)
+
+    func testEintragMitTotpUndZweiHostsHatCodeIdentitaetFuerJedenHost() {
+        let e = Eintrag(id: "a", name: "Arbeitsagentur", benutzer: "mia", passwort: "GEHEIM", urls: ["https://sso.arbeitsagentur.de", "https://web.arbeitsagentur.de"],
+                        totp: "JBSWY3DPEHPK3PXP")
+        let codes = AutoFillIdentitaeten.baue(aus: Tresor(eintraege: [e])).compactMap { $0 as? ASOneTimeCodeCredentialIdentity }
+        XCTAssertEqual(codes.map(\.serviceIdentifier.identifier).sorted(), ["sso.arbeitsagentur.de", "web.arbeitsagentur.de"])
+        XCTAssertEqual(Set(codes.compactMap(\.recordIdentifier)), ["a"])
     }
 }

@@ -8,6 +8,14 @@ import UIKit
 final class CredentialProviderViewController: ASCredentialProviderViewController {
     private var modell: AutoFillModell?
     private var hosting: UIHostingController<AutoFillWurzel>?
+    /// Face ID darf erst starten, wenn der Auftrag gesetzt ist und die Ansicht wirklich sichtbar ist (sonst -25308); die Reihenfolge der beiden ist nicht garantiert.
+    private var sichtbar = false
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        sichtbar = true
+        if let modell { Task { await modell.ansichtIstAktiv() } }
+    }
 
     // MARK: Passwörter und Einmalcodes
 
@@ -20,18 +28,27 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
         zeige(.liste(hosts: EintragSuche.hosts(von: serviceIdentifiers), codes: true))
     }
 
-    /// Der Schlüssel K liegt hinter Face ID (`.userPresence`): ohne Abfrage geht es nie, also immer über die Oberfläche.
+    /// Aus der Vorschlagsleiste ohne Blatt, nur bei offenem Entsperr-Fenster (SPEC 10) und wenn der Host der Identität zum Konto passt.
+    /// Sonst `userInteractionRequired`: iOS zeigt dann das Blatt mit Face ID. Der Schlüssel K selbst bleibt hinter Face ID (`.userPresence`).
     override func provideCredentialWithoutUserInteraction(for credentialRequest: any ASCredentialRequest) {
-        meldeFehler(.userInteractionRequired)
+        let identitaet = credentialRequest.credentialIdentity
+        let codes = credentialRequest is ASOneTimeCodeCredentialRequest
+        guard let id = identitaet.recordIdentifier, codes || credentialRequest is ASPasswordCredentialRequest,
+              let host = EintragSuche.host(von: identitaet.serviceIdentifier),   // `.app` ohne Host: Blatt
+              let sitzung = try? AutoFillSitzung.live() else { return meldeFehler(.userInteractionRequired) }
+        let still = AutoFillModell(auftrag: .anfrage(id: id, codes: codes, host: host), sitzung: sitzung)
+        still.abschluss = { [weak self] ergebnis in self?.beenden(ergebnis) }
+        Task { await still.starteOhneAbfrage() }
     }
 
     /// Ein Konto aus der Vorschlagsleiste: einmal Face ID, dann das Passwort oder den Einmalcode liefern.
     override func prepareInterfaceToProvideCredential(for credentialRequest: any ASCredentialRequest) {
         guard let id = credentialRequest.credentialIdentity.recordIdentifier else { return meldeFehler(.credentialIdentityNotFound) }
+        let host = EintragSuche.host(von: credentialRequest.credentialIdentity.serviceIdentifier)
         if credentialRequest is ASOneTimeCodeCredentialRequest {
-            zeige(.anfrage(id: id, codes: true))
+            zeige(.anfrage(id: id, codes: true, host: host))
         } else if credentialRequest is ASPasswordCredentialRequest {
-            zeige(.anfrage(id: id, codes: false))
+            zeige(.anfrage(id: id, codes: false, host: host))
         } else {
             meldeFehler(.failed)   // Passkeys gibt es erst in Phase 2
         }
@@ -93,6 +110,15 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
         let neu = AutoFillModell(auftrag: auftrag, sitzung: sitzung, startFehler: startFehler)
         neu.abschluss = { [weak self] ergebnis in self?.beenden(ergebnis) }
         modell = neu
+        if sichtbar {
+            Task { await neu.ansichtIstAktiv() }
+        } else {
+            // Falls viewDidAppear nie kommt: sonst bliebe die Oberfläche tot. Das -25308-Nachholen im Modell fängt zu frühes Starten ab.
+            Task { [weak self] in
+                try? await Task.sleep(for: .seconds(2))
+                if let self, self.modell === neu { await neu.ansichtIstAktiv() }
+            }
+        }
         entferneOberflaeche()
         let controller = UIHostingController(rootView: AutoFillWurzel(modell: neu))
         addChild(controller)
@@ -134,6 +160,8 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
             meldeFehler(.credentialIdentityNotFound)
         case .fehlgeschlagen:
             meldeFehler(.failed)
+        case .abfrageNoetig:
+            meldeFehler(.userInteractionRequired)
         }
     }
 
