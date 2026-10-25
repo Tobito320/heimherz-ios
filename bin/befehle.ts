@@ -66,6 +66,12 @@ export async function exportBitwarden(a: Abh, datei: string) {
 const zelle = (s: string) => s.replace(/[\t\r\n]+/g, ' ');
 const host = (u: string) => { try { return new URL(u).hostname; } catch { return u; } };
 
+// Für `heimherz fuell`: Einträge nur in den Speicher, nie ausgeben.
+export async function eintraege(a: Abh) {
+  const { v, k } = await verbindung(a);
+  return (await ladeTresor(v, k)).tresor.eintraege;
+}
+
 // Nie Passwort, nie TOTP-Geheimnis, nie Notiztext.
 export async function liste(a: Abh, suche?: string) {
   const { v, k } = await verbindung(a);
