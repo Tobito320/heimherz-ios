@@ -16,12 +16,20 @@
    "login": {
     "uris": [
      { "match": null, "uri": "https://shop.example.org/login" },
-     { "match": null, "uri": "https://www.shop.example.org/" }
+     { "match": 3, "uri": "https://www.shop.example.org/" }
     ],
     "username": "erika@example.org",
     "password": "Erfunden-Passwort-111!",
     "totp": "otpauth://totp/Shop:erika?secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ&issuer=Shop"
    },
+   "fields": [
+    { "name": "Kundennummer", "value": "K-4711-erfunden", "type": 0, "linkedId": null },
+    { "name": "Sicherheitsfrage", "value": "Erfundene-Antwort-555", "type": 1, "linkedId": null },
+    { "name": "Newsletter", "value": "true", "type": 2, "linkedId": null }
+   ],
+   "passwordHistory": [
+    { "lastUsedDate": "2026-05-01T09:00:00.000Z", "password": "Erfunden-Alt-Passwort-000" }
+   ],
    "collectionIds": null,
    "revisionDate": "2026-09-01T10:00:00.000Z",
    "creationDate": "2026-01-01T10:00:00.000Z",
@@ -32,7 +40,7 @@
    "organizationId": null,
    "folderId": null,
    "type": 1,
-   "reprompt": 0,
+   "reprompt": 1,
    "name": "Passkey-Seite",
    "notes": null,
    "favorite": false,
@@ -75,6 +83,9 @@
    "notes": null,
    "favorite": false,
    "login": { "uris": [], "username": null, "password": "Erfunden-Passwort-333#", "totp": null },
+   "attachments": [
+    { "id": "a0000000000000000000000000000001", "fileName": "erfunden.pdf", "size": "1234", "sizeName": "1.2 KB", "url": "https://example.invalid/anhang" }
+   ],
    "collectionIds": null,
    "revisionDate": "2026-07-01T00:00:00.000Z",
    "creationDate": "2026-07-01T00:00:00.000Z",
@@ -123,6 +134,21 @@
    "collectionIds": null,
    "revisionDate": "2026-04-04T04:04:04.000Z",
    "creationDate": "2026-04-04T04:04:04.000Z",
+   "deletedDate": null
+  },
+  {
+   "id": "b0000000-0000-4000-8000-000000000008",
+   "organizationId": null,
+   "folderId": null,
+   "type": 5,
+   "reprompt": 0,
+   "name": "Erfundener SSH-Schlüssel",
+   "notes": "Nur zum Testen",
+   "favorite": false,
+   "sshKey": { "privateKey": "-----BEGIN FAKE KEY-----\nZXJmdW5kZW4=\n-----END FAKE KEY-----", "publicKey": "ssh-ed25519 AAAAerfunden test@example.org", "keyFingerprint": "SHA256:erfunden" },
+   "collectionIds": null,
+   "revisionDate": "2026-02-02T02:02:02.000Z",
+   "creationDate": "2026-02-02T02:02:02.000Z",
    "deletedDate": null
   },
   {
