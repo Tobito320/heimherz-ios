@@ -75,7 +75,7 @@ final class TresorStore {
             zustand = .laedt
             let zaehler = sperrZaehler
             do {
-                guard let k = try await umgebung.bund.ladeSchluessel() else {
+                guard let k = try await umgebung.bund.ladeSchluessel(kontext: umgebung.sperre.kontext) else {
                     zustand = .fehler("Auf diesem Handy liegt kein Tresorschlüssel. Bitte neu koppeln (Tab Mehr).")
                     return
                 }

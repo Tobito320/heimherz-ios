@@ -65,13 +65,14 @@ final class FotosModell {
         hintergrundAn = PHPhotoLibrary.shared().uploadJobExtensionEnabled
     }
 
-    /// Einmal beim Öffnen: Stand neu lesen, Erweiterung einschalten, Reste aufräumen.
-    func lade() async {
+    /// Beim Öffnen und bei jedem Wechsel der Kopplung: Stand neu lesen, Erweiterung einschalten (nur gekoppelt, sonst gäbe es Jobs ohne Zugang), Reste aufräumen.
+    func lade(gekoppelt: Bool) async {
         guard !istDemo else { return }
+        if !gekoppelt { abbrechen() }   // ein laufender Abgleich trägt noch das alte Token
         stand = ablage.lade()
         erlaubnis = Self.lese(PHPhotoLibrary.authorizationStatus(for: .readWrite))
         if erlaubnis == .voll {
-            try? PHPhotoLibrary.shared().setUploadJobExtensionEnabled(true)
+            if gekoppelt { try? PHPhotoLibrary.shared().setUploadJobExtensionEnabled(true) }
             hintergrundAn = PHPhotoLibrary.shared().uploadJobExtensionEnabled
         }
         FotoTemp.raeumeAuf(behalte: await HintergrundUpload.geteilt.laufendeDateien())

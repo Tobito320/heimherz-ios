@@ -23,7 +23,7 @@ final class HeimClientTests: XCTestCase {
     }
 
     func testStatusFehlerWerdenZuDeutschenFehlern() async throws {
-        for (status, erwartet) in [(401, HeimFehler.nichtBerechtigt), (403, .verboten), (404, .nichtGefunden), (413, .zuGross), (500, .serverFehler(500)), (418, .abgelehnt(418))] {
+        for (status, erwartet) in [(401, HeimFehler.nichtBerechtigt), (403, .verboten), (404, .nichtGefunden), (413, .zuGross), (507, .speicherVoll), (500, .serverFehler(500)), (418, .abgelehnt(418))] {
             let c = client { _, _ in .init(status: status) }
             do { _ = try await c.status(); XCTFail("sollte scheitern") } catch { XCTAssertEqual(error as? HeimFehler, erwartet) }
         }

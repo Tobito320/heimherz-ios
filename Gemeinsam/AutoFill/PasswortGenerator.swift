@@ -8,7 +8,7 @@ struct PasswortRegeln: Sendable, Equatable {
     var laenge = 20
     var ziffern = true
     var sonderzeichen = true
-    var woerter = 5
+    var woerter = 6
     var trenner = "-"
     var grossschreiben = true
     var mitZahl = true

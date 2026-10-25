@@ -107,7 +107,7 @@ struct EintragDetailView: View {
                 trenner
             }
             if !e.passwort.isEmpty {
-                zeile("Passwort", wert: zeigePasswort ? e.passwort : String(repeating: "•", count: 10), monospace: zeigePasswort) {
+                zeile("Passwort", wert: zeigePasswort ? e.passwort : String(repeating: "•", count: 10), monospace: zeigePasswort, auswaehlbar: false) {
                     HStack(spacing: 0) {
                         knopf(zeigePasswort ? "eye.slash" : "eye", zeigePasswort ? "Passwort verbergen" : "Passwort zeigen") { passwortUmschalten() }
                         knopf("doc.on.doc", "Passwort kopieren") { kopiere(e.passwort, "Passwort") }
@@ -182,14 +182,15 @@ struct EintragDetailView: View {
         Rectangle().fill(Color.haar).frame(height: 1).padding(.vertical, Abstand.s).accessibilityHidden(true)
     }
 
-    private func zeile<Aktionen: View>(_ titel: String, wert: String, monospace: Bool = false, @ViewBuilder aktionen: () -> Aktionen) -> some View {
+    /// `auswaehlbar` false beim Passwort: kopiert wird nur über den eigenen Knopf (lokal, mit Ablauf), nie über das Auswahlmenü des Systems.
+    private func zeile<Aktionen: View>(_ titel: String, wert: String, monospace: Bool = false, auswaehlbar: Bool = true, @ViewBuilder aktionen: () -> Aktionen) -> some View {
         HStack(spacing: Abstand.s) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(titel).font(.footnote).foregroundStyle(Color.tinte2)
                 Text(wert)
                     .font(monospace ? .system(.body, design: .monospaced) : .body)
                     .foregroundStyle(Color.tinte)
-                    .textSelection(.enabled)
+                    .textSelection(auswaehlbar ? .enabled : .disabled)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: Abstand.s)

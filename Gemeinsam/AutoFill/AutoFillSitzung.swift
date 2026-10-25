@@ -76,17 +76,18 @@ final class AutoFillSitzung {
         guard let k = schluessel, let alt = tresor else { throw AutoFillFehler.nichtGekoppelt }
         let neu = PasswortSpeichern.anwenden(aktion, auf: alt)
         guard neu != alt else { return }
-        try await dienst.speichereLokal(neu, schluessel: k)
-        tresor = neu
+        // Der Dienst mischt die Datei ein, die die App inzwischen geändert haben kann; mit dem Ergebnis geht es weiter.
+        let stand = try await dienst.speichereLokal(neu, schluessel: k)
+        tresor = stand
         let dienst = self.dienst
         await withTaskGroup(of: Void.self) { gruppe in
-            gruppe.addTask { _ = try? await dienst.abgleichen(lokal: neu, schluessel: k) }
+            gruppe.addTask { _ = try? await dienst.abgleichen(lokal: stand, schluessel: k) }
             gruppe.addTask { try? await Task.sleep(for: .seconds(sekunden)) }
             _ = await gruppe.next()
             gruppe.cancelAll()
         }
         // Nach dem Abgleich kann der Stand am PC größer sein; die Identitäten kennen jedoch immer mindestens den lokalen.
-        await identitaeten(neu)
+        await identitaeten(stand)
     }
 
     private nonisolated static func setzeImSystem(_ tresor: Tresor) async {

@@ -129,7 +129,12 @@ struct Schluesselbund: Sendable {
     }
 
     /// Entkoppeln: K, Token und URL weg. Der Tresor am PC bleibt unberührt.
+    /// Versucht alle drei und meldet den ersten Fehler erst danach, damit nichts halb gelöscht stehen bleibt, nur weil ein Eintrag klemmt.
     func vergiss() throws {
-        for konto in [Self.kontoSchluessel, Self.kontoToken, Self.kontoURL] { try speicher.loeschen(konto) }
+        var erster: Error?
+        for konto in [Self.kontoSchluessel, Self.kontoToken, Self.kontoURL] {
+            do { try speicher.loeschen(konto) } catch { erster = erster ?? error }
+        }
+        if let erster { throw erster }
     }
 }

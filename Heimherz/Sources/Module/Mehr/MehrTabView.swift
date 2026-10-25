@@ -7,6 +7,9 @@ struct MehrTabView: View {
     @Environment(\.openURL) private var oeffne
     @State private var zeigeKoppeln = false
     @State private var frageEntkoppeln = false
+    @State private var pruefungEntkoppeln = EntkoppelPruefung.alleAmPC
+    @State private var pruefeEntkoppeln = false
+    @State private var entkoppelFehler: String?
 
     private var buildDatum: String? {
         Bundle.main.object(forInfoDictionaryKey: "HeimherzBuildDatum") as? String
@@ -31,10 +34,12 @@ struct MehrTabView: View {
         }
         .sheet(isPresented: $zeigeKoppeln) { KoppelBlatt() }
         .confirmationDialog("Dieses Handy vom PC trennen?", isPresented: $frageEntkoppeln, titleVisibility: .visible) {
-            Button("Entkoppeln", role: .destructive) { umgebung.entkoppeln() }
+            Button("Entkoppeln", role: .destructive) {
+                do { try umgebung.entkoppeln() } catch { entkoppelFehler = "Entkoppeln hat nicht geklappt: \(FehlerText.von(error))" }
+            }
             Button("Abbrechen", role: .cancel) {}
         } message: {
-            Text("Schlüssel und Zugang werden auf diesem Handy gelöscht. Am PC bleibt alles; das Token dort widerrufst du mit `heimherz geraet weg`.")
+            Text(pruefungEntkoppeln.nachricht)
         }
         .onAppear {
             #if DEBUG
@@ -70,6 +75,9 @@ struct MehrTabView: View {
             if let fehler = umgebung.statusFehler {
                 StatusChip(text: fehler, symbol: "exclamationmark.triangle.fill", ton: .warn)
             }
+            if let fehler = entkoppelFehler {
+                StatusChip(text: fehler, symbol: "xmark.octagon.fill", ton: .schlecht)
+            }
             if umgebung.istGekoppelt {
                 HStack {
                     Button {
@@ -82,13 +90,20 @@ struct MehrTabView: View {
                     .disabled(umgebung.statusLaedt)
                     Spacer()
                     Button(role: .destructive) {
-                        frageEntkoppeln = true
+                        entkoppelFehler = nil
+                        Task {
+                            pruefeEntkoppeln = true
+                            pruefungEntkoppeln = await umgebung.pruefeVorEntkoppeln()
+                            pruefeEntkoppeln = false
+                            frageEntkoppeln = true
+                        }
                     } label: {
-                        Label("Entkoppeln", systemImage: "link.badge.minus")
+                        Label(pruefeEntkoppeln ? "Prüfe …" : "Entkoppeln", systemImage: "link.badge.minus")
                             .frame(minHeight: Abstand.tippflaeche)
                     }
                     .buttonStyle(.glass)
                     .tint(Color.schlecht)
+                    .disabled(pruefeEntkoppeln)
                 }
             } else {
                 Button {

@@ -46,6 +46,7 @@ enum HeimFehler: Error, Equatable, LocalizedError {
     case nichtGefunden
     case konflikt
     case zuGross
+    case speicherVoll
     case ungueltigeAntwort
     case serverFehler(Int)
     case abgelehnt(Int)
@@ -79,6 +80,7 @@ enum HeimFehler: Error, Equatable, LocalizedError {
         case .nichtGefunden: return "Das gibt es auf dem PC nicht (mehr)."
         case .konflikt: return "Das läuft auf dem PC schon, oder es wurde gleichzeitig geändert."
         case .zuGross: return "Die Datei ist zu groß für den PC-Dienst."
+        case .speicherVoll: return "Die Platte am PC ist voll. Der Abgleich hält an, bis dort wieder Platz ist."
         case .ungueltigeAntwort: return "Die Antwort vom PC ist unverständlich."
         case .serverFehler(let n): return "Der PC-Dienst meldet einen Fehler (\(n))."
         case .abgelehnt(let n): return "Der PC hat die Anfrage abgelehnt (\(n))."
@@ -97,6 +99,7 @@ enum HeimFehler: Error, Equatable, LocalizedError {
         case 404: return .nichtGefunden
         case 409: return .konflikt
         case 413: return .zuGross
+        case 507: return .speicherVoll
         case 500...599: return .serverFehler(status)
         default: return .abgelehnt(status)
         }

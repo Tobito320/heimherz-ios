@@ -27,9 +27,11 @@ struct PasswoerterInhalt: View {
     private struct Lage: Equatable {
         let gesperrt: Bool
         let gekoppelt: Bool
+        /// Ein neuer Zugang ersetzt den alten, ohne dass `gekoppelt` wechselt.
+        let kopplung: Int
     }
 
-    private var lage: Lage { Lage(gesperrt: umgebung.sperre.gesperrt, gekoppelt: umgebung.istGekoppelt) }
+    private var lage: Lage { Lage(gesperrt: umgebung.sperre.gesperrt, gekoppelt: umgebung.istGekoppelt, kopplung: umgebung.kopplung) }
 
     var body: some View {
         NavigationStack(path: $pfad) {
@@ -54,8 +56,8 @@ struct PasswoerterInhalt: View {
     }
 
     private func lageAnwenden() async {
+        store.sperren()   // jede neue Lage (auch ein neuer Zugang) beginnt mit leerem Speicher
         if lage.gesperrt || !lage.gekoppelt {
-            store.sperren()
             suche = ""
             pfad = []
             formular = nil

@@ -20,10 +20,15 @@ struct AppRootView: View {
         }
         .tint(Color.knopf)
         .fontDesign(.rounded)
+        .accessibilityHidden(umgebung.sperre.verdeckt)
         .overlay {
             if umgebung.sperre.gesperrt { SperrAnsicht(sperre: umgebung.sperre).transition(.opacity) }
         }
         .animation(Feder.weich, value: umgebung.sperre.gesperrt)
+        .overlay {
+            // Ohne Übergang und ohne Animation: der Schnappschuss des App-Umschalters entsteht Sekundenbruchteile nach dem Wechsel.
+            if umgebung.sperre.verdeckt { DeckFlaeche() }
+        }
         .onChange(of: tab) { _, _ in Haptik.auswahl() }
         .onChange(of: phase) { _, neu in umgebung.sperre.szene(neu) }
     }

@@ -75,6 +75,17 @@ final class PasswortGeneratorTests: XCTestCase {
         XCTAssertEqual(q, q.lowercased())
     }
 
+    func testPassphraseHatStandardmaessigSechsWoerter() {
+        var z = FesterZufall(5)
+        var r = PasswortRegeln()
+        r.modus = .wortgruppe
+        XCTAssertEqual(r.woerter, 6)
+        XCTAssertEqual(PasswortGenerator.erzeuge(r, mit: &z).split(separator: "-").count, 7, "sechs Wörter und die Zahl")
+        var v = FesterZufall(6)
+        let wort = PasswortVorschlaege.erzeuge(regeln: [nil], mit: &v).first { $0.art == .wortgruppe }
+        XCTAssertEqual(wort?.wert.split(separator: "-").count, 7, "auch der AutoFill-Vorschlag")
+    }
+
     func testWortlisteIstSauber() {
         let w = Wortliste.woerter
         XCTAssertGreaterThanOrEqual(w.count, 1024, "mindestens 10 Bit je Wort")

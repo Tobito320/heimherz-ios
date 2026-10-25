@@ -12,6 +12,7 @@ enum KoppelFehler: Error, Equatable, LocalizedError {
     case keinKoppelLink
     case adresseFehlt
     case nurHttps
+    case keinTailnet
     case tokenUngueltig
     case schluesselUngueltig
 
@@ -20,6 +21,7 @@ enum KoppelFehler: Error, Equatable, LocalizedError {
         case .keinKoppelLink: return "Das ist kein Heimherz-Koppel-Link."
         case .adresseFehlt: return "Im Link fehlt die Adresse des PCs."
         case .nurHttps: return "Die Adresse muss mit https:// beginnen."
+        case .keinTailnet: return "Die Adresse muss ein Tailscale-Name sein (endet auf .ts.net)."
         case .tokenUngueltig: return "Das Geräte-Token im Link ist ungültig."
         case .schluesselUngueltig: return "Der Schlüssel im Link ist ungültig."
         }
@@ -39,6 +41,8 @@ enum KoppelLink {
         guard let url = URL(string: adresse), url.scheme?.lowercased() == "https", let host = url.host, !host.isEmpty else {
             throw KoppelFehler.nurHttps
         }
+        // Der Link enthält den Schlüssel zu allen Passwörtern: nur der eigene Tailnet-Name, nie eine fremde Adresse.
+        guard host.lowercased().hasSuffix(".ts.net") else { throw KoppelFehler.keinTailnet }
         guard let token = werte["token"], base64url(token)?.count == 32 else { throw KoppelFehler.tokenUngueltig }
         guard let k = werte["schluessel"], let roh = base64url(k), roh.count == 32 else { throw KoppelFehler.schluesselUngueltig }
         return KoppelDaten(url: url, token: token, schluessel: roh)

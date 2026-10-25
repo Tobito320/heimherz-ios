@@ -157,6 +157,8 @@ Einstieg je Modul: `ios-passwoerter` ersetzt `Heimherz/Sources/Module/Passwoerte
 
 Foto-Erweiterung (iOS 26.1, aus Apples Doku "Uploading asset resources in the background"): Protokoll `PHBackgroundResourceUploadExtension` (`process()`, `notifyTermination()`), Erweiterungspunkt `com.apple.photos.background-upload` (`EXAppExtensionAttributes`), XcodeGen-Typ `extensionkit-extension`, im App-Bundle unter `Extensions/`. Info.plist-Schlüssel `BackgroundUploadURLBase` (feste Basis-URL des Dienstes, Build-Einstellung `HEIMHERZ_UPLOAD_URL_BASE`, im TestFlight-Lauf aus dem Secret gleichen Namens). Ein eigenes Entitlement nennt Apple nicht. Die App muss `PHPhotoLibrary.shared().setUploadJobExtensionEnabled(true)` nach voller Fotos-Erlaubnis rufen. Laut Doku fragt das System den Upload-Endpunkt vorab mit `OPTIONS` ab (Antwort `501` = kein Resumable Upload) und erwartet bei Resumable Uploads `104`; der PC-Dienst kennt `OPTIONS` noch nicht (T6, T9 prüfen).
 
+Sicherheit (25.10., nach der Prüfung): Koppeln nimmt nur Hosts auf `.ts.net`, zeigt vorher "Mit <host> koppeln?" (bei schon gekoppeltem Handy mit Warnung, dass der alte Zugang samt Tresor ersetzt wird, und einem Abgleichversuch davor). Entkoppeln versucht vorher einen Abgleich und zeigt sonst "N Änderungen noch nicht am PC"; Fehler des Schlüsselbunds werden angezeigt; die Foto-Erweiterung wird ausgeschaltet. Es gibt kein URL-Schema `heimherz://` mehr (der QR wird nur in der App gescannt; `Kennungen.urlSchema` bleibt für das Lesen des Textes). Bei `.inactive` und `.background` deckt `AppSperre.verdeckt` sofort das Haus über den Inhalt (unabhängig von den 5 Minuten). App-Sperre und Laden von K teilen sich einen `EntsperrKontext` (`AppSperre.kontext`, bei jeder Sperre neu): beim Start nur eine Face-ID-Abfrage.
+
 ## 9. Modul `ios-passwoerter`
 
 Liste mit Suche (Name, Benutzer, Host), Favoriten oben. Detail: Benutzer und Passwort kopieren (Zwischenablage `localOnly`, Ablauf 60 s), Passwort zeigen nach Face ID, TOTP-Code mit Ring. Neu und Bearbeiten, Löschen als Grabstein. Generator (Länge 8 bis 64, Ziffern, Zeichen, Wortgruppen-Modus). Abgleich: beim Öffnen, nach jeder Änderung, per Ziehen; Ablauf `GET` → entschlüsseln → zusammenführen → verschlüsseln → `PUT If-Match`; 409 = nochmal (höchstens 3). Nach jedem Abgleich Identitäten an `ASCredentialIdentityStore` geben (nur Host, Benutzer, id). App sperrt nach 5 min im Hintergrund.
@@ -170,6 +172,8 @@ Liste mit Suche (Name, Benutzer, Host), Favoriten oben. Detail: Benutzer und Pas
 - Generator: Zeichen-Modus (8 bis 64, Ziffern, Sonderzeichen `!#$%&*+-=?@_`, von jeder Klasse mindestens eins), Wortgruppen-Modus (3 bis 8 Wörter, optional Zahl, Trenner). Wortliste (1180 Wörter, kleingeschrieben, ASCII) steht im Quelltext (`Wortliste.swift`) statt als Bundle-Ressource, weil die AutoFill-Erweiterung dasselbe Modul `Gemeinsam` nutzt und kein Zugriff auf das App-Bundle hat. Zufall: `SystemRandomNumberGenerator`.
 - Identitäten (`AutoFillIdentitaeten.baue`): je lebendigem Login mit Benutzer und je Host der URLs eine `ASPasswordCredentialIdentity` (`.domain`, `recordIdentifier` = Eintrag-id, `rank` 1 bei Favorit); bei lesbarem TOTP zusätzlich eine `ASOneTimeCodeCredentialIdentity`. Nie Passwort oder TOTP-Geheimnis.
 - Hostzuordnung: gleicher Host oder Unterdomain an der Punktgrenze (`m.example.com` passt zu `example.com`, `evilexample.com` nicht). Keine Public-Suffix-Liste (`shortcut:` im Code).
+
+Gebaut (25.10., Prüfung): `TresorDienst.speichereLokal` liest die Datei direkt vorher neu und führt sie ein (App und Erweiterung überschreiben sich nie); auch der Abgleich schreibt keinen Stand über Änderungen, die währenddessen in die Datei kamen. `TresorAblage` merkt in `tresor.abgeglichen`, wann der PC zuletzt bestätigt hat (Grundlage für "N Änderungen noch nicht am PC"). Passphrase standardmäßig 6 Wörter.
 
 ## 10. Modul `ios-autofill`
 
@@ -191,6 +195,8 @@ Liste mit Suche (Name, Benutzer, Host), Favoriten oben. Detail: Benutzer und Pas
 - `SupportsCredentialExchange` ist nicht gesetzt: nichts dahinter gebaut (SPEC 2: iCloud-Import offen). Nachziehen, wenn der Import kommt.
 - Die Passwörter-App mischt vor jedem Schreiben und Abgleichen den Cache-Stand ein, falls die Erweiterung zwischendurch gespeichert hat. Ein gleichzeitiges Schreiben beider Prozesse im selben Augenblick ist nicht abgesichert (kleines Fenster, der Merge holt es beim nächsten Abgleich nach, solange der Eintrag in einer der beiden Fassungen steht).
 
+Gebaut (25.10., Prüfung): genauer Host-Treffer geht vor Unterdomain-Treffer (Liste und Speichern); beim Aktualisieren zeigt der Dialog alle Hosts des Eintrags und warnt, wenn die Seite nur eine Unterdomain davon ist. Das ersetzte Passwort bleibt als `passwortVerlauf` (unbekanntes Feld, Liste `{passwort, bis}`, neueste zuerst, höchstens 5) am Eintrag. Das sichtbare Passwort in der Detailansicht ist nicht auswählbar (Kopieren nur über den Knopf, `localOnly` mit Ablauf).
+
 ## 11. Modul `ios-fotos`
 
 - Erlaubnis Fotos (voller Zugriff). Abgleich: alle `PHAsset`, deren Kennung nicht in `GET /v1/fotos/bekannt` steht; je Ressource (`PHAssetResource`: Foto, gepaartes Video, Video, bearbeitete Fassung nicht) Export per `PHAssetResourceManager.writeData` in eine Temp-Datei, dann Hintergrund-`URLSession` `uploadTask(fromFile:)`. Kennung = SHA-256 von `localIdentifier`, b64url, 43 Zeichen.
@@ -200,11 +206,15 @@ Liste mit Suche (Name, Benutzer, Host), Favoriten oben. Detail: Benutzer und Pas
 
 Gebaut (25.10.): Server antwortet auf `OPTIONS /v1/fotos/…` ohne Token mit 501 (kein Resumable Upload, Apple-Weg) und nimmt POST wie PUT; Teil-Uploads 400. Ressourcen `foto-N`, `video-N`, `live-N`, `alternative-N`, `ton-N`; bearbeitete Fassungen gehen nicht mit (später). `Gemeinsam/Fotos/` teilt Kennung, Plan und Stand (`fotos-stand.json` in der App Group) zwischen App und Erweiterung; die Erweiterung hat kein Netz zum Abfragen und liest `bekannt` aus dem Stand. Vor iOS 26.5 merkt sie eingereichte Jobs selbst (3 Tage), vor 26.4 kein `job.error`. Ohne WLAN wartet die App statt iCloud-Originale mobil zu laden. Kein `handleEventsForBackgroundURLSession`: alte Transfers werden beim nächsten Öffnen des Tabs eingesammelt.
 
+Prüfung (25.10.): Ein Serverfehler (5xx) oder eine Ablehnung (4xx außer 401) überspringt nur diese Datei (gezählt, Grund im Stand, beim nächsten Lauf wieder offen). Den Lauf halten nur 401, 507 (`HeimFehler.speicherVoll`, Platte am PC voll) und echte Verbindungsfehler an. 411 kann nicht vorkommen: Uploads laufen über `uploadTask(with:fromFile:)` (Länge aus der Datei). Nach dem Entkoppeln ist die Foto-Erweiterung aus; sie schaltet sich nur bei gekoppeltem Handy wieder ein. Bereits angelegte Jobs tragen das alte Token und scheitern am PC.
+
 ## 12. Modul `ios-dateien`
 
 Ordnerliste, Vorschau mit QuickLook (Download in Cache, Range wird nicht gebraucht), Teilen (`ShareLink`), Hochladen aus Dateien-App (`fileImporter`) und Fotos, in den Papierkorb legen mit Rückfrage. Kein Offline-Spiegel.
 
 Gebaut (25.10.): Datei antippen öffnet ein Blatt mit Ansehen, Teilen, Papierkorb; Papierkorb auch per Langdruck. Fotos-Auswahl lädt Dateien (nicht Data), Name `Foto JJJJ-MM-TT HH-MM-SS.ext`, bis 20 auf einmal.
+
+Prüfung (25.10.): `dateiHochladen` sendet über `upload(for:fromFile:)`, die Länge ist damit gesetzt (der Dienst verlangt sie jetzt, sonst 411). 507 hält den Upload-Lauf an.
 
 ## 13. Modul `freigabe`
 

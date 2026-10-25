@@ -150,7 +150,44 @@ final class FotoAbgleichTests: XCTestCase {
         let u = try baue(assets: [asset("a", [(.foto, "boese.heic")]), asset("b", [(.foto, "gut.heic")]), asset("c", [(.foto, "gut2.heic")])], sender: sender)
         await u.abgleich.abgleichen()
         XCTAssertEqual(sender.pfade.count, 3)
-        XCTAssertEqual(u.ablage.lade().fehler, "1 Datei konnte nicht übertragen werden.")
+        XCTAssertEqual(u.ablage.lade().fehler, "1 Datei konnte nicht übertragen werden (vom PC abgelehnt, Code 400).")
         XCTAssertEqual(u.anzeigen.mit { $0.last }?.zahlen, FotoZahlen(gesamt: 3, amPC: 2))
     }
+
+    func testServerfehlerEinerDateiUeberspringtNurDieseDatei() async throws {
+        for fehler in [HeimFehler.serverFehler(503), .serverFehler(500), .abgelehnt(400), .abgelehnt(411), .zuGross, .verboten] {
+            let sender = FakeSender { r in r.value(forHTTPHeaderField: "X-Dateiname") == "kaputt.heic" ? fehler : nil }
+            let u = try baue(assets: [asset("a", [(.foto, "kaputt.heic")]), asset("b", [(.foto, "gut.heic")]), asset("c", [(.foto, "gut2.heic")]), asset("d", [(.foto, "gut3.heic")])], sender: sender)
+            await u.abgleich.abgleichen()
+            XCTAssertEqual(sender.pfade.count, 4, "\(fehler): alle Dateien wurden versucht, der Lauf lief weiter")
+            XCTAssertEqual(u.ablage.lade().fertig.count, 3, "\(fehler)")
+            let text = try XCTUnwrap(u.ablage.lade().fehler)
+            XCTAssertTrue(text.hasPrefix("1 Datei konnte nicht übertragen werden ("), "\(fehler): \(text)")
+        }
+    }
+
+    func testServerfehlerImStandMitGrund() async throws {
+        let sender = FakeSender { r in r.value(forHTTPHeaderField: "X-Dateiname") == "kaputt.heic" ? .serverFehler(503) : nil }
+        let u = try baue(assets: [asset("a", [(.foto, "kaputt.heic")]), asset("b", [(.foto, "gut.heic")])], sender: sender)
+        await u.abgleich.abgleichen()
+        XCTAssertEqual(u.ablage.lade().fehler, "1 Datei konnte nicht übertragen werden (Serverfehler 503).")
+    }
+
+    func testNurZugangPlatteVollUndVerbindungStoppenDenLauf() async throws {
+        let faelle: [(HeimFehler, String)] = [
+            (.nichtBerechtigt, HeimFehler.nichtBerechtigt.nutzerText),
+            (.speicherVoll, HeimFehler.speicherVoll.nutzerText),
+            (.nichtErreichbar, HeimFehler.nichtErreichbar.nutzerText),
+            (.zeitueberschreitung, HeimFehler.zeitueberschreitung.nutzerText)
+        ]
+        for (fehler, text) in faelle {
+            let sender = FakeSender { _ in fehler }
+            let u = try baue(assets: (1...6).map { asset("a\($0)", [(.foto, "x\($0).heic")]) }, sender: sender)
+            await u.abgleich.abgleichen()
+            XCTAssertLessThanOrEqual(sender.pfade.count, 2, "\(fehler): höchstens die zwei gleichzeitig laufenden")
+            XCTAssertEqual(u.ablage.lade().fehler, text, "\(fehler)")
+        }
+        XCTAssertTrue(HeimFehler.speicherVoll.nutzerText.contains("voll"))
+    }
 }
+

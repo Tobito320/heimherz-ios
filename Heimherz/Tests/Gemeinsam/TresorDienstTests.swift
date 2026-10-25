@@ -205,3 +205,82 @@ final class TresorAblageTests: XCTestCase {
         XCTAssertNil(TresorAblage.appGruppe())
     }
 }
+
+/// M4: App und Erweiterung schreiben dieselbe Datei und dürfen sich nie überschreiben.
+final class TresorDienstMischenTests: XCTestCase {
+    private let k = TestSchluessel.schluessel
+    private let jetzt = Date(timeIntervalSince1970: 1_792_886_400)
+
+    private func dienst(_ ablage: TresorAblage) -> TresorDienst {
+        TresorDienst(ablage: ablage, client: nil, jetzt: { [jetzt] in jetzt })
+    }
+
+    func testSpeichereLokalMischtDieDateiEin() async throws {
+        let ablage = TresorAblage(ordner: try tempOrdner())
+        // Die Erweiterung hat "ext" gespeichert, die App kennt nur "app" und weiß nichts davon.
+        try await dienst(ablage).speichereLokal(Tresor(eintraege: [testEintrag("ext")]), schluessel: k)
+        let stand = try await dienst(ablage).speichereLokal(Tresor(eintraege: [testEintrag("app")]), schluessel: k)
+        XCTAssertEqual(stand.eintraege.map(\.id), ["app", "ext"])
+        let gelesen = try await dienst(ablage).lokal(schluessel: k)
+        XCTAssertEqual(gelesen, stand)
+    }
+
+    func testNeuereAenderungDesAufrufersGewinntTrotzMischen() async throws {
+        let ablage = TresorAblage(ordner: try tempOrdner())
+        try await dienst(ablage).speichereLokal(Tresor(eintraege: [testEintrag("a", passwort: "alt", geaendert: "2026-10-01T10:00:00.000Z")]), schluessel: k)
+        let stand = try await dienst(ablage).speichereLokal(Tresor(eintraege: [testEintrag("a", passwort: "neu", geaendert: "2026-10-02T10:00:00.000Z")]), schluessel: k)
+        XCTAssertEqual(stand.eintraege.first?.passwort, "neu")
+    }
+
+    func testRevBleibtUndFalscherSchluesselUeberschreibtNichts() async throws {
+        let ablage = TresorAblage(ordner: try tempOrdner())
+        let vorher = try Umschlag.verschliesse(Tresor(eintraege: [testEintrag("a")]), schluessel: k, rev: 7)
+        try ablage.speichere(vorher)
+        let fremd = SymmetricKey(data: Data(repeating: 9, count: 32))
+        do {
+            try await dienst(ablage).speichereLokal(Tresor(eintraege: [testEintrag("b")]), schluessel: fremd)
+            XCTFail("falscher Schlüssel")
+        } catch {
+            XCTAssertEqual(error as? TresorFehler, .entschluesselungFehlgeschlagen)
+        }
+        XCTAssertEqual(try ablage.lade(), vorher)
+        try await dienst(ablage).speichereLokal(Tresor(eintraege: [testEintrag("b")]), schluessel: k)
+        XCTAssertEqual(try ablage.lade()?.rev, 7)
+    }
+
+    func testAbgleichUeberschreibtNichtWasDieErweiterungWaehrenddessenSchrieb() async throws {
+        let server = FakeServer()
+        let ablage = TresorAblage(ordner: try tempOrdner())
+        let (sitzung, basis) = FakeNetz.neu { r, b in server.handle(r, b) }
+        let dienst = TresorDienst(ablage: ablage, client: HeimClient(basis: basis, token: TestSchluessel.token, sitzung: sitzung), jetzt: { [jetzt] in jetzt })
+        let schluessel = k
+        // Während des PUT legt die Erweiterung "ext" in die Datei (hier gleichzeitig und darum von Hand, ohne Zufall).
+        server.vorPut { _ in
+            let vorhanden = (try? ablage.lade()?.oeffne(schluessel: schluessel)) ?? Tresor()
+            let neu = Tresor(eintraege: vorhanden.eintraege + [testEintrag("ext")])
+            if let u = try? Umschlag.verschliesse(neu, schluessel: schluessel, rev: 0) { try? ablage.speichere(u) }
+        }
+        let e = try await dienst.abgleichen(lokal: Tresor(eintraege: [testEintrag("app")]), schluessel: k)
+        guard case .abgeglichen(let t, _) = e else { return XCTFail("\(e)") }
+        XCTAssertEqual(Set(t.eintraege.map(\.id)), ["app", "ext"], "der Aufrufer bekommt den Stand, der in der Datei liegt")
+        let ids = try await self.dienst(ablage).lokal(schluessel: k)?.eintraege.map(\.id)
+        XCTAssertEqual(ids?.contains("app"), true)
+        XCTAssertEqual(ids?.contains("ext"), true, "der Eintrag der Erweiterung darf nicht fehlen")
+    }
+
+    func testUngesendeteZaehltEintraegeNachDemLetztenAbgleich() async throws {
+        let server = FakeServer()
+        let ablage = TresorAblage(ordner: try tempOrdner())
+        let (sitzung, basis) = FakeNetz.neu { r, b in server.handle(r, b) }
+        let dienst = TresorDienst(ablage: ablage, client: HeimClient(basis: basis, token: TestSchluessel.token, sitzung: sitzung), jetzt: { [jetzt] in jetzt })
+        let alt = testEintrag("alt", geaendert: Zeit.iso(jetzt.addingTimeInterval(-3_600)))
+        XCTAssertEqual(ablage.ungesendet(in: Tresor(eintraege: [alt])), 1, "ohne Merker gilt alles als ungesendet")
+        _ = try await dienst.abgleichen(lokal: Tresor(eintraege: [alt]), schluessel: k)
+        XCTAssertEqual(ablage.ungesendet(in: Tresor(eintraege: [alt])), 0)
+        let neu = testEintrag("neu", geaendert: Zeit.iso(jetzt.addingTimeInterval(60)))
+        let grab = testEintrag("grab", geaendert: Zeit.iso(jetzt.addingTimeInterval(90)), geloescht: true)
+        XCTAssertEqual(ablage.ungesendet(in: Tresor(eintraege: [alt, neu, grab])), 2, "auch Löschungen zählen")
+        try ablage.loesche()
+        XCTAssertEqual(ablage.ungesendet(in: Tresor(eintraege: [alt])), 1, "der Merker geht mit dem Cache")
+    }
+}

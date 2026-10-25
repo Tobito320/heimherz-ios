@@ -64,6 +64,57 @@ final class PasswortSpeichernTests: XCTestCase {
     }
 }
 
+final class PasswortVerlaufTests: XCTestCase {
+    private let jetzt = Date(timeIntervalSince1970: 1_792_886_400)
+
+    func testGenauerHostGehtVorUnterdomain() {
+        // Der Unterdomain-Eintrag steht vorn in der Liste, trotzdem soll der mit genau dem Host aktualisiert werden.
+        let t = Tresor(eintraege: [
+            Eintrag(id: "sub", name: "Sub", benutzer: "mia", passwort: "a", urls: ["https://m.example.org"]),
+            Eintrag(id: "genau", name: "Genau", benutzer: "mia", passwort: "b", urls: ["https://example.org"])
+        ])
+        guard case .aktualisieren(let e) = PasswortSpeichern.plane(in: t, host: "example.org", name: "x", benutzer: "mia", passwort: "neu", jetzt: jetzt) else { return XCTFail() }
+        XCTAssertEqual(e.id, "genau")
+        guard case .aktualisieren(let f) = PasswortSpeichern.plane(in: t, host: "m.example.org", name: "x", benutzer: "mia", passwort: "neu", jetzt: jetzt) else { return XCTFail() }
+        XCTAssertEqual(f.id, "sub")
+    }
+
+    func testAltesPasswortWandertInDenVerlauf() {
+        let t = Tresor(eintraege: [Eintrag(id: "1", name: "B", benutzer: "mia", passwort: "p0", urls: ["https://example.org"])])
+        guard case .aktualisieren(let e) = PasswortSpeichern.plane(in: t, host: "example.org", name: "x", benutzer: "mia", passwort: "p1", jetzt: jetzt) else { return XCTFail() }
+        XCTAssertEqual(e.passwort, "p1")
+        XCTAssertEqual(e.unbekannt["passwortVerlauf"], .liste([.objekt(["passwort": .text("p0"), "bis": .text(Zeit.iso(jetzt))])]))
+    }
+
+    func testVerlaufHaeltHoechstensFuenfNeuesteVorn() {
+        var t = Tresor(eintraege: [Eintrag(id: "1", name: "B", benutzer: "mia", passwort: "p0", urls: ["https://example.org"])])
+        for i in 1...7 {
+            guard case .aktualisieren(let e) = PasswortSpeichern.plane(in: t, host: "example.org", name: "x", benutzer: "mia", passwort: "p\(i)", jetzt: jetzt.addingTimeInterval(Double(i))) else { return XCTFail("\(i)") }
+            t = PasswortSpeichern.anwenden(.aktualisieren(e), auf: t)
+        }
+        let liste = t.eintraege[0].unbekannt["passwortVerlauf"]?.alsListe ?? []
+        XCTAssertEqual(liste.count, PasswortSpeichern.verlaufMax)
+        guard case .objekt(let neuester)? = liste.first else { return XCTFail() }
+        XCTAssertEqual(neuester["passwort"], .text("p6"), "p7 ist das jetzige Passwort, p6 das zuletzt ersetzte")
+        XCTAssertEqual(t.eintraege[0].passwort, "p7")
+    }
+
+    func testVerlaufUeberlebtVerschluesselnUndLesen() throws {
+        let t = Tresor(eintraege: [Eintrag(id: "1", name: "B", benutzer: "mia", passwort: "p0", urls: ["https://example.org"])])
+        guard case .aktualisieren(let e) = PasswortSpeichern.plane(in: t, host: "example.org", name: "x", benutzer: "mia", passwort: "p1", jetzt: jetzt) else { return XCTFail() }
+        let neu = PasswortSpeichern.anwenden(.aktualisieren(e), auf: t)
+        let zurueck = try Umschlag.verschliesse(neu, schluessel: TestSchluessel.schluessel).oeffne(schluessel: TestSchluessel.schluessel)
+        XCTAssertEqual(zurueck.eintraege[0].unbekannt["passwortVerlauf"], e.unbekannt["passwortVerlauf"])
+    }
+
+    func testHostHinweisNurBeiUnterdomain() {
+        let e = Eintrag(id: "1", name: "B", urls: ["https://example.org"])
+        XCTAssertNil(PasswortSpeichern.hostHinweis(fuer: e, anfrageHost: "example.org"))
+        XCTAssertNil(PasswortSpeichern.hostHinweis(fuer: e, anfrageHost: nil))
+        XCTAssertEqual(PasswortSpeichern.hostHinweis(fuer: e, anfrageHost: "login.example.org"), "Das Konto gehört zu example.org, du bist auf login.example.org.")
+    }
+}
+
 final class PasswortVorschlaegeTests: XCTestCase {
     func testLaengenGrenzenAusApplesRegeln() {
         let a = PasswortVorschlaege.laengenGrenzen(aus: "required: lower; required: upper; minlength: 10; maxlength: 24; allowed: [-_.]")
@@ -162,6 +213,17 @@ final class AutoFillSitzungTests: XCTestCase {
         let gelesen = try await TresorDienst(ablage: a.ablage, client: nil).lokal(schluessel: k)
         XCTAssertEqual(Set(gelesen?.lebendige.map(\.id) ?? []), ["a", "n"])
         XCTAssertEqual(Set(a.identitaeten.staende_.last?.lebendige.map(\.id) ?? []), ["a", "n"])
+    }
+
+    func testSpeichernMischtDieDateiEinDieDieAppInzwischenGeaendertHat() async throws {
+        let a = try aufbau(tresor: Tresor(eintraege: [testEintrag("a")]))
+        try await a.sitzung.entsperren()
+        // Die App legt "app" in die Datei, während die Erweiterung offen ist.
+        try await TresorDienst(ablage: a.ablage, client: nil).speichereLokal(Tresor(eintraege: [testEintrag("a"), testEintrag("app")]), schluessel: k)
+        try await a.sitzung.speichere(.neu(Eintrag(id: "n", name: "Neu", urls: ["https://neu.org"])))
+        let gelesen = try await TresorDienst(ablage: a.ablage, client: nil).lokal(schluessel: k)
+        XCTAssertEqual(Set(gelesen?.lebendige.map(\.id) ?? []), ["a", "app", "n"], "nichts von der App überschrieben")
+        XCTAssertEqual(Set(a.sitzung.tresor?.lebendige.map(\.id) ?? []), ["a", "app", "n"])
     }
 
     func testSpeichernMitErreichbaremPCGehtSofortHoch() async throws {

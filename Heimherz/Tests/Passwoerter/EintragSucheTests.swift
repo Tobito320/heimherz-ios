@@ -47,7 +47,7 @@ final class EintragSucheTests: XCTestCase {
             Eintrag(id: "5", name: "Weg", urls: ["https://example.com"], geloescht: true)
         ]
         let t = EintragSuche.aufteilen(eintraege, anfrageHosts: ["example.com"])
-        XCTAssertEqual(t.passend.map(\.id), ["2", "1"])
+        XCTAssertEqual(t.passend.map(\.id), ["1", "2"], "genau example.com vor dem Treffer über m.example.com, obwohl Anker vor Zebra käme")
         XCTAssertEqual(t.uebrige.map(\.id), ["3"])
         let ohne = EintragSuche.aufteilen(eintraege, anfrageHosts: [])
         XCTAssertEqual(ohne.passend.count, 0)

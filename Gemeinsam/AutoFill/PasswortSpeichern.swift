@@ -11,22 +11,43 @@ enum SpeicherAktion: Equatable, Sendable {
 }
 
 enum PasswortSpeichern {
-    /// Sucht ein lebendiges Login mit gleichem Benutzer (ohne Groß/Klein) und passendem Host. Ohne Host (App statt Webseite) zählt der Name.
+    /// So viele alte Passwörter bleiben am Eintrag (`passwortVerlauf`, ein Feld, das der Tresor nicht kennt und das darum erhalten bleibt).
+    static let verlaufMax = 5
+
+    /// Sucht ein lebendiges Login mit gleichem Benutzer (ohne Groß/Klein) und passendem Host; ein Eintrag mit genau diesem Host geht vor einem über eine Unterdomain.
+    /// Ohne Host (App statt Webseite) zählt der Name.
     static func plane(in tresor: Tresor, host: String?, name: String, benutzer: String, passwort: String, jetzt: Date) -> SpeicherAktion {
-        let treffer = tresor.lebendige.first { e in
+        let kandidaten = tresor.lebendige.filter { e in
             guard e.art == Eintrag.artLogin, e.benutzer.caseInsensitiveCompare(benutzer) == .orderedSame else { return false }
             guard let host else { return e.urls.isEmpty && e.name == name }
             return EintragSuche.hosts(von: e).contains { EintragSuche.passt(eintragHost: $0, anfrageHost: host) }
         }
+        let treffer = kandidaten.first { e in host.map { EintragSuche.hosts(von: e).contains($0) } ?? false } ?? kandidaten.first
         let stempel = Zeit.iso(jetzt)
         if var e = treffer {
             if e.passwort == passwort { return .vorhanden }
+            e.unbekannt["passwortVerlauf"] = verlauf(von: e, bis: stempel)
             e.passwort = passwort
             e.geaendert = stempel
             return .aktualisieren(e)
         }
         let urls = host.map { ["https://" + $0] } ?? []
         return .neu(Eintrag(name: name.isEmpty ? (host ?? "Konto") : name, benutzer: benutzer, passwort: passwort, urls: urls, geaendert: stempel))
+    }
+
+    /// Der Verlauf mit dem jetzigen Passwort vorn: Liste von `{passwort, bis}`, neueste zuerst, höchstens `verlaufMax`.
+    private static func verlauf(von e: Eintrag, bis: String) -> JSONWert {
+        var liste = e.unbekannt["passwortVerlauf"]?.alsListe ?? []
+        if !e.passwort.isEmpty { liste.insert(.objekt(["passwort": .text(e.passwort), "bis": .text(bis)]), at: 0) }
+        return .liste(Array(liste.prefix(verlaufMax)))
+    }
+
+    /// Hinweis für den Dialog "Passwort aktualisieren?", wenn der Eintrag nur über eine Unterdomain gepasst hat (Seite `login.example.org`, Eintrag `example.org`).
+    static func hostHinweis(fuer e: Eintrag, anfrageHost: String?) -> String? {
+        guard let anfrageHost else { return nil }
+        let hosts = EintragSuche.hosts(von: e)
+        guard !hosts.isEmpty, !hosts.contains(anfrageHost) else { return nil }
+        return "Das Konto gehört zu \(hosts.joined(separator: ", ")), du bist auf \(anfrageHost)."
     }
 
     /// Legt den Eintrag an oder ersetzt den mit gleicher id (zweimaliges Anwenden ergibt keinen Doppelten).
@@ -78,7 +99,6 @@ enum PasswortVorschlaege {
         alnum.sonderzeichen = false
         var wort = PasswortRegeln()
         wort.modus = .wortgruppe
-        wort.woerter = 4
 
         let alle = [
             PasswortVorschlag(art: .stark, wert: PasswortGenerator.erzeuge(stark, mit: &zufall)),

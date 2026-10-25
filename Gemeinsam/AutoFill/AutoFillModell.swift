@@ -48,6 +48,12 @@ final class AutoFillModell {
     private(set) var phase: Phase = .start
     var suche = ""
 
+    /// Host der Seite, von der das Passwort zum Speichern kommt (für den Hinweis im Aktualisieren-Dialog).
+    var anfrageHost: String? {
+        if case .speichern(let a) = auftrag { return a.host }
+        return nil
+    }
+
     private let sitzung: AutoFillSitzung?
     private let startFehler: String?
     private let jetzt: @Sendable () -> Date

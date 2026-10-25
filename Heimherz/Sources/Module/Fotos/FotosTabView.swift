@@ -18,10 +18,10 @@ struct FotosTabView: View {
             .heimherzHintergrund()
             .navigationTitle("Fotos")
         }
-        .task {
+        .task(id: umgebung.istGekoppelt) {
             let m = modell ?? FotosModell(istDemo: umgebung.istDemo)
             modell = m
-            await m.lade()
+            await m.lade(gekoppelt: umgebung.istGekoppelt)
             // Beim Öffnen gleicht die App sofort ab (SPEC 2: zweiter Weg neben der Erweiterung).
             if umgebung.istGekoppelt, !umgebung.istDemo, let c = try? umgebung.client() { m.abgleichen(client: c) }
         }

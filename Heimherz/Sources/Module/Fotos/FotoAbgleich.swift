@@ -47,6 +47,7 @@ actor FotoAbgleich {
     private var erledigt = 0
     private var gesamtOffen = 0
     private var gescheitert = 0
+    /// Grund der letzten übersprungenen Datei (Export oder Server), für den Abschlusstext.
     private var exportFehler: String?
     private var wartetAufWLAN = 0
     private var abbruch: HeimFehler?
@@ -122,7 +123,7 @@ actor FotoAbgleich {
     // MARK: Senden
 
     private enum Ausgang: Sendable {
-        case gesendet, wartetAufWLAN, nichtLesbar(String), nichtUebertragen, stop(HeimFehler), abgebrochen
+        case gesendet, wartetAufWLAN, nichtLesbar(String), nichtUebertragen(String), stop(HeimFehler), abgebrochen
     }
 
     private func sendeAlle(_ liste: [FotoRessource]) async {
@@ -149,7 +150,7 @@ actor FotoAbgleich {
             if erledigt % 25 == 0 { ablage.speichere(stand) }
         case .wartetAufWLAN: wartetAufWLAN += 1
         case .nichtLesbar(let grund): gescheitert += 1; exportFehler = grund
-        case .nichtUebertragen: gescheitert += 1
+        case .nichtUebertragen(let grund): gescheitert += 1; exportFehler = grund
         case .stop(let f): abbruch = f
         case .abgebrochen: break
         }
@@ -176,10 +177,28 @@ actor FotoAbgleich {
             return .gesendet
         } catch HeimFehler.abgebrochen {
             return .abgebrochen
-        } catch let f as HeimFehler where f.istNetzproblem || f == .nichtBerechtigt || f == .nichtGekoppelt {
-            return .stop(f)
+        } catch let f as HeimFehler {
+            // Nur was den ganzen Lauf betrifft hält ihn an: kein Zugang, Platte voll, PC nicht erreichbar.
+            // Ein Serverfehler (5xx) oder eine Ablehnung (4xx) trifft diese eine Datei; sie bleibt offen, der Lauf geht weiter.
+            switch f {
+            case .nichtBerechtigt, .nichtGekoppelt, .speicherVoll, .nichtErreichbar, .zeitueberschreitung: return .stop(f)
+            default: return .nichtUebertragen(Self.kurzGrund(f))
+            }
         } catch {
-            return .nichtUebertragen
+            return .nichtUebertragen("Übertragung fehlgeschlagen")
+        }
+    }
+
+    /// Kurzer Grund für den Abschlusstext ("1 Datei konnte nicht übertragen werden (Serverfehler 503)").
+    private static func kurzGrund(_ f: HeimFehler) -> String {
+        switch f {
+        case .serverFehler(let n): return "Serverfehler \(n)"
+        case .abgelehnt(let n): return "vom PC abgelehnt, Code \(n)"
+        case .zuGross: return "zu groß für den PC-Dienst"
+        case .verboten: return "vom PC nicht erlaubt"
+        case .nichtGefunden: return "Pfad am PC unbekannt"
+        case .konflikt: return "Konflikt am PC"
+        default: return "Übertragung fehlgeschlagen"
         }
     }
 }

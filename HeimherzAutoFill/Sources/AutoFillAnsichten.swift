@@ -15,7 +15,7 @@ struct AutoFillWurzel: View {
             case .liste:
                 AuswahlListe(modell: modell)
             case .bestaetigen(let aktion):
-                SpeichernAnsicht(aktion: aktion, sichern: { Task { await modell.bestaetigeSpeichern() } }, abbrechen: { modell.abbrechen() })
+                SpeichernAnsicht(aktion: aktion, anfrageHost: modell.anfrageHost, sichern: { Task { await modell.bestaetigeSpeichern() } }, abbrechen: { modell.abbrechen() })
             case .konfiguration:
                 KonfigurationAnsicht(fertig: { modell.fertigKonfiguration() })
             }
@@ -131,6 +131,7 @@ private struct AuswahlListe: View {
 
 private struct SpeichernAnsicht: View {
     let aktion: SpeicherAktion
+    let anfrageHost: String?
     let sichern: () -> Void
     let abbrechen: () -> Void
 
@@ -158,12 +159,21 @@ private struct SpeichernAnsicht: View {
                 VStack(spacing: Abstand.xs) {
                     Text(e.name).font(.headline).foregroundStyle(Color.tinte)
                     if !e.benutzer.isEmpty { Text(e.benutzer).font(.subheadline).foregroundStyle(Color.tinte2) }
-                    if let host = EintragSuche.hosts(von: e).first { Text(host).font(.subheadline).foregroundStyle(Color.tinte2) }
+                    if aktualisiert {
+                        // Beim Überschreiben sind alle Hosts des Eintrags wichtig, nicht nur der erste.
+                        let hosts = EintragSuche.hosts(von: e)
+                        if !hosts.isEmpty { Text(hosts.joined(separator: ", ")).font(.subheadline).foregroundStyle(Color.tinte2) }
+                        if let hinweis = PasswortSpeichern.hostHinweis(fuer: e, anfrageHost: anfrageHost) {
+                            Text(hinweis).font(.subheadline.weight(.semibold)).foregroundStyle(Color.schlecht)
+                        }
+                    } else if let host = EintragSuche.hosts(von: e).first {
+                        Text(host).font(.subheadline).foregroundStyle(Color.tinte2)
+                    }
                 }
                 .multilineTextAlignment(.center)
                 .accessibilityElement(children: .combine)
             }
-            Text(aktualisiert ? "Für dieses Konto gibt es schon ein anderes Passwort. Das neue ersetzt es; die alte Fassung bleibt im Verlauf am PC." : "Das Konto landet verschlüsselt im Tresor und geht, sobald der PC erreichbar ist, dorthin.")
+            Text(aktualisiert ? "Für dieses Konto gibt es schon ein anderes Passwort. Das neue ersetzt es; das alte bleibt im Verlauf des Eintrags." : "Das Konto landet verschlüsselt im Tresor und geht, sobald der PC erreichbar ist, dorthin.")
                 .font(.footnote)
                 .foregroundStyle(Color.tinte2)
                 .multilineTextAlignment(.center)

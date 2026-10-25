@@ -14,6 +14,11 @@ final class KoppelLinkTests: XCTestCase {
         XCTAssertEqual(d.schluessel, TestSchluessel.roh)
     }
 
+    func testTailnetHostEgalWelcheSchreibweise() throws {
+        XCTAssertEqual(try KoppelLink.lese(link(url: "https%3A%2F%2FPC.Beispiel.TS.NET")).url.host?.lowercased(), "pc.beispiel.ts.net")
+        XCTAssertEqual(KoppelFehler.keinTailnet.nutzerText, "Die Adresse muss ein Tailscale-Name sein (endet auf .ts.net).")
+    }
+
     func testMitLeerraumDrumherum() throws {
         XCTAssertNoThrow(try KoppelLink.lese("  \n" + link() + "\n"))
     }
@@ -26,6 +31,10 @@ final class KoppelLinkTests: XCTestCase {
             ("heimherz://koppeln?token=\(TestSchluessel.token)", .adresseFehlt),
             (link(url: "http%3A%2F%2Fpc.example.ts.net"), .nurHttps),
             (link(url: "pc.example.ts.net"), .nurHttps),
+            (link(url: "https%3A%2F%2Fexample.org"), .keinTailnet),
+            (link(url: "https%3A%2F%2Fpc.ts.net.evil.example"), .keinTailnet),
+            (link(url: "https%3A%2F%2Fpc.ts.net%40evil.example"), .keinTailnet),
+            (link(url: "https%3A%2F%2Fevilts.net"), .keinTailnet),
             (link(token: "kurz"), .tokenUngueltig),
             (link(token: TestSchluessel.token + "AA"), .tokenUngueltig),
             (link(schluessel: "AQID"), .schluesselUngueltig),
@@ -75,6 +84,24 @@ final class KoppelLinkTests: XCTestCase {
         try bund.speichereGeraet(Geraet(url: URL(string: "https://x.example") ?? URL(fileURLWithPath: "/"), token: "t"))
         try bund.vergiss()
         XCTAssertNil(try bund.ladeGeraet())
+    }
+
+    func testVergissVersuchtAllesAuchWennEinEintragKlemmt() throws {
+        final class Klemmt: KeychainSpeicher, @unchecked Sendable {
+            let innen = MemorySpeicher()
+            func lesen(_ konto: String, kontext: EntsperrKontext?) throws -> Data? { try innen.lesen(konto, kontext: kontext) }
+            func schreiben(_ konto: String, daten: Data, mitAbfrage: Bool) throws { try innen.schreiben(konto, daten: daten, mitAbfrage: mitAbfrage) }
+            func loeschen(_ konto: String) throws {
+                if konto == Schluesselbund.kontoSchluessel { throw SchluesselbundFehler.loeschen(-1) }
+                try innen.loeschen(konto)
+            }
+        }
+        let speicher = Klemmt()
+        let bund = Schluesselbund(speicher: speicher)
+        try bund.speichereSchluessel(TestSchluessel.schluessel)
+        try bund.speichereGeraet(Geraet(url: URL(string: "https://x.ts.net") ?? URL(fileURLWithPath: "/"), token: "t"))
+        XCTAssertThrowsError(try bund.vergiss()) { XCTAssertEqual($0 as? SchluesselbundFehler, .loeschen(-1)) }
+        XCTAssertNil(try bund.ladeGeraet(), "Token und URL sind trotzdem weg")
     }
 
     func testSchluesselLaedt() async throws {

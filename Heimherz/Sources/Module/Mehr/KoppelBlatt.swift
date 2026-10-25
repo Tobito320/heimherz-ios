@@ -8,6 +8,13 @@ struct KoppelBlatt: View {
     @State private var link = ""
     @State private var fehler: String?
     @State private var laeuft = false
+    /// Ein gültiger Link, der auf die Bestätigung wartet.
+    @State private var ausstehend: Ausstehend?
+
+    private struct Ausstehend: Equatable {
+        let text: String
+        let host: String
+    }
 
     var body: some View {
         NavigationStack {
@@ -30,14 +37,46 @@ struct KoppelBlatt: View {
             }
         }
         .fontDesign(.rounded)
+        .confirmationDialog(ausstehend.map { "Mit \($0.host) koppeln?" } ?? "Koppeln?", isPresented: bestaetigung, titleVisibility: .visible) {
+            if let a = ausstehend {
+                Button(umgebung.istGekoppelt ? "Ersetzen und koppeln" : "Koppeln", role: umgebung.istGekoppelt ? .destructive : nil) { Task { await koppeln(a.text) } }
+            }
+            Button("Abbrechen", role: .cancel) {}
+        } message: {
+            Text(bestaetigungsText)
+        }
+    }
+
+    private var bestaetigung: Binding<Bool> {
+        Binding(get: { ausstehend != nil }, set: { if !$0 { ausstehend = nil } })
+    }
+
+    private var bestaetigungsText: String {
+        let frage = "Der Code enthält den Schlüssel zu allen deinen Passwörtern. Koppel nur mit einem Code, den dein eigener PC gezeigt hat."
+        guard let alt = umgebung.geraet else { return frage }
+        return "Dieses Handy ist schon mit \(alt.url.host ?? "einem PC") gekoppelt. Der alte Zugang, der Schlüssel und der Tresor auf diesem Handy werden ersetzt; vorher gleicht Heimherz noch einmal ab. \(frage)"
+    }
+
+    /// Prüft den Text und fragt nach, bevor irgendetwas gespeichert wird.
+    private func pruefe(_ text: String) {
+        guard !laeuft, ausstehend == nil else { return }
+        do {
+            let daten = try KoppelLink.lese(text)
+            fehler = nil
+            ausstehend = Ausstehend(text: text, host: daten.url.host ?? "")
+        } catch let e as LocalizedError {
+            fehler = e.errorDescription
+            Haptik.fehler()
+        } catch {
+            fehler = KoppelFehler.keinKoppelLink.nutzerText
+            Haptik.fehler()
+        }
     }
 
     @ViewBuilder
     private var scanner: some View {
         if QRScanner.istMoeglich {
-            QRScanner { text in
-                Task { await koppeln(text) }
-            }
+            QRScanner { text in pruefe(text) }
             .frame(height: 300)
             .clipShape(.heimherzKarte)
             .overlay { RoundedRectangle(cornerRadius: Rundung.karte, style: .continuous).stroke(Color.linie, lineWidth: 1) }
@@ -73,7 +112,7 @@ struct KoppelBlatt: View {
                 }
                 .buttonStyle(.glass)
                 Button {
-                    Task { await koppeln(link) }
+                    pruefe(link)
                 } label: {
                     Label(laeuft ? "Verbinde …" : "Koppeln", systemImage: "link")
                         .frame(maxWidth: .infinity, minHeight: Abstand.tippflaeche)

@@ -8,7 +8,7 @@ final class FotosModellTests: XCTestCase {
         let m = FotosModell(istDemo: true, ablage: FotoStandAblage(ordner: ordner))
         XCTAssertEqual(m.erlaubnis, .voll)
         XCTAssertEqual(m.anzeige.zahlen, FotoZahlen(gesamt: 1_390, amPC: 1_342))
-        await m.lade()
+        await m.lade(gekoppelt: true)
         await m.erlaube()
         m.schalteHintergrund(false)
         XCTAssertTrue(m.hintergrundAn, "Demo ändert nichts am System")

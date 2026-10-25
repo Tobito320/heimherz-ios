@@ -70,7 +70,7 @@ final class FakeNetz: URLProtocol {
 
     /// Eine Sitzung und die Basis-Adresse dazu; jede Anfrage geht an `handler`.
     static func neu(_ h: @escaping Handler) -> (sitzung: URLSession, basis: URL) {
-        let host = "t\(UUID().uuidString.prefix(8).lowercased()).test"
+        let host = "t\(UUID().uuidString.prefix(8).lowercased()).ts.net"
         handler.withLock { $0[host] = h }
         let konfig = URLSessionConfiguration.ephemeral
         konfig.protocolClasses = [FakeNetz.self]

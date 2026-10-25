@@ -56,8 +56,39 @@ final class SperreTests: XCTestCase {
         XCTAssertFalse(AppSperre(gesperrt: false, aktiv: true).gesperrt)
     }
 
+    func testVerdecktSofortBeiInaktivUndHintergrundUnabhaengigVonDerSperrzeit() {
+        let s = AppSperre(gesperrt: false, aktiv: true)
+        XCTAssertFalse(s.verdeckt)
+        s.szene(.inactive, jetzt: t0)
+        XCTAssertTrue(s.verdeckt)
+        s.szene(.active, jetzt: t0.addingTimeInterval(1))
+        XCTAssertFalse(s.verdeckt)
+        XCTAssertFalse(s.gesperrt, "nach einer Sekunde keine Sperre, nur die Deckfläche war kurz da")
+        s.szene(.background, jetzt: t0.addingTimeInterval(10))
+        XCTAssertTrue(s.verdeckt)
+        s.szene(.inactive, jetzt: t0.addingTimeInterval(11))
+        XCTAssertTrue(s.verdeckt)
+        s.szene(.active, jetzt: t0.addingTimeInterval(12))
+        XCTAssertFalse(s.verdeckt)
+        XCTAssertFalse(s.gesperrt)
+    }
+
+    func testNeuerKontextBeiJederSperre() {
+        let s = AppSperre(gesperrt: false, aktiv: true)
+        let erster = s.kontext.kontext
+        s.szene(.background, jetzt: t0)
+        s.szene(.active, jetzt: t0.addingTimeInterval(10))
+        XCTAssertTrue(s.kontext.kontext === erster, "ohne Sperre bleibt der Kontext")
+        s.szene(.background, jetzt: t0.addingTimeInterval(20))
+        s.szene(.active, jetzt: t0.addingTimeInterval(400))
+        XCTAssertTrue(s.gesperrt)
+        XCTAssertFalse(s.kontext.kontext === erster, "nach dem Sperren ein frischer Kontext")
+    }
+
     func testInaktivSperrtNie() {
         let s = AppSperre(gesperrt: true, aktiv: false)
+        s.szene(.inactive, jetzt: t0)
+        XCTAssertFalse(s.verdeckt, "in Demo und Test-Host nie")
         s.szene(.background, jetzt: t0)
         s.szene(.active, jetzt: t0.addingTimeInterval(9_999))
         XCTAssertFalse(s.gesperrt)
@@ -90,10 +121,86 @@ final class AppUmgebungTests: XCTestCase {
 
         try await u.tresorDienst().speichereLokal(Tresor(eintraege: [testEintrag("a")]), schluessel: TestSchluessel.schluessel)
         XCTAssertNotNil(try u.ablage.lade())
-        u.entkoppeln()
+        try u.entkoppeln()
         XCTAssertFalse(u.istGekoppelt)
         XCTAssertNil(u.status)
         XCTAssertNil(try u.ablage.lade(), "lokaler Tresor-Cache bleibt nicht liegen")
+        XCTAssertNil(try speicher.lesen(Schluesselbund.kontoSchluessel, kontext: nil))
+    }
+
+    private func gekoppelt(_ sitzung: URLSession, basis: URL) async throws -> (AppUmgebung, SpeicherImRAM) {
+        let (u, speicher) = try umgebung(sitzung)
+        let link = "heimherz://koppeln?url=\(HeimClient.kodiere(basis.absoluteString))&token=\(TestSchluessel.token)&schluessel=\(TestSchluessel.schluesselB64url)"
+        try await u.koppeln(link: link)
+        return (u, speicher)
+    }
+
+    func testPruefungOhneEintraegeUndNachAbgleichIstAlleAmPC() async throws {
+        let (sitzung, basis) = FakeNetz.neu { r, _ in r.httpMethod == "GET" && r.url?.path == "/v1/tresor" ? .init(status: 404) : .json(#"{"version":"0.1.0","rev":3,"fotos":9}"#) }
+        let (u, _) = try await gekoppelt(sitzung, basis: basis)
+        let leer = await u.pruefeVorEntkoppeln()
+        XCTAssertEqual(leer, .alleAmPC)
+    }
+
+    func testPruefungOhnePCZaehltUngesendeteEintraegeUndMitPCBleibtNichtsOffen() async throws {
+        let erreichbar = Kasten<Bool>(false)
+        let (sitzung, basis) = FakeNetz.neu { r, _ in
+            if r.url?.path == "/v1/status" { return .json(#"{"version":"0.1.0","rev":3,"fotos":9}"#) }
+            if !erreichbar.mit({ $0 }) { return .fehler(.notConnectedToInternet) }
+            if r.httpMethod == "GET" { return .init(status: 404) }
+            return .json(#"{"v":1,"rev":1,"nonce":"AAAAAAAAAAAAAAAA","daten":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"}"#)
+        }
+        let (u, _) = try await gekoppelt(sitzung, basis: basis)
+        try await u.tresorDienst().speichereLokal(Tresor(eintraege: [testEintrag("a"), testEintrag("b")]), schluessel: TestSchluessel.schluessel)
+        let p = await u.pruefeVorEntkoppeln()
+        XCTAssertEqual(p, .offen(2))
+        XCTAssertTrue(p.nachricht.hasPrefix("2 Änderungen noch nicht am PC."))
+        XCTAssertFalse(p.nachricht.contains("Am PC bleibt alles"), "nur sagen, wenn es stimmt")
+        erreichbar.mit { $0 = true }
+        let danach = await u.pruefeVorEntkoppeln()
+        XCTAssertEqual(danach, .alleAmPC, "der letzte Abgleich hat alles hochgeschickt")
+    }
+
+    func testNachrichtenZumEntkoppeln() {
+        XCTAssertTrue(EntkoppelPruefung.alleAmPC.nachricht.contains("Am PC bleibt alles"))
+        XCTAssertTrue(EntkoppelPruefung.offen(1).nachricht.hasPrefix("1 Änderung noch nicht am PC."))
+        XCTAssertFalse(EntkoppelPruefung.unbekannt.nachricht.contains("Am PC bleibt alles"))
+    }
+
+    func testEntkoppelnMeldetFehlerStattSieZuVerschlucken() throws {
+        final class Klemmt: KeychainSpeicher, @unchecked Sendable {
+            let innen = MemorySpeicher()
+            func lesen(_ konto: String, kontext: EntsperrKontext?) throws -> Data? { try innen.lesen(konto, kontext: kontext) }
+            func schreiben(_ konto: String, daten: Data, mitAbfrage: Bool) throws { try innen.schreiben(konto, daten: daten, mitAbfrage: mitAbfrage) }
+            func loeschen(_ konto: String) throws {
+                if konto == Schluesselbund.kontoToken { throw SchluesselbundFehler.loeschen(-25244) }
+                try innen.loeschen(konto)
+            }
+        }
+        let bund = Schluesselbund(speicher: Klemmt())
+        try bund.speichereGeraet(Geraet(url: URL(string: "https://pc.ts.net") ?? URL(fileURLWithPath: "/"), token: "t"))
+        let u = AppUmgebung(bund: bund, ablage: TresorAblage(ordner: try tempOrdner()), sperreAktiv: false)
+        XCTAssertTrue(u.istGekoppelt)
+        XCTAssertThrowsError(try u.entkoppeln()) { XCTAssertEqual($0 as? SchluesselbundFehler, .loeschen(-25244)) }
+        XCTAssertTrue(u.istGekoppelt, "der Zustand folgt dem Schlüsselbund: das Token ist noch da")
+    }
+
+    func testNeuerZugangErsetztDenAltenCacheUndZaehltHoch() async throws {
+        let (sitzung, basis) = FakeNetz.neu { _, _ in .json(#"{"version":"0.1.0","rev":3,"fotos":9}"#) }
+        let (u, _) = try await gekoppelt(sitzung, basis: basis)
+        let vorher = u.kopplung
+        try await u.tresorDienst().speichereLokal(Tresor(eintraege: [testEintrag("a")]), schluessel: TestSchluessel.schluessel)
+        let link = "heimherz://koppeln?url=\(HeimClient.kodiere(basis.absoluteString))&token=\(TestSchluessel.token)&schluessel=\(TestSchluessel.schluesselB64url)"
+        try await u.koppeln(link: link)
+        XCTAssertEqual(u.kopplung, vorher + 1)
+        XCTAssertNil(try u.ablage.lade(), "der Cache gehörte zum alten Zugang")
+    }
+
+    func testFremdeAdresseKopptNicht() async throws {
+        let (u, speicher) = try umgebung()
+        let link = "heimherz://koppeln?url=https%3A%2F%2Fexample.org&token=\(TestSchluessel.token)&schluessel=\(TestSchluessel.schluesselB64url)"
+        do { try await u.koppeln(link: link); XCTFail() } catch { XCTAssertEqual(error as? KoppelFehler, .keinTailnet) }
+        XCTAssertFalse(u.istGekoppelt)
         XCTAssertNil(try speicher.lesen(Schluesselbund.kontoSchluessel, kontext: nil))
     }
 

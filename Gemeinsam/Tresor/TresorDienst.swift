@@ -31,18 +31,38 @@ actor TresorDienst {
     }
 
     /// Verschlüsselt den Stand in die Ablage (ohne Netz). `rev` bleibt die zuletzt bekannte des Servers.
-    func speichereLokal(_ tresor: Tresor, schluessel: SymmetricKey) throws {
-        let rev = try ablage.lade()?.rev ?? 0
-        try ablage.speichere(Umschlag.verschliesse(tresor, schluessel: schluessel, rev: rev))
+    /// Liest die Datei direkt vorher neu und führt sie mit `tresor` zusammen: App und Erweiterung schreiben dieselbe Datei und überschreiben sich so nie.
+    /// Gibt den Stand zurück, der jetzt in der Datei liegt (Aufrufer sollen mit ihm weiterarbeiten).
+    @discardableResult
+    func speichereLokal(_ tresor: Tresor, schluessel: SymmetricKey) throws -> Tresor {
+        let datei = try ablage.lade()
+        var stand = tresor
+        if let datei { stand = Zusammenfuehren.zusammenfuehren(tresor, try datei.oeffne(schluessel: schluessel), jetzt: jetzt()) }
+        try ablage.speichere(Umschlag.verschliesse(stand, schluessel: schluessel, rev: datei?.rev ?? 0))
+        return stand
+    }
+
+    /// Legt den Stand, den der Server jetzt hat, in die Ablage. Hat die andere Seite (App oder Erweiterung) währenddessen etwas Neues in die Datei
+    /// gelegt, bleibt das erhalten (dann liegt eine neu verschlüsselte Fassung mit der neuen `rev` dort, die der nächste Abgleich hochschickt).
+    private func uebernimmServerStand(_ umschlag: Umschlag, tresor: Tresor, schluessel: SymmetricKey) throws -> Tresor {
+        if let datei = try? ablage.lade()?.oeffne(schluessel: schluessel) {
+            let stand = Zusammenfuehren.zusammenfuehren(tresor, datei, jetzt: jetzt())
+            if stand != tresor {
+                try ablage.speichere(Umschlag.verschliesse(stand, schluessel: schluessel, rev: umschlag.rev))
+                return stand
+            }
+        }
+        try ablage.speichere(umschlag)
+        return tresor
     }
 
     /// Gleicht `lokal` (der aktuelle Stand des Aufrufers, auch mit ungesendeten Änderungen) mit dem Server ab.
     /// Wirft bei falschem Schlüssel (`TresorFehler`), 401 usw.; nur Netzprobleme enden in `.nurLokal`.
     func abgleichen(lokal: Tresor, schluessel: SymmetricKey) async throws -> AbgleichErgebnis {
         guard let client else {
-            try speichereLokal(lokal, schluessel: schluessel)
-            return .nurLokal(lokal, grund: .nichtGekoppelt)
+            return .nurLokal(try speichereLokal(lokal, schluessel: schluessel), grund: .nichtGekoppelt)
         }
+        let start = jetzt()
         var stand = lokal
         do {
             var remote = try await client.tresorHolen()
@@ -52,22 +72,23 @@ actor TresorDienst {
                 stand = zusammen
                 // Nichts Neues für den Server: keine neue Fassung anlegen (der Verlauf behält nur die letzten 200).
                 if let remote, let serverTresor, zusammen == serverTresor {
-                    try ablage.speichere(remote)
-                    return .abgeglichen(zusammen, rev: remote.rev)
+                    let abgelegt = try uebernimmServerStand(remote, tresor: zusammen, schluessel: schluessel)
+                    ablage.markiereAbgeglichen(start)
+                    return .abgeglichen(abgelegt, rev: remote.rev)
                 }
                 let neu = try Umschlag.verschliesse(zusammen, schluessel: schluessel)
                 switch try await client.tresorSchreiben(neu, ifMatch: remote?.rev ?? 0) {
                 case .gespeichert(let gespeichert):
-                    try ablage.speichere(gespeichert)
-                    return .abgeglichen(zusammen, rev: gespeichert.rev)
+                    let abgelegt = try uebernimmServerStand(gespeichert, tresor: zusammen, schluessel: schluessel)
+                    ablage.markiereAbgeglichen(start)
+                    return .abgeglichen(abgelegt, rev: gespeichert.rev)
                 case .konflikt(let aktuell):
                     if let aktuell { remote = aktuell } else { remote = try await client.tresorHolen() }
                 }
             }
             throw HeimFehler.zuVieleKonflikte
         } catch let fehler as HeimFehler where fehler.istNetzproblem {
-            try speichereLokal(stand, schluessel: schluessel)
-            return .nurLokal(stand, grund: fehler)
+            return .nurLokal(try speichereLokal(stand, schluessel: schluessel), grund: fehler)
         }
     }
 }

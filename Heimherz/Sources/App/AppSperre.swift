@@ -14,11 +14,16 @@ enum SperrLogik {
 
 /// Die App-Sperre mit Face ID (oder Gerätecode). `aktiv` ist aus im Test-Host und im Demo-Modus, sonst würde dort Face ID gefragt.
 /// Gesperrt wird beim Kaltstart (wenn gekoppelt) und nach 5 Minuten im Hintergrund.
+/// Unabhängig davon deckt `verdeckt` den Inhalt sofort ab, sobald die App nicht aktiv ist (App-Umschalter, Kontrollzentrum).
 @MainActor @Observable
 final class AppSperre {
     private(set) var gesperrt: Bool
+    private(set) var verdeckt = false
     private(set) var meldung: String?
     private(set) var pruefungLaeuft = false
+    /// Der Kontext der Face-ID-Abfrage dieser Entsperrung. Der Tresor lädt K mit demselben Kontext, so fragt der Start nur einmal.
+    /// Bei jedem Sperren (und nach einer Ablehnung) kommt ein neuer, der alte wird ungültig.
+    private(set) var kontext = EntsperrKontext()
     private var hintergrundSeit: Date?
     let aktiv: Bool
 
@@ -30,33 +35,47 @@ final class AppSperre {
     func szene(_ phase: ScenePhase, jetzt: Date = Date()) {
         guard aktiv else { return }
         switch phase {
+        case .inactive:
+            verdeckt = true
         case .background:
+            verdeckt = true
             if hintergrundSeit == nil { hintergrundSeit = jetzt }
         case .active:
-            if SperrLogik.sollSperren(hintergrundSeit: hintergrundSeit, jetzt: jetzt) { gesperrt = true }
+            verdeckt = false
+            if SperrLogik.sollSperren(hintergrundSeit: hintergrundSeit, jetzt: jetzt) {
+                gesperrt = true
+                neuerKontext()
+            }
             hintergrundSeit = nil
         default:
             break
         }
     }
 
+    private func neuerKontext() {
+        kontext.kontext.invalidate()
+        kontext = EntsperrKontext()
+    }
+
     func entsperren() async {
         guard gesperrt, !pruefungLaeuft else { return }
         pruefungLaeuft = true
         meldung = nil
-        switch await Self.pruefeGeraet() {
+        switch await Self.pruefeGeraet(kontext) {
         case .ok, .nichtMoeglich: gesperrt = false       // ohne Gerätecode gibt es nichts zu prüfen
-        case .abgelehnt: meldung = "Entsperren hat nicht geklappt. Bitte noch einmal versuchen."
+        case .abgelehnt:
+            meldung = "Entsperren hat nicht geklappt. Bitte noch einmal versuchen."
+            neuerKontext()
         }
         pruefungLaeuft = false
     }
 
     enum Pruefung: Sendable { case ok, abgelehnt, nichtMoeglich }
 
-    /// Face ID, sonst Gerätecode. Eigener Kontext in der Funktion, damit nichts Nicht-Sendbares die Isolation wechselt.
+    /// Face ID, sonst Gerätecode, im Kontext der Sperre (`EntsperrKontext` ist als Sendable markiert, siehe dort).
     @concurrent
-    private static func pruefeGeraet() async -> Pruefung {
-        let kontext = LAContext()
+    private static func pruefeGeraet(_ ek: EntsperrKontext) async -> Pruefung {
+        let kontext = ek.kontext
         var fehler: NSError?
         guard kontext.canEvaluatePolicy(.deviceOwnerAuthentication, error: &fehler) else { return .nichtMoeglich }
         do {
@@ -103,5 +122,16 @@ struct SperrAnsicht: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background { Hintergrund() }
         .task { await sperre.entsperren() }
+    }
+}
+
+/// Deckt den Inhalt ab, sobald die App nicht aktiv ist: im App-Umschalter steht dann nur das Haus, nie ein Passwort.
+struct DeckFlaeche: View {
+    var body: some View {
+        HausherzView(stimmung: .schlaeft, groesse: 140)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background { Hintergrund() }
+            .ignoresSafeArea()
+            .accessibilityHidden(true)
     }
 }

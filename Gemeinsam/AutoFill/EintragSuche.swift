@@ -53,8 +53,12 @@ enum EintragSuche {
         let passend = alle.filter { e in
             hosts(von: e).contains { eh in anfrageHosts.contains { passt(eintragHost: eh, anfrageHost: $0) } }
         }
+        // Genau der Host der Anfrage vor Treffern über eine Unterdomain; innerhalb jeder Gruppe bleibt die Namensreihenfolge.
+        let exakt = passend.filter { e in hosts(von: e).contains { anfrageHosts.contains($0) } }
+        let exaktIds = Set(exakt.map(\.id))
+        let geordnet = exakt + passend.filter { !exaktIds.contains($0.id) }
         let ids = Set(passend.map(\.id))
-        return (passend, alle.filter { !ids.contains($0.id) })
+        return (geordnet, alle.filter { !ids.contains($0.id) })
     }
 
     static func sortiert(_ eintraege: [Eintrag]) -> [Eintrag] {

@@ -1,5 +1,7 @@
+import CryptoKit
 import Foundation
 import Observation
+import Photos
 import Synchronization
 
 /// Schlüsselbund im Speicher für Demo (Screenshots), Vorschau und Test-Host; es gibt dort keinen echten Schlüsselbund.
@@ -23,6 +25,27 @@ final class SpeicherImRAM: KeychainSpeicher {
     func mitAbfrage(_ konto: String) -> Bool? { abfragen.withLock { $0[konto] } }
 }
 
+/// Was vor dem Entkoppeln über den Stand dieses Handys bekannt ist (nach einem letzten Abgleichversuch).
+enum EntkoppelPruefung: Equatable, Sendable {
+    /// Alles liegt am PC.
+    case alleAmPC
+    /// So viele Einträge (auch gelöschte) sind vielleicht noch nicht am PC.
+    case offen(Int)
+    /// Der Stand ließ sich nicht prüfen (Schlüssel nicht lesbar, Zeit um).
+    case unbekannt
+
+    /// Der Text im Dialog; "Am PC bleibt alles" steht nur da, wenn es stimmt.
+    var nachricht: String {
+        let weg = "Schlüssel, Zugang und der Tresor auf diesem Handy werden gelöscht."
+        let token = "Das Token am PC widerrufst du mit `heimherz geraet weg`."
+        switch self {
+        case .alleAmPC: return "\(weg) Am PC bleibt alles; \(token)"
+        case .offen(let n): return "\(n == 1 ? "1 Änderung noch nicht am PC" : "\(n) Änderungen noch nicht am PC"). Sie gehen verloren. \(weg) \(token)"
+        case .unbekannt: return "Ob alle Änderungen am PC sind, ließ sich nicht prüfen. Was dort fehlt, geht verloren. \(weg) \(token)"
+        }
+    }
+}
+
 /// Alles, was die Module gemeinsam brauchen: Schlüsselbund, Ablage, Verbindung zum PC, App-Sperre.
 /// Andockpunkte für die späteren Module: `client()` (Passwörter, Fotos, Dateien), `tresorDienst()` (Passwörter), `bund` (Schlüssel K).
 @MainActor @Observable
@@ -37,6 +60,8 @@ final class AppUmgebung {
     private(set) var status: ServerStatus?
     private(set) var statusFehler: String?
     private(set) var statusLaedt = false
+    /// Zählt Koppeln und Entkoppeln hoch; Ansichten mit Klartext (Passwörter) lassen sich dadurch auch bei einem Wechsel des Zugangs zurücksetzen.
+    private(set) var kopplung = 0
 
     var istGekoppelt: Bool { geraet != nil }
 
@@ -80,19 +105,66 @@ final class AppUmgebung {
     }
 
     /// Koppeln mit dem Text aus QR oder Zwischenablage. Wirft verständliche Fehler (`KoppelFehler`, `HeimFehler`).
+    /// Ist das Handy schon gekoppelt, ersetzt der neue Zugang den alten samt lokalem Tresor: davor ein letzter Abgleich mit dem alten PC (der Dialog hat gewarnt).
     func koppeln(link: String) async throws {
+        _ = try KoppelLink.lese(link)
+        let warGekoppelt = geraet != nil
+        if warGekoppelt { _ = await pruefeVorEntkoppeln() }
         status = try await Koppeln.koppeln(link: link, bund: bund, sitzung: sitzung)
+        if warGekoppelt { try? ablage.loesche() }   // gehört zum alten Schlüssel
         statusFehler = nil
         geraet = try bund.ladeGeraet()
+        kopplung += 1
     }
 
-    /// Entkoppeln: Schlüssel, Token und URL aus dem Schlüsselbund, lokaler Tresor-Cache weg. Am PC bleibt alles; das Token dort widerruft `heimherz geraet weg`.
-    func entkoppeln() {
-        try? bund.vergiss()
-        try? ablage.loesche()
-        geraet = nil
-        status = nil
-        statusFehler = nil
+    /// Letzter Abgleichversuch mit dem PC und danach die Zahl der Einträge, die dort noch fehlen. Höchstens `sekunden` lang.
+    /// Fragt kein zweites Mal nach Face ID: K wird mit dem Kontext der Sperre geladen.
+    func pruefeVorEntkoppeln(sekunden: Double = 10) async -> EntkoppelPruefung {
+        guard geraet != nil, !istDemo else { return .alleAmPC }
+        let bund = bund, kontext = sperre.kontext, dienst = tresorDienst(), ablage = ablage
+        return await withTaskGroup(of: EntkoppelPruefung?.self) { gruppe in
+            gruppe.addTask { await Self.pruefe(bund: bund, kontext: kontext, dienst: dienst, ablage: ablage) }
+            gruppe.addTask {
+                try? await Task.sleep(for: .seconds(sekunden))
+                return nil
+            }
+            let erstes = await gruppe.next()
+            gruppe.cancelAll()
+            return (erstes ?? nil) ?? .unbekannt
+        }
+    }
+
+    @concurrent
+    private static func pruefe(bund: Schluesselbund, kontext: EntsperrKontext, dienst: TresorDienst, ablage: TresorAblage) async -> EntkoppelPruefung {
+        let lokal: Tresor
+        let k: SymmetricKey
+        do {
+            guard let schluessel = try await bund.ladeSchluessel(kontext: kontext), let t = try await dienst.lokal(schluessel: schluessel) else { return .alleAmPC }
+            k = schluessel
+            lokal = t
+        } catch {
+            return .unbekannt
+        }
+        let ergebnis = try? await dienst.abgleichen(lokal: lokal, schluessel: k)
+        if case .abgeglichen? = ergebnis { return .alleAmPC }
+        let n = ablage.ungesendet(in: lokal)
+        return n == 0 ? .alleAmPC : .offen(n)
+    }
+
+    /// Entkoppeln: Schlüssel, Token und URL aus dem Schlüsselbund, lokaler Tresor-Cache weg, Foto-Erweiterung aus (angelegte Upload-Jobs tragen das alte Token).
+    /// Wirft, wenn etwas klemmt (der Aufrufer zeigt es); der Zustand folgt dann dem, was der Schlüsselbund noch hält.
+    func entkoppeln() throws {
+        defer {
+            geraet = try? bund.ladeGeraet()
+            if geraet == nil {
+                status = nil
+                statusFehler = nil
+            }
+            kopplung += 1
+        }
+        try bund.vergiss()
+        if !istDemo, !Self.istTestHost { try? PHPhotoLibrary.shared().setUploadJobExtensionEnabled(false) }
+        try ablage.loesche()
     }
 
     // MARK: Aufbau

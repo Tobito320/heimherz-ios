@@ -95,7 +95,7 @@ final class DateienModell {
                 do {
                     try await client.dateiHochladen(pfad: DateiPfad.zusammen(ordner, d.name), von: d.url)
                     ok += 1
-                } catch let f as HeimFehler where f.istNetzproblem || f == .nichtBerechtigt {
+                } catch let f as HeimFehler where f.istNetzproblem || f == .nichtBerechtigt || f == .speicherVoll {
                     letzterFehler = f.nutzerText
                     break
                 } catch {
