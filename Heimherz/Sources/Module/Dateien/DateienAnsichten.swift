@@ -4,6 +4,11 @@ import UniformTypeIdentifiers
 
 // Bausteine des Dateien-Tabs. Nur Systemkomponenten und Systemfarben (SPEC 12): kein eigener Hintergrund, keine Karten.
 
+extension Color {
+    /// Das helle Blau der Ordner in Apples Dateien (Vorbild: Bildschirmfoto von Ahmed, iOS 26).
+    static let dateiOrdnerBlau = Color(red: 0.47, green: 0.72, blue: 0.93)
+}
+
 /// Ordner im Navigationsstapel: ein Wert je Stufe, `ordner` ist der ganze Weg von der Wurzel.
 struct OrdnerZiel: Hashable {
     let ordner: [String]
@@ -43,8 +48,8 @@ struct DateiBild: View {
             if eintrag.ordner {
                 Image(systemName: "folder.fill")
                     .resizable().scaledToFit()
-                    .foregroundStyle(Color.blue)
-                    .padding(seite * 0.06)
+                    .foregroundStyle(Color.dateiOrdnerBlau)
+                    .padding(seite * 0.1)
             } else if let bild {
                 Image(uiImage: bild)
                     .resizable().scaledToFit()
@@ -87,7 +92,7 @@ struct ListenZeile: View {
     }
 }
 
-/// Zelle der Symbolansicht: Vorschau, Name (bis zwei Zeilen, mittig), darunter Datum und Größe klein und grau; Ordner mit "12 Objekte".
+/// Zelle der Symbolansicht wie im Vorbild: großes Symbol oder Vorschau, Name (bis zwei Zeilen, mittig, normale Schrift), darunter grau "8 Objekte" bzw. Datum und Größe.
 struct RasterZelle: View {
     let eintrag: DateiInfo
     let pfad: String
@@ -95,10 +100,11 @@ struct RasterZelle: View {
 
     var body: some View {
         VStack(spacing: 4) {
-            DateiBild(eintrag: eintrag, pfad: pfad, seite: 100, px: 300, lader: lader)
-            Text(eintrag.name).font(.footnote).foregroundStyle(Color.primary).multilineTextAlignment(.center).lineLimit(2)
+            DateiBild(eintrag: eintrag, pfad: pfad, seite: 96, px: 300, lader: lader)
+                .padding(.bottom, 4)
+            Text(eintrag.name).font(.body).foregroundStyle(Color.primary).multilineTextAlignment(.center).lineLimit(2)
             ForEach(Array(DateiAnzeige.rasterZeilen(eintrag).enumerated()), id: \.offset) { _, zeile in
-                Text(zeile).font(.caption2).foregroundStyle(Color.secondary)
+                Text(zeile).font(.subheadline).foregroundStyle(Color.secondary)
             }
         }
         .frame(maxWidth: .infinity)
@@ -157,7 +163,7 @@ struct DateiInfoBlatt: View {
                     HStack(spacing: 12) {
                         Image(systemName: DateiAnzeige.symbol(name: e.name, ordner: e.ordner))
                             .font(.largeTitle)
-                            .foregroundStyle(e.ordner ? Color.blue : Color.secondary)
+                            .foregroundStyle(e.ordner ? Color.dateiOrdnerBlau : Color.secondary)
                             .accessibilityHidden(true)
                         Text(e.name).font(.headline).fixedSize(horizontal: false, vertical: true)
                     }

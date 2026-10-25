@@ -140,11 +140,9 @@ enum DateiAnzeige {
     /// "1 Objekt", "12 Objekte".
     static func objekte(_ n: Int) -> String { n == 1 ? "1 Objekt" : "\(n) Objekte" }
 
-    /// Zeile unter der Liste wie in Dateien: "805 Objekte, 3,2 GB verfügbar" (ohne `frei`: nur die Zahl).
-    static func fusszeile(anzahl: Int, frei: Int64?) -> String {
-        guard let frei else { return objekte(anzahl) }
-        return "\(objekte(anzahl)), \(groesse(frei)) verfügbar"
-    }
+    /// Unter dem Inhalt, fett: "9 Objekte"; darunter steht `synchron` bzw. `getrennt`.
+    static let synchron = "Mit PC synchronisiert"
+    static let getrennt = "PC nicht erreichbar"
 
     /// Listenansicht, zweite Zeile: "25. Okt. 2026 – 482 KB"; Ordner: "25. Okt. 2026 – 12 Objekte".
     static func listenUntertitel(_ e: DateiInfo) -> String {

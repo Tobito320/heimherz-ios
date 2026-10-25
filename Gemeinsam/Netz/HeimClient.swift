@@ -37,6 +37,7 @@ struct SuchTreffer: Codable, Sendable, Hashable, Identifiable {
     var groesse: Int64
     var geaendert: String
     var id: String { pfad }
+    var datum: Date? { Zeit.millis(iso: geaendert).map { Date(timeIntervalSince1970: Double($0) / 1000) } }
 
     /// Als Eintrag der Ordnerliste (für Zeilen, Menü und Papierkorb).
     var info: DateiInfo { DateiInfo(name: name, ordner: ordner, groesse: groesse, geaendert: geaendert) }

@@ -43,7 +43,6 @@ struct DateienTabView: View {
                 aufgeraeumt = true
             }
             lader = DateiVorschauLader(holen: DateiVorschauLader.holenFuer(umgebung))
-            await umgebung.ladeStatus()
         }
     }
 }
@@ -54,7 +53,6 @@ struct OrdnerSeite: View {
     let lader: DateiVorschauLader
     @Binding var navigation: [OrdnerZiel]
 
-    @Environment(AppUmgebung.self) private var umgebung
     @Environment(\.dynamicTypeSize) private var schriftgroesse
     @State private var modell: DateienModell
     @State private var suchModell: DateienSucheModell
@@ -99,14 +97,14 @@ struct OrdnerSeite: View {
     var body: some View {
         hauptteil
             .navigationTitle(titel)
-            .searchable(text: $suchtext, prompt: "Suchen")
+            .navigationBarTitleDisplayMode(.inline)
+            .searchable(text: $suchtext, placement: .navigationBarDrawer(displayMode: .always), prompt: "Suchen")
             .modifier(SuchBereiche(aktiv: !ordner.isEmpty, auswahl: $bereich, ordnerName: titel))
             .onChange(of: suchtext) { _, _ in starteSuche() }
             .onChange(of: bereich) { _, _ in starteSuche() }
             .safeAreaInset(edge: .top, spacing: 0) { banner }
             .toolbar {
-                ToolbarItem(placement: .primaryAction) { hochladenMenue }
-                ToolbarItem(placement: .primaryAction) { ansichtMenue }
+                ToolbarItem(placement: .primaryAction) { mehrMenue }
             }
             .overlay { ladeAnzeige }
             .quickLookPreview($vorschau)
@@ -167,11 +165,14 @@ struct OrdnerSeite: View {
         }
     }
 
+    /// Wie im Vorbild unter dem Inhalt, mittig: "9 Objekte" fett, darunter der Stand.
     private var fusszeile: some View {
-        Text(DateiAnzeige.fusszeile(anzahl: modell.eintraege.count, frei: umgebung.status?.frei))
-            .font(.footnote)
-            .foregroundStyle(Color.secondary)
-            .frame(maxWidth: .infinity)
+        VStack(spacing: 6) {
+            Text(DateiAnzeige.objekte(modell.eintraege.count)).font(.subheadline.weight(.semibold)).foregroundStyle(Color.primary)
+            Text(warnung == nil ? DateiAnzeige.synchron : DateiAnzeige.getrennt).font(.subheadline).foregroundStyle(Color.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
     }
 
     private var liste: some View {
@@ -202,7 +203,7 @@ struct OrdnerSeite: View {
 
     private var raster: some View {
         ScrollView {
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: schriftgroesse.isAccessibilitySize ? 160 : 104), spacing: 12, alignment: .top)], spacing: 18) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: schriftgroesse.isAccessibilitySize ? 160 : 104), spacing: 12, alignment: .top)], spacing: 44) {
                 ForEach(sortiert) { e in
                     let g = Gewaehlt(info: e, pfad: DateiPfad.zusammen(ordner, e.name))
                     Group {
@@ -221,8 +222,8 @@ struct OrdnerSeite: View {
                 }
             }
             .padding(.horizontal, 16)
-            .padding(.top, 8)
-            fusszeile.padding(.vertical, 24)
+            .padding(.top, 16)
+            fusszeile.padding(.vertical, 40)
         }
         .refreshable { await modell.lade() }
     }
@@ -268,17 +269,8 @@ struct OrdnerSeite: View {
 
     // MARK: Leisten und Menüs
 
-    private var hochladenMenue: some View {
-        Menu {
-            Button("Aus Dateien …", systemImage: "folder") { zeigeImport = true }
-            Button("Aus Fotos …", systemImage: "photo.on.rectangle") { zeigeFotos = true }
-        } label: {
-            Label("Hochladen", systemImage: "plus")
-        }
-        .disabled(modell.istDemo)
-    }
-
-    private var ansichtMenue: some View {
+    /// Der runde Drei-Punkte-Knopf oben rechts (wie in Dateien): Ansicht, Sortieren, Hochladen.
+    private var mehrMenue: some View {
         Menu {
             Picker("Ansicht", selection: $ansicht) {
                 Label("Symbole", systemImage: "square.grid.2x2").tag("symbole")
@@ -288,8 +280,13 @@ struct OrdnerSeite: View {
             Section("Sortieren nach") {
                 ForEach(SortierKriterium.allCases, id: \.self) { k in sortierKnopf(k) }
             }
+            Section {
+                Button("Aus Dateien …", systemImage: "folder") { zeigeImport = true }
+                Button("Aus Fotos …", systemImage: "photo.on.rectangle") { zeigeFotos = true }
+            }
+            .disabled(modell.istDemo)
         } label: {
-            Label("Ansicht und Sortierung", systemImage: "ellipsis.circle")
+            Label("Mehr", systemImage: "ellipsis")
         }
     }
 

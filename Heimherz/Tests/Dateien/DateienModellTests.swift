@@ -268,11 +268,10 @@ final class DateiVorschauLaderTests: XCTestCase {
             aktiv.mit { $0.jetzt -= 1 }
             return daten
         }, parallel: 2)
-        await withTaskGroup(of: Void.self) { gruppe in
-            for i in 0..<6 {
-                gruppe.addTask { @MainActor in _ = await l.lade(pfad: "p\(i)", schluessel: "k\(i)", px: 120) }
-            }
+        let aufgaben = (0..<6).map { i in
+            Task { _ = await l.lade(pfad: "p\(i)", schluessel: "k\(i)", px: 120) }
         }
+        for a in aufgaben { await a.value }
         XCTAssertEqual(aktiv.mit { $0.hoechstens }, 2)
         XCTAssertEqual(aktiv.mit { $0.jetzt }, 0)
     }

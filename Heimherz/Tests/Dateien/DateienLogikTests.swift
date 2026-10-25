@@ -122,15 +122,12 @@ final class DateienLogikTests: XCTestCase {
 
     // MARK: Texte
 
-    func testObjekteUndFusszeile() {
+    func testObjekte() {
         XCTAssertEqual(DateiAnzeige.objekte(0), "0 Objekte")
         XCTAssertEqual(DateiAnzeige.objekte(1), "1 Objekt")
         XCTAssertEqual(DateiAnzeige.objekte(12), "12 Objekte")
-        XCTAssertEqual(DateiAnzeige.fusszeile(anzahl: 805, frei: nil), "805 Objekte")
-        let mit = DateiAnzeige.fusszeile(anzahl: 805, frei: 3_200_000_000)
-        XCTAssertTrue(mit.hasPrefix("805 Objekte, 3,2"), mit)
-        XCTAssertTrue(mit.hasSuffix("GB verfügbar"), mit)
-        XCTAssertEqual(DateiAnzeige.fusszeile(anzahl: 1, frei: 0).hasPrefix("1 Objekt, "), true)
+        XCTAssertEqual(DateiAnzeige.synchron, "Mit PC synchronisiert")
+        XCTAssertEqual(DateiAnzeige.getrennt, "PC nicht erreichbar")
     }
 
     func testZeilenTexte() {
