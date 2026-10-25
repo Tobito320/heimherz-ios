@@ -12,6 +12,8 @@ export type Optionen = {
   papierkorb?: string[]; verlaufMax?: number;
 };
 
+const FOTO_OPTIONS = /^\/v1\/fotos\/([A-Za-z0-9_-]{1,128})\/([A-Za-z0-9_-]{1,128})$/;
+
 export const istLoopback = (adresse: string | undefined) => !!adresse && ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(adresse);
 
 export function starte(o: Optionen) {
@@ -32,7 +34,11 @@ export function starte(o: Optionen) {
     }
     if (p === '/v1/fotos/bekannt' && m === 'GET') return fotos.bekannt();
     const f = /^\/v1\/fotos\/([^/]+)\/([^/]+)$/.exec(p);
-    if (f && m === 'PUT') return fotos.empfange(req, f[1], f[2]);
+    // PUT: Heimherz-App; POST: so zeigt es Apples Beispiel für Upload-Jobs. Teil-Uploads (Resumable Upload) gibt es hier nicht.
+    if (f && (m === 'PUT' || m === 'POST')) {
+      if (req.headers.get('upload-complete') === '?0' || req.headers.get('upload-incomplete') === '?1') return leer(400);
+      return fotos.empfange(req, f[1], f[2]);
+    }
     if (p === '/v1/dateien' && m === 'GET') return dateien.liste(pfad);
     if (p === '/v1/datei') {
       if (m === 'GET') return dateien.herunterladen(pfad, req.headers.get('range'));
@@ -49,6 +55,8 @@ export function starte(o: Optionen) {
     idleTimeout: 120,
     async fetch(req, srv) {
       if (!istLoopback(srv.requestIP(req)?.address)) return leer(403);
+      // Apples Vorabfrage der System-Uploads (Foto-Erweiterung): ohne Token, nur diese eine Auskunft. 501 = kein Resumable Upload.
+      if (req.method === 'OPTIONS' && FOTO_OPTIONS.test(new URL(req.url).pathname)) return leer(501);
       const token = /^Bearer (\S+)$/.exec(req.headers.get('authorization') ?? '')?.[1] ?? null;
       if (!geraete.pruefe(token)) return leer(401);
       try { return await route(req); } catch (e) {
