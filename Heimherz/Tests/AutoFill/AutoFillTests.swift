@@ -277,14 +277,15 @@ final class AutoFillSitzungTests: XCTestCase {
 
     private nonisolated static func frischeEinstellungen() -> GeteilteEinstellungen { GeteilteEinstellungen(speicher: frischerSpeicher()) }
 
-    private var beispiel: Tresor {
+    /// Fest einmal gebaut: `Eintrag` stempelt `geaendert` mit der Uhr, zwei Aufrufe wären nie gleich.
+    private let beispiel: Tresor = {
         Tresor(eintraege: [
             Eintrag(id: "1", name: "Zebra", benutzer: "mia", passwort: "pw1", urls: ["https://example.com"], totp: "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"),
             Eintrag(id: "2", name: "Anker", benutzer: "tom", passwort: "pw2", urls: ["https://m.example.com"]),
             Eintrag(id: "3", name: "Fremd", benutzer: "x", passwort: "pw3", urls: ["https://andere.org"], totp: "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"),
             Eintrag(id: "4", art: Eintrag.artNotiz, name: "Notiz", notiz: "n")
         ])
-    }
+    }()
 
     func testListeZeigtPassendeZuerstUndFiltertNachSuche() async throws {
         let (m, _) = try modell(.liste(hosts: ["example.com"], codes: false), tresor: beispiel) { _ in }
