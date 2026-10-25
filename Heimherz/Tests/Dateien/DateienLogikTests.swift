@@ -49,4 +49,17 @@ final class DateienLogikTests: XCTestCase {
         XCTAssertTrue(DateienModell.ergebnisText(ok: 1, von: 3, fehler: "x").istFehler)
         XCTAssertEqual(DateienModell.ergebnisText(ok: 0, von: 2, fehler: "Weg.").text, "Weg.")
     }
+
+    func testZwischenspeicherGroesseUndLeeren() throws {
+        let wurzel = try tempOrdner().appending(path: "cache", directoryHint: .isDirectory)
+        XCTAssertEqual(VorschauCache.groesse(wurzel: wurzel), 0, "ohne Ordner nichts")
+        let unter = wurzel.appending(path: "ab12", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: unter, withIntermediateDirectories: true)
+        try Data(count: 1_000).write(to: wurzel.appending(path: "a.bin"))
+        try Data(count: 2_500).write(to: unter.appending(path: "b.bin"))
+        XCTAssertEqual(VorschauCache.groesse(wurzel: wurzel), 3_500, "Dateien in Unterordnern zählen mit, Ordner selbst nicht")
+        VorschauCache.leere(wurzel: wurzel)
+        XCTAssertEqual(VorschauCache.groesse(wurzel: wurzel), 0)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: wurzel.path))
+    }
 }

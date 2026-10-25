@@ -101,6 +101,7 @@ final class FotoAbgleichTests: XCTestCase {
         XCTAssertEqual(dateienIn(u.temp), [], "Temp-Dateien sind weg")
         let letzte = try XCTUnwrap(u.anzeigen.mit { $0.last })
         XCTAssertEqual(letzte.zahlen, FotoZahlen(gesamt: 3, amPC: 3))
+        XCTAssertEqual(letzte.gesichert, 2, "b und c sind in diesem Lauf angekommen, a lag schon am PC")
         XCTAssertFalse(letzte.laeuft)
     }
 
@@ -112,6 +113,7 @@ final class FotoAbgleichTests: XCTestCase {
         await u.abgleich.abgleichen()
         XCTAssertEqual(u.sender.pfade, [])
         XCTAssertEqual(u.anzeigen.mit { $0.last }?.zahlen, FotoZahlen(gesamt: 1, amPC: 1))
+        XCTAssertEqual(u.anzeigen.mit { $0.last }?.gesichert, 0)
     }
 
     func testNurWLAN_OhneWLANWartenAlleDateien_VideosImmer() async throws {

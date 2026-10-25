@@ -1,11 +1,12 @@
 import SwiftUI
 
-/// Wurzel der App: vier Tabs, die Module hängen mit ihrer Wurzelansicht (`PasswoerterTabView` usw.) in `Heimherz/Sources/Module/<Modul>/` ein.
+/// Wurzel der App: vier Tabs (Passwörter, Fotos, Dateien, Einstellungen), die Module hängen mit ihrer Wurzelansicht (`PasswoerterTabView` usw.) in `Heimherz/Sources/Module/<Modul>/` ein.
 /// Über allem liegt die Sperre (Face ID nach 5 Minuten im Hintergrund).
 struct AppRootView: View {
     @Environment(AppUmgebung.self) private var umgebung
     @Environment(\.scenePhase) private var phase
     @State private var tab: HeimherzTab
+    @State private var aktionen = SchnellaktionPostfach.geteilt
 
     init(tab: HeimherzTab = .passwoerter) {
         _tab = State(initialValue: tab)
@@ -16,7 +17,7 @@ struct AppRootView: View {
             Tab(HeimherzTab.passwoerter.titel, systemImage: HeimherzTab.passwoerter.symbolName, value: HeimherzTab.passwoerter) { PasswoerterTabView() }
             Tab(HeimherzTab.fotos.titel, systemImage: HeimherzTab.fotos.symbolName, value: HeimherzTab.fotos) { FotosTabView() }
             Tab(HeimherzTab.dateien.titel, systemImage: HeimherzTab.dateien.symbolName, value: HeimherzTab.dateien) { DateienTabView() }
-            Tab(HeimherzTab.mehr.titel, systemImage: HeimherzTab.mehr.symbolName, value: HeimherzTab.mehr) { MehrTabView() }
+            Tab(HeimherzTab.einstellungen.titel, systemImage: HeimherzTab.einstellungen.symbolName, value: HeimherzTab.einstellungen) { EinstellungenTabView() }
         }
         .tint(Color.knopf)
         .fontDesign(.rounded)
@@ -33,6 +34,13 @@ struct AppRootView: View {
         // Export aus Apple Passwörter kommt in jedem Tab an; das Ergebnisblatt hängt am Passwörter-Tab.
         .heimherzImportAnnahme()
         .onChange(of: ImportPostfach.geteilt.holt) { _, holt in if holt { tab = .passwoerter } }
+        // Schnellaktion vom App-Symbol: der Tab wechselt gleich (auch unter der Sperre); ausgeführt wird sie erst nach dem Entsperren, im Ziel-Tab.
+        .onChange(of: aktionen.offen, initial: true) { _, aktion in if let aktion { tab = aktion.tab } }
         .onChange(of: phase) { _, neu in umgebung.sperre.szene(neu) }
+        #if DEBUG
+        .onAppear {
+            if let name = UserDefaults.standard.string(forKey: "heimherzAktion"), let aktion = Schnellaktion.demo(name) { aktionen.lege(aktion) }
+        }
+        #endif
     }
 }

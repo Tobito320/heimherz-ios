@@ -1,7 +1,7 @@
 import SwiftUI
 import UIKit
 
-/// Tab "Fotos" (SPEC 11): was schon am PC liegt, Abgleich jetzt, Schalter, Hinweise zu den Grenzen von iOS.
+/// Tab "Fotos" (SPEC 11): was schon am PC liegt und der Abgleich. Die Schalter und die Erklärung zum Sichern stehen in den Einstellungen.
 struct FotosTabView: View {
     @Environment(AppUmgebung.self) private var umgebung
     @State private var modell: FotosModell?
@@ -35,6 +35,8 @@ private struct FotosInhalt: View {
 
     private enum Ansicht: String { case abgleich, fotos }
     @State private var ansicht: Ansicht = Self.startAnsicht
+    @State private var aktionen = SchnellaktionPostfach.geteilt
+    @State private var zeigeErklaerung = false
 
     private static var startAnsicht: Ansicht {
         #if DEBUG
@@ -43,9 +45,30 @@ private struct FotosInhalt: View {
         return .abgleich
     }
 
+    /// Was das Tippen auf "Fotos sichern" am App-Symbol auslösen darf: nicht gesperrt, gekoppelt, die Erlaubnis da.
+    private struct AktionBedingung: Equatable {
+        let gesperrt: Bool
+        let aktion: Schnellaktion?
+    }
+
     var body: some View {
+        inhalt
+            .task(id: AktionBedingung(gesperrt: umgebung.sperre.gesperrt, aktion: aktionen.offen)) { fuehreAktionAus() }
+            .sheet(isPresented: $zeigeErklaerung) { SichernErklaerungBlatt() }
+    }
+
+    /// "Fotos sichern" vom App-Symbol: derselbe Start wie der Knopf. Fehlt die Erlaubnis, bleibt der Tab stehen und zeigt sie an.
+    private func fuehreAktionAus() {
+        guard !umgebung.sperre.gesperrt, aktionen.nimm(.fotosSichern) else { return }
+        guard umgebung.istGekoppelt, modell.erlaubnis == .voll, !modell.laeuft, let c = try? umgebung.client() else { return }
+        ansicht = .abgleich
+        modell.starte(client: c)
+    }
+
+    @ViewBuilder
+    private var inhalt: some View {
         if !umgebung.istGekoppelt {
-            seite { LeerZustand(stimmung: .schlaeft, titel: "Fotos", text: "Koppel zuerst dein Handy mit dem PC (Tab Mehr).") }
+            seite { LeerZustand(stimmung: .schlaeft, titel: "Fotos", text: "Koppel zuerst dein Handy mit dem PC (Tab Einstellungen).") }
         } else {
             switch modell.erlaubnis {
             case .offen:
@@ -84,6 +107,16 @@ private struct FotosInhalt: View {
             case .fotos: FotoRasterView(modell: modell)
             }
         }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button { zeigeErklaerung = true } label: { Label("Wie das Sichern läuft", systemImage: "questionmark.circle") }
+                } label: {
+                    Image(systemName: "ellipsis").frame(minWidth: Abstand.tippflaeche, minHeight: Abstand.tippflaeche)
+                }
+                .accessibilityLabel("Mehr")
+            }
+        }
     }
 
     // MARK: Zustände
@@ -98,8 +131,6 @@ private struct FotosInhalt: View {
         VStack(alignment: .leading, spacing: Abstand.l) {
             hero
             zahlen
-            einstellungen
-            grenzen
         }
     }
 
@@ -155,7 +186,6 @@ private struct FotosInhalt: View {
         ListenKarte {
             let z = modell.anzeige.zahlen
             WertZeile(name: "Fotos und Videos am Handy", wert: z.map { $0.gesamt.formatted() } ?? "–")
-            WertZeile(name: "Schon am PC", wert: z.map { $0.amPC.formatted() } ?? "–")
             WertZeile(name: "Noch offen", wert: z.map { $0.offen.formatted() } ?? "–")
             WertZeile(name: "Letzte Übertragung", wert: letzte)
         }
@@ -164,59 +194,5 @@ private struct FotosInhalt: View {
     private var letzte: String {
         guard let d = modell.stand.letzteUebertragung else { return "noch keine" }
         return d.formatted(.dateTime.day().month().hour().minute().locale(Locale(identifier: "de_DE")))
-    }
-
-    // MARK: Einstellungen
-
-    private var einstellungen: some View {
-        ListenKarte {
-            Toggle(isOn: Binding(get: { modell.nurWLAN }, set: { modell.setzeNurWLAN($0) })) {
-                Text("Nur im WLAN senden")
-                    .foregroundStyle(Color.tinte)
-            }
-            .tint(Color.knopf)
-            .frame(minHeight: Abstand.tippflaeche)
-            Text("Videos gehen immer nur im WLAN. Ist das Handy nicht im WLAN, hält der Abgleich an und wartet auf dich.")
-                .font(.footnote)
-                .foregroundStyle(Color.tinte2)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.bottom, Abstand.s)
-            Toggle(isOn: Binding(get: { modell.iCloudLaden }, set: { modell.setzeICloudLaden($0) })) {
-                Text("Originale aus iCloud laden")
-                    .foregroundStyle(Color.tinte)
-            }
-            .tint(Color.knopf)
-            .frame(minHeight: Abstand.tippflaeche)
-            Text("Mit \"iPhone-Speicher optimieren\" liegen viele Originale nur in iCloud. iOS muss sie erst laden, das dauert und braucht Platz und Netz. Aus: Solche Dateien werden übersprungen und bleiben offen.")
-                .font(.footnote)
-                .foregroundStyle(Color.tinte2)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.bottom, Abstand.s)
-            Toggle(isOn: Binding(get: { modell.hintergrundAn }, set: { modell.schalteHintergrund($0) })) {
-                Text("Im Hintergrund hochladen")
-                    .foregroundStyle(Color.tinte)
-            }
-            .tint(Color.knopf)
-            .frame(minHeight: Abstand.tippflaeche)
-            Text("iOS lädt dann auch bei geschlossener App hoch, wenn es ihm passt. Das hält \"Anhalten\" nicht auf: Dafür schaltest du es hier aus.")
-                .font(.footnote)
-                .foregroundStyle(Color.tinte2)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-
-    // MARK: Grenzen
-
-    private var grenzen: some View {
-        ListenKarte {
-            Text("Wie das Sichern läuft")
-                .font(.headline)
-                .foregroundStyle(Color.tinte)
-            Text("Mit \"Abgleich starten\" geht es in kleinen Stücken los, neueste Fotos zuerst. \"Anhalten\" stoppt sofort: Was schon am PC liegt, zählt, die Datei dazwischen wird verworfen und beim nächsten Start neu gesendet. Schließt du die App oder sperrst das Handy, macht iOS mit einer Anzeige weiter, solange es das zulässt. Wischst du Heim im App-Umschalter weg, endet der Abgleich, bis du ihn wieder startest. Nachts am Ladegerät im WLAN setzt iOS den Abgleich fort, wenn du ihn nicht angehalten hast; wann, entscheidet iOS. \"Anhalten\" stoppt nicht das Hochladen im Hintergrund unten, das hat einen eigenen Schalter. Der PC muss an sein und Tailscale laufen. Am Handy wird nie etwas gelöscht oder geändert.")
-                .font(.subheadline)
-                .foregroundStyle(Color.tinte2)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, Abstand.xs)
-        }
     }
 }

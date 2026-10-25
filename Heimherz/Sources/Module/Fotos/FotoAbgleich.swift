@@ -41,6 +41,8 @@ struct FotoAnzeige: Sendable, Equatable {
     var datei: String?
     var bytesProSekunde: Double?
     var restSekunden: Double?
+    /// Fotos, die in diesem Lauf vollständig am PC angekommen sind (Grundlage der Mitteilung "N Fotos gesichert").
+    var gesichert = 0
 }
 
 /// Ein Abgleich in kleinen Stücken (`stueck` Dateien): Liste vom PC holen, das nächste Stück planen (neueste zuerst), jede Datei exportieren
@@ -227,7 +229,10 @@ actor FotoAbgleich {
             stand.letzteUebertragung = jetzt()
             gesendet[r.kennung, default: 0] += 1
             // Die letzte fehlende Datei eines Assets ist da: sofort fertig, das Häkchen im Raster erscheint ohne auf das nächste Stück zu warten.
-            if gesendet[r.kennung] == fehlend[r.kennung], stand.fertig.insert(r.kennung).inserted { anzeige.zahlen?.amPC += 1 }
+            if gesendet[r.kennung] == fehlend[r.kennung], stand.fertig.insert(r.kennung).inserted {
+                anzeige.zahlen?.amPC += 1
+                anzeige.gesichert += 1
+            }
             if erledigt % 25 == 0 { sichere() }
         case .wartetAufWLAN(let r):
             wartetAufWLAN += 1

@@ -92,7 +92,7 @@ jobs:
           xcrun simctl install "$IPHONE_ID" "$APP"
           for modus in light dark; do
             xcrun simctl ui "$IPHONE_ID" appearance "$modus"
-            for tab in passwoerter fotos dateien mehr; do
+            for tab in passwoerter fotos dateien einstellungen; do
               xcrun simctl launch --terminate-running-process "$IPHONE_ID" com.onlyus.heimherz -heimherzDemo YES -heimherzTab "$tab"
               sleep 5
               xcrun simctl io "$IPHONE_ID" screenshot "screenshots/${modus}-${tab}.png"
@@ -114,13 +114,28 @@ jobs:
             xcrun simctl launch --terminate-running-process "$IPHONE_ID" com.onlyus.heimherz -heimherzDemo YES -heimherzTab fotos
             sleep 5
             xcrun simctl io "$IPHONE_ID" screenshot "screenshots/${modus}-fotos-xxl.png"
+            xcrun simctl launch --terminate-running-process "$IPHONE_ID" com.onlyus.heimherz -heimherzDemo YES -heimherzTab einstellungen
+            sleep 5
+            xcrun simctl io "$IPHONE_ID" screenshot "screenshots/${modus}-einstellungen-xxl.png"
             xcrun simctl ui "$IPHONE_ID" content_size large
-            xcrun simctl launch --terminate-running-process "$IPHONE_ID" com.onlyus.heimherz -heimherzDemo YES -heimherzTab mehr -heimherzKoppeln YES
+            xcrun simctl launch --terminate-running-process "$IPHONE_ID" com.onlyus.heimherz -heimherzDemo YES -heimherzTab einstellungen -heimherzKoppeln YES
             sleep 5
             xcrun simctl io "$IPHONE_ID" screenshot "screenshots/${modus}-koppeln.png"
-            xcrun simctl launch --terminate-running-process "$IPHONE_ID" com.onlyus.heimherz -heimherzDemo YES -heimherzTab mehr -heimherzOhnePC YES
+            xcrun simctl launch --terminate-running-process "$IPHONE_ID" com.onlyus.heimherz -heimherzDemo YES -heimherzTab einstellungen -heimherzOhnePC YES
             sleep 5
             xcrun simctl io "$IPHONE_ID" screenshot "screenshots/${modus}-ungekoppelt.png"
+            # Unterseiten der Einstellungen (Demo springt per -heimherzEinstellungenSeite hinein)
+            for seite in pc autofill sichern; do
+              xcrun simctl launch --terminate-running-process "$IPHONE_ID" com.onlyus.heimherz -heimherzDemo YES -heimherzTab einstellungen -heimherzEinstellungenSeite "$seite"
+              sleep 5
+              xcrun simctl io "$IPHONE_ID" screenshot "screenshots/${modus}-einstellungen-${seite}.png"
+            done
+            # Schnellaktionen vom App-Symbol (Demo legt die Aktion ins Postfach wie das System): Liste Codes, Formular Neues Passwort, Fotos-Tab
+            for aktion in codes passwort fotos; do
+              xcrun simctl launch --terminate-running-process "$IPHONE_ID" com.onlyus.heimherz -heimherzDemo YES -heimherzAktion "$aktion"
+              sleep 6
+              xcrun simctl io "$IPHONE_ID" screenshot "screenshots/${modus}-aktion-${aktion}.png"
+            done
           done
           ls -l screenshots
       - name: Screenshots hochladen

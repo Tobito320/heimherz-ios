@@ -16,6 +16,7 @@ struct PasswoerterInhalt: View {
     @State private var store: TresorStore
     @State private var symbole: SymbolLader
     @State private var postfach = ImportPostfach.geteilt
+    @State private var aktionen = SchnellaktionPostfach.geteilt
     @State private var suche = ""
     @State private var pfad: [PasswoerterZiel] = []
     @State private var formular: FormularZiel?
@@ -65,6 +66,7 @@ struct PasswoerterInhalt: View {
         }
         .task(id: lage) { await lageAnwenden() }
         .task(id: ImportBedingung(bereit: store.zustand == .bereit, hatPaket: postfach.paket != nil)) { await importAusfuehren() }
+        .task(id: AktionBedingung(bereit: store.zustand == .bereit && !lage.gesperrt, aktion: aktionen.offen)) { fuehreAktionAus() }
         .onChange(of: phase) { _, neu in
             if neu == .active, lage.gekoppelt, !lage.gesperrt { Task { await store.abgleichen() } }
         }
@@ -73,6 +75,12 @@ struct PasswoerterInhalt: View {
     private struct ImportBedingung: Equatable {
         let bereit: Bool
         let hatPaket: Bool
+    }
+
+    /// Schnellaktionen vom App-Symbol laufen erst, wenn der Tresor offen ist (nicht gesperrt, Schlüssel geladen).
+    private struct AktionBedingung: Equatable {
+        let bereit: Bool
+        let aktion: Schnellaktion?
     }
 
     private struct ImportAnzeige: Identifiable {
@@ -90,6 +98,7 @@ struct PasswoerterInhalt: View {
             zeigeAnleitung = false
             if !lage.gekoppelt {
                 postfach.verwerfe()
+                aktionen.verwirf(tab: .passwoerter)
                 if !umgebung.istDemo { await AutoFillIdentitaeten.leeren() }
             }
             return
@@ -98,6 +107,18 @@ struct PasswoerterInhalt: View {
         #if DEBUG
         if umgebung.istDemo { demoSeite() }
         #endif
+    }
+
+    /// "Codes" und "Neues Passwort" vom App-Symbol: Liste Codes beziehungsweise das Formular, so wie ein Tipp in der App.
+    private func fuehreAktionAus() {
+        guard store.zustand == .bereit, !lage.gesperrt else { return }
+        if aktionen.nimm(.codes) {
+            formular = nil
+            pfad = [.kategorie(.codes)]
+        } else if aktionen.nimm(.neuesPasswort) {
+            pfad = []
+            formular = .neu(Eintrag.artLogin)
+        }
     }
 
     /// Der Import wartet im Speicher, bis der Tresor offen ist; dann wird einmal eingemischt und abgeglichen.
@@ -117,7 +138,7 @@ struct PasswoerterInhalt: View {
     private var inhalt: some View {
         if !umgebung.istGekoppelt {
             ScrollView {
-                LeerZustand(titel: "Passwörter", text: "Koppel zuerst dein Handy mit dem PC (Tab Mehr). Danach liegen deine Passwörter hier und in Safari und Apps.")
+                LeerZustand(titel: "Passwörter", text: "Koppel zuerst dein Handy mit dem PC (Tab Einstellungen). Danach liegen deine Passwörter hier und in Safari und Apps.")
             }
         } else {
             switch store.zustand {

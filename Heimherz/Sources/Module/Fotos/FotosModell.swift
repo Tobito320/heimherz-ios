@@ -20,6 +20,8 @@ final class FotosModell {
 
     let istDemo: Bool
     private let ablage: FotoStandAblage
+    private let einstellungen: GeteilteEinstellungen
+    private let mitteilung: any MitteilungsDienst
     /// Beobachtet den Strom der Anzeigen, wartet auf `arbeit` und räumt danach auf.
     private var lauf: Task<Void, Never>?
     private var arbeit: Task<Void, Never>?
@@ -33,8 +35,10 @@ final class FotosModell {
     /// "Abgleich starten" kam, während nur gezählt wurde: das Zählen bricht ab, danach startet der Abgleich.
     private var vorgemerkt: HeimClient?
 
-    init(istDemo: Bool, ablage: FotoStandAblage? = nil) {
+    init(istDemo: Bool, ablage: FotoStandAblage? = nil, einstellungen: GeteilteEinstellungen = GeteilteEinstellungen(), mitteilung: any MitteilungsDienst = SystemMitteilungen()) {
         self.istDemo = istDemo
+        self.einstellungen = einstellungen
+        self.mitteilung = mitteilung
         let ordner = URL.applicationSupportDirectory.appending(path: "Heimherz", directoryHint: .isDirectory)
         self.ablage = ablage ?? FotoStandAblage.appGruppe() ?? FotoStandAblage(ordner: ordner)
         if istDemo {
@@ -97,6 +101,13 @@ final class FotosModell {
         hintergrundAn = PHPhotoLibrary.shared().uploadJobExtensionEnabled
     }
 
+    /// Nur lesen, was iOS gerade sagt (Einstellungen-Tab); schaltet nichts ein, anders als `lade`.
+    func liesSystemStand() {
+        guard !istDemo else { return }
+        erlaubnis = Self.lese(PHPhotoLibrary.authorizationStatus(for: .readWrite))
+        hintergrundAn = erlaubnis == .voll && PHPhotoLibrary.shared().uploadJobExtensionEnabled
+    }
+
     /// Beim Öffnen und bei jedem Wechsel der Kopplung: Stand neu lesen, Erweiterung einschalten (nur gekoppelt, sonst gäbe es Jobs ohne Zugang).
     /// Temp-Dateien räumt es nur auf, wenn kein Lauf eine davon braucht.
     func lade(gekoppelt: Bool) async {
@@ -135,6 +146,8 @@ final class FotosModell {
             arbeit?.cancel()
             return
         }
+        // Die erste Mitteilung braucht die Erlaubnis; der Start per Knopf ist der Moment, in dem der Nutzer sie versteht.
+        if einstellungen.fotoMitteilung { Task { [mitteilung] in await mitteilung.erlaubnisFragen() } }
         beginne(client: client, senden: true, nur: nil, vomNutzer: true, nachts: true)
     }
 
@@ -191,6 +204,8 @@ final class FotosModell {
     private func laufBeendet() async {
         stand = ablage.lade()
         let a = anzeige
+        let meldeLauf = plantNachts   // nur Knopf und Nachtlauf melden; Zählen und Einzel-Upload bleiben still
+        let angehalten = nutzerHatAngehalten
         lauf = nil
         arbeit = nil
         anzeige.fertig = stand.fertig.union(a.fertig)
@@ -202,6 +217,10 @@ final class FotosModell {
         if plantNachts, !nutzerHatAngehalten, (a.zahlen?.offen ?? 0) > 0 { FotoHintergrund.planeNacht() }
         nutzerLauf = false
         plantNachts = false
+        // Läuft noch im Lauf selbst: Der Nachtlauf wartet auf ihn, die Mitteilung geht raus, bevor iOS die Aufgabe schließt.
+        if meldeLauf, !istDemo {
+            await FotoMitteilung.meldeNachLauf(gesichert: a.gesichert, vomNutzerAngehalten: angehalten, einstellungen: einstellungen, dienst: mitteilung)
+        }
         await raeumeTempAuf()
         if let c = vorgemerkt {
             vorgemerkt = nil

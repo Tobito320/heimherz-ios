@@ -135,7 +135,7 @@ Gemeinsam/:
 - `Netz/` `HeimClient` (async, URLSession, Bearer, Fehler als Typ), Server-URL aus dem Koppeln.
 - `Koppeln/` QR lesen (VisionKit `DataScannerViewController`), URI prüfen, speichern, Testanfrage `GET /v1/status`.
 
-Tabs: Passwörter, Fotos, Dateien, Mehr (Status, Koppeln, Build-Ablauf, Sperre).
+Tabs: Passwörter, Fotos, Dateien, Einstellungen (vorher "Mehr"; PC, Sicherheit, Passwörter, Fotos, Dateien, Über, siehe Abschnitt "Einstellungen").
 
 ### Grundgerüst (gebaut, T4)
 
@@ -166,6 +166,12 @@ Einstieg je Modul: `ios-passwoerter` ersetzt `Heimherz/Sources/Module/Passwoerte
 Foto-Erweiterung (iOS 26.1, aus Apples Doku "Uploading asset resources in the background"): Protokoll `PHBackgroundResourceUploadExtension` (`process()`, `notifyTermination()`), Erweiterungspunkt `com.apple.photos.background-upload` (`EXAppExtensionAttributes`), XcodeGen-Typ `extensionkit-extension`, im App-Bundle unter `Extensions/`. Info.plist-Schlüssel `BackgroundUploadURLBase` (feste Basis-URL des Dienstes, Build-Einstellung `HEIMHERZ_UPLOAD_URL_BASE`, im TestFlight-Lauf aus dem Secret gleichen Namens). Ein eigenes Entitlement nennt Apple nicht. Die App muss `PHPhotoLibrary.shared().setUploadJobExtensionEnabled(true)` nach voller Fotos-Erlaubnis rufen. Laut Doku fragt das System den Upload-Endpunkt vorab mit `OPTIONS` ab (Antwort `501` = kein Resumable Upload) und erwartet bei Resumable Uploads `104`; der PC-Dienst kennt `OPTIONS` noch nicht (T6, T9 prüfen).
 
 Sicherheit (25.10., nach der Prüfung): Koppeln nimmt nur Hosts auf `.ts.net`, zeigt vorher "Mit <host> koppeln?" (bei schon gekoppeltem Handy mit Warnung, dass der alte Zugang samt Tresor ersetzt wird, und einem Abgleichversuch davor). Entkoppeln versucht vorher einen Abgleich und zeigt sonst "N Änderungen noch nicht am PC"; Fehler des Schlüsselbunds werden angezeigt; die Foto-Erweiterung wird ausgeschaltet. Es gibt kein URL-Schema `heimherz://` mehr (der QR wird nur in der App gescannt; `Kennungen.urlSchema` bleibt für das Lesen des Textes). Bei `.inactive` und `.background` deckt `AppSperre.verdeckt` sofort das Haus über den Inhalt (unabhängig von den 5 Minuten). App-Sperre und Laden von K teilen sich einen `EntsperrKontext` (`AppSperre.kontext`, bei jeder Sperre neu): beim Start nur eine Face-ID-Abfrage.
+
+### Runde 3 (W-007, W-013): aufgeräumt, Schnellaktionen
+
+Jede Seite zeigt nur den Kern; Seltenes liegt im Drei-Punkte-Menü oder auf einer Unterseite, Schalter in den Einstellungen. Passwörter-Start: keine Karte "Aus Apple Passwörter holen" mehr (nur im Menü oben, dort steht auch "Zuletzt abgeglichen: …"), `SyncStatus` zeigt nur Fehler, "PC nicht erreichbar" und "Gleiche ab". Fotos-Tab: Übersicht (Hero, drei Zahlen) und Raster; die drei Schalter und der lange Text "Wie das Sichern läuft" sind in den Einstellungen, der Text auch im Menü des Fotos-Tabs (Blatt). Dateien: im Hauptordner keine Brotkrumen (der Titel sagt es), kürzere leere Zustände. Koppel-Blatt: ein Satz, "Link statt QR-Code einfügen" zugeklappt solange die Kamera geht. Import-Blatt: "Gut zu wissen" zugeklappt.
+
+Schnellaktionen am App-Symbol (langes Drücken, `UIApplicationShortcutItems` in `project.yml`, Typen `com.onlyus.heimherz.aktion.codes|fotos|passwort`): "Codes" (Passwörter, Liste Codes), "Fotos sichern" (Fotos-Tab, startet den Abgleich wie der Knopf, nur mit voller Fotos-Erlaubnis), "Neues Passwort" (Formular). `HeimherzAppDelegate.application(_:configurationForConnecting:options:)` legt beim Kaltstart `options.shortcutItem` ins Postfach `SchnellaktionPostfach` (`App/Schnellaktion.swift`, wie `ImportPostfach`) und setzt `HeimherzSzenenDelegate` als Szenen-Delegate; der nimmt im Warmstart `windowScene(_:performActionFor:)` an. Der Kaltstart läuft nur über die Verbindungsoptionen, der Warmstart nur über den Szenen-Delegate, nie beides. `AppRootView` wechselt den Tab sofort; das Ziel (`PasswoerterInhalt`, `FotosInhalt`) führt aus, sobald nicht gesperrt (und bei Passwörtern der Tresor offen) ist, und nimmt die Aktion dabei aus dem Postfach (einmal). Ungekoppelt oder ohne Erlaubnis wird sie verworfen. Debug: `-heimherzAktion codes|fotos|passwort`.
 
 ## 9. Modul `ios-passwoerter`
 
@@ -218,6 +224,8 @@ Gebaut (25.10., Prüfung): genauer Host-Treffer geht vor Unterdomain-Treffer (Li
 
 Gebaut (25.10.): Server antwortet auf `OPTIONS /v1/fotos/…` ohne Token mit 501 (kein Resumable Upload, Apple-Weg) und nimmt POST wie PUT; Teil-Uploads 400. Ressourcen `foto-N`, `video-N`, `live-N`, `alternative-N`, `ton-N`; bearbeitete Fassungen gehen nicht mit (später). `Gemeinsam/Fotos/` teilt Kennung, Plan und Stand (`fotos-stand.json` in der App Group) zwischen App und Erweiterung; die Erweiterung hat kein Netz zum Abfragen und liest `bekannt` aus dem Stand. Vor iOS 26.5 merkt sie eingereichte Jobs selbst (3 Tage), vor 26.4 kein `job.error`. Ohne WLAN wartet die App statt iCloud-Originale mobil zu laden. Runde 2 (W-003, 25.10.): Abgleich nur per Knopf "Abgleich starten"/"Anhalten", neueste zuerst, Stücke zu 20 Dateien, Stand dauerhaft in `fotos-stand.json`; Anhalten bricht laufenden Upload und Export ab (`requestData`/`cancelDataRequest`), fertige Dateien zählen. Der Tab zählt beim Öffnen nur, startet nicht. `BGContinuedProcessingTask` (`com.onlyus.heimherz.fotos-abgleich`) trägt einen gestarteten Lauf, `BGProcessingTask` (`.fotos-nacht`) nachts mit Strom, solange etwas offen ist. `handleEventsForBackgroundURLSession` über `HeimherzAppDelegate`. Raster "Fotos sehen" mit Filter Alle / Am PC / Noch nicht und Status je Bild, Einzelbild mit "Jetzt hochladen" (gesperrt während eines Laufs). Schalter "Originale aus iCloud laden". "Anhalten" stoppt nicht die Foto-Erweiterung (eigener Schalter).
 
+Runde 3 (W-007, W-018): Die Schalter (nur WLAN, Originale aus iCloud, Im Hintergrund hochladen) und "Wie das Sichern läuft" wohnen in den Einstellungen (Abschnitt "Einstellungen"); das Verhalten ist unverändert. "Videos nur WLAN" ist eine feste Regel und steht als Fußzeile dort, kein Schalter. Mitteilung "N Fotos gesichert" (`FotoMitteilung`, `MitteilungsDienst`): `FotosModell.laufBeendet` meldet, wenn der Lauf per Knopf oder als Nachtlauf lief (`plantNachts`), der Nutzer nicht angehalten hat, `GeteilteEinstellungen.fotoMitteilung` an ist und `FotoAnzeige.gesichert` größer 0 ist. `gesichert` zählt im `FotoAbgleich` die Fotos, die in diesem Lauf vollständig am PC ankamen (nicht die Zunahme von `amPC`, nicht Dateien: ein Live Photo zählt einmal). Zählen und Einzel-Upload melden nie. Die Erlaubnis fragt der erste Start per Knopf und das Einschalten des Schalters (nur wenn iOS noch nie gefragt hat). Steht die App im Vordergrund, zeigt iOS die Mitteilung nicht (der Lauf ist dort zu sehen).
+
 Prüfung (25.10.): Ein Serverfehler (5xx) oder eine Ablehnung (4xx außer 401) überspringt nur diese Datei (gezählt, Grund im Stand, beim nächsten Lauf wieder offen). Den Lauf halten nur 401, 507 (`HeimFehler.speicherVoll`, Platte am PC voll) und echte Verbindungsfehler an. 411 kann nicht vorkommen: Uploads laufen über `uploadTask(with:fromFile:)` (Länge aus der Datei). Nach dem Entkoppeln ist die Foto-Erweiterung aus; sie schaltet sich nur bei gekoppeltem Handy wieder ein. Bereits angelegte Jobs tragen das alte Token und scheitern am PC.
 
 ## 12. Modul `ios-dateien`
@@ -227,6 +235,24 @@ Ordnerliste, Vorschau mit QuickLook (Download in Cache, Range wird nicht gebrauc
 Gebaut (25.10.): Datei antippen öffnet ein Blatt mit Ansehen, Teilen, Papierkorb; Papierkorb auch per Langdruck. Fotos-Auswahl lädt Dateien (nicht Data), Name `Foto JJJJ-MM-TT HH-MM-SS.ext`, bis 20 auf einmal.
 
 Prüfung (25.10.): `dateiHochladen` sendet über `upload(for:fromFile:)`, die Länge ist damit gesetzt (der Dienst verlangt sie jetzt, sonst 411). 507 hält den Upload-Lauf an.
+
+Runde 3 (W-007): Der Zwischenspeicher der Vorschauen (`VorschauCache`, `Caches/Heimherz/Dateien`) wird in den Einstellungen mit Größe angezeigt und mit Rückfrage geleert (`VorschauCache.groesse`, `leere`). Im Hauptordner entfallen die Brotkrumen.
+
+## Einstellungen (W-008, Runde 3)
+
+Tab "Einstellungen" (Symbol `gearshape.fill`, Typ `HeimherzTab.einstellungen`, Debug `-heimherzTab einstellungen`), `Module/Einstellungen/`. Gruppierte Liste (`insetGrouped`) wie die iOS-Einstellungen, Zeilen mit farbigen Symbolkacheln (`SymbolKachel`, `KachelTitel`, `heimherzEinstellungenListe` in `Design/Bausteine.swift`).
+
+| Gruppe | Zeilen | Wirkung |
+|---|---|---|
+| (Hinweis) | Build-Ablauf ab Tag 75 | `BuildAblauf.hinweis` |
+| PC | Kopf (verbunden ja/nein, Gerätename = Host, Hausherz-Stimmung), "Zuletzt abgeglichen" | Unterseite `PCEinstellungenSeite`: Server, Dienst, Tresor-Stand, Fotos am PC, Frei am PC, Neu prüfen, Mit anderem PC koppeln, Entkoppeln (Rückfrage wie vorher). Ungekoppelt: Kopf und der eine große Knopf "Mit PC koppeln" |
+| Sicherheit | "Face ID gilt für" (Picker `EntsperrDauer`), "2FA-Code nach dem Ausfüllen kopieren" | schreibt `GeteilteEinstellungen.entsperrDauer` und `codeKopieren` in die App Group. Die Wirkung bauen App-Sperre und AutoFill (Arbeiter B); die Ansicht bindet nur an. Fußzeile "Solange füllt Heim ohne neue Abfrage aus." |
+| Passwörter | AutoFill einschalten (Unterseite `AutoFillAnleitung`), "Aus Apple Passwörter holen" (Blatt `ImportAnleitungBlatt`), "Auf Datenlecks prüfen" | `leckPruefung` (Wirkung: Arbeiter C). Fußzeile: nur 5 Zeichen eines Hashs an haveibeenpwned.com |
+| Fotos (nur gekoppelt) | Nur im WLAN senden, Originale aus iCloud laden, Im Hintergrund hochladen (aus ohne volle Erlaubnis), Mitteilung nach dem Abgleich, "Wie das Sichern läuft" (Unterseite) | `FotosModell.setzeNurWLAN`, `setzeICloudLaden`, `schalteHintergrund` (unverändert) und `fotoMitteilung`. Die Fußzeile nennt, was gerade einen Schalter wirkungslos macht, sonst die Regel für Videos |
+| Dateien (nur gekoppelt) | Zwischenspeicher am Handy (Größe, Leeren mit Rückfrage) | `VorschauCache.groesse`, `leere` |
+| Über | Version, Build vom, TestFlight läuft ab in N Tagen | `BuildAblauf` |
+
+Geteilte Werte liegen als `@State`-Kopie in der Ansicht und werden mit `.onChange` in die App Group geschrieben (UserDefaults melden Änderungen nicht an SwiftUI). "Zuletzt abgeglichen" liest den Merker des `TresorStore` (`TresorStore.merkerSchluessel`). Debug: `-heimherzEinstellungenSeite pc|autofill|sichern`.
 
 ## 13. Modul `freigabe`
 

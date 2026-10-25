@@ -13,7 +13,8 @@ struct HeimherzApp: App {
     }
 
     /// Debug-Argumente für Screenshots in CI: `-heimherzDemo YES` (erfundene Verbindung, keine Sperre, kein Netz),
-    /// `-heimherzTab <passwoerter|fotos|dateien|mehr>`, `-heimherzOhnePC YES` (Demo ungekoppelt), `-heimherzKoppeln YES` (Koppel-Blatt offen).
+    /// `-heimherzTab <passwoerter|fotos|dateien|einstellungen>`, `-heimherzOhnePC YES` (Demo ungekoppelt), `-heimherzKoppeln YES` (Koppel-Blatt offen),
+    /// `-heimherzEinstellungenSeite <pc|autofill|sichern>` (Unterseite der Einstellungen offen), `-heimherzAktion <codes|fotos|passwort>` (Schnellaktion wie vom App-Symbol).
     private static func waehleUmgebung() -> AppUmgebung {
         #if DEBUG
         let defaults = UserDefaults.standard
