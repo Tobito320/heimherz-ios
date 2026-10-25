@@ -2,6 +2,7 @@ import SwiftUI
 
 @main
 struct HeimherzApp: App {
+    @UIApplicationDelegateAdaptor(HeimherzAppDelegate.self) private var delegate
     @State private var umgebung = Self.waehleUmgebung()
 
     var body: some Scene {

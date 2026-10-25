@@ -39,6 +39,12 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         HeimherzBuildDatum: $(HEIMHERZ_BUILD_DATUM)
         BackgroundUploadURLBase: $(HEIMHERZ_UPLOAD_URL_BASE)
+        # Foto-Abgleich im Hintergrund: Kennungen siehe FotoHintergrund.swift (Fortsetzung iOS 26, Nachtlauf mit Strom)
+        BGTaskSchedulerPermittedIdentifiers:
+          - com.onlyus.heimherz.fotos-abgleich
+          - com.onlyus.heimherz.fotos-nacht
+        UIBackgroundModes:
+          - processing
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.onlyus.heimherz

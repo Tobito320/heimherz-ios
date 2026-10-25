@@ -8,22 +8,22 @@ struct FotosTabView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
+            Group {
                 if let modell {
                     FotosInhalt(modell: modell)
                 } else {
-                    ProgressView().padding(Abstand.xxl).frame(maxWidth: .infinity)
+                    ProgressView().padding(Abstand.xxl).frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
             .heimherzHintergrund()
             .navigationTitle("Fotos")
         }
         .task(id: umgebung.istGekoppelt) {
-            let m = modell ?? FotosModell(istDemo: umgebung.istDemo)
+            let m = modell ?? (umgebung.istDemo ? FotosModell(istDemo: true) : FotosModell.geteilt)
             modell = m
             await m.lade(gekoppelt: umgebung.istGekoppelt)
-            // Beim Öffnen gleicht die App sofort ab (SPEC 2: zweiter Weg neben der Erweiterung).
-            if umgebung.istGekoppelt, !umgebung.istDemo, let c = try? umgebung.client() { m.abgleichen(client: c) }
+            // Beim Öffnen wird nur gezählt. Gesendet wird erst auf "Abgleich starten": Wer anhält, will nicht, dass der Tab wieder anfängt.
+            if umgebung.istGekoppelt, !umgebung.istDemo, let c = try? umgebung.client() { m.aktualisiere(client: c) }
         }
     }
 }
@@ -33,26 +33,57 @@ private struct FotosInhalt: View {
     @Environment(\.openURL) private var oeffne
     let modell: FotosModell
 
+    private enum Ansicht: String { case abgleich, fotos }
+    @State private var ansicht: Ansicht = Self.startAnsicht
+
+    private static var startAnsicht: Ansicht {
+        #if DEBUG
+        if UserDefaults.standard.bool(forKey: "heimherzFotosRaster") { return .fotos }
+        #endif
+        return .abgleich
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: Abstand.l) {
-            if !umgebung.istGekoppelt {
-                LeerZustand(stimmung: .schlaeft, titel: "Fotos", text: "Koppel zuerst dein Handy mit dem PC (Tab Mehr).")
-            } else {
-                switch modell.erlaubnis {
-                case .offen:
-                    LeerZustand(titel: "Fotos sichern", text: "Heimherz braucht Zugriff auf alle deine Fotos, um sie auf deinen PC zu bringen. Am Handy wird nie etwas gelöscht oder geändert.",
+        if !umgebung.istGekoppelt {
+            seite { LeerZustand(stimmung: .schlaeft, titel: "Fotos", text: "Koppel zuerst dein Handy mit dem PC (Tab Mehr).") }
+        } else {
+            switch modell.erlaubnis {
+            case .offen:
+                seite {
+                    LeerZustand(titel: "Fotos sichern", text: "Heim braucht Zugriff auf alle deine Fotos, um sie auf deinen PC zu bringen. Am Handy wird nie etwas gelöscht oder geändert.",
                                 aktionTitel: "Zugriff erlauben") { Task { await modell.erlaube() } }
-                case .verweigert:
-                    keinZugriff("Heimherz darf deine Fotos nicht lesen. Schalte den Zugriff in den Einstellungen ein.")
-                case .begrenzt:
-                    keinZugriff("Heimherz sieht nur einen Teil deiner Fotos. Zum Sichern braucht es den Zugriff auf alle Fotos.")
-                case .voll:
-                    uebersicht
                 }
+            case .verweigert:
+                seite { keinZugriff("Heim darf deine Fotos nicht lesen. Schalte den Zugriff in den Einstellungen ein.") }
+            case .begrenzt:
+                seite { keinZugriff("Heim sieht nur einen Teil deiner Fotos. Zum Sichern braucht es den Zugriff auf alle Fotos.") }
+            case .voll:
+                voll
             }
         }
-        .padding(.horizontal, Abstand.l)
-        .padding(.bottom, Abstand.xl)
+    }
+
+    private func seite<Inhalt: View>(@ViewBuilder _ inhalt: () -> Inhalt) -> some View {
+        ScrollView {
+            inhalt()
+                .padding(.horizontal, Abstand.l)
+                .padding(.bottom, Abstand.xl)
+        }
+    }
+
+    private var voll: some View {
+        VStack(spacing: Abstand.s) {
+            Picker("Ansicht", selection: $ansicht) {
+                Text("Abgleich").tag(Ansicht.abgleich)
+                Text("Fotos").tag(Ansicht.fotos)
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal, Abstand.l)
+            switch ansicht {
+            case .abgleich: seite { uebersicht }
+            case .fotos: FotoRasterView(modell: modell)
+            }
+        }
     }
 
     // MARK: Zustände
@@ -74,12 +105,7 @@ private struct FotosInhalt: View {
 
     // MARK: Hero
 
-    private var titel: String {
-        let a = modell.anzeige
-        if a.laeuft, let schritt = a.schritt { return schritt }
-        guard let z = a.zahlen else { return "Noch nicht gezählt" }
-        return z.offen == 0 ? "Alles liegt auf dem PC" : "\(z.amPC.formatted()) von \(z.gesamt.formatted()) Fotos auf dem PC"
-    }
+    private var titel: String { FotoText.stand(modell.anzeige) }
 
     private var hero: some View {
         HeroKarte {
@@ -90,34 +116,31 @@ private struct FotosInhalt: View {
                     .foregroundStyle(Color.tinte)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            if modell.laeuft || modell.anzeige.schritt != nil, let schritt = modell.anzeige.schritt {
+                Text(schritt)
+                    .font(.subheadline)
+                    .foregroundStyle(Color.tinte2)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
             if modell.laeuft, let f = modell.anzeige.fortschritt {
                 ProgressView(value: f)
                     .tint(Color.knopf)
                     .accessibilityLabel("Fortschritt")
                     .accessibilityValue(f.formatted(.percent.precision(.fractionLength(0))))
             }
+            if modell.laeuft, let t = FotoText.tempo(modell.anzeige) {
+                Text(t)
+                    .font(.footnote)
+                    .foregroundStyle(Color.tinte2)
+            }
+            if modell.anzeige.angehalten, !modell.laeuft {
+                StatusChip(text: "Angehalten. Der nächste Start macht genau hier weiter.", symbol: "pause.circle.fill")
+            }
             if let fehler = modell.stand.fehler, !modell.laeuft {
                 StatusChip(text: fehler, symbol: "exclamationmark.triangle.fill", ton: .warn)
             }
-            if modell.laeuft {
-                Button { modell.abbrechen() } label: {
-                    Label("Abbrechen", systemImage: "xmark")
-                        .frame(maxWidth: .infinity, minHeight: Abstand.tippflaeche)
-                }
-                .buttonStyle(.glass)
-            } else {
-                Button {
-                    if let c = try? umgebung.client() { modell.abgleichen(client: c) }
-                } label: {
-                    Label("Jetzt abgleichen", systemImage: "arrow.triangle.2.circlepath")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity, minHeight: Abstand.tippflaeche)
-                }
-                .buttonStyle(.glassProminent)
-                .tint(Color.knopf)
-                .foregroundStyle(Color.aufKnopf)
-                .controlSize(.large)
-            }
+            FotoStartKnopf(modell: modell)
         }
     }
 
@@ -154,7 +177,18 @@ private struct FotosInhalt: View {
             }
             .tint(Color.knopf)
             .frame(minHeight: Abstand.tippflaeche)
-            Text("Videos gehen immer nur im WLAN. Ist das Handy nicht im WLAN, warten die Dateien auf den nächsten Abgleich.")
+            Text("Videos gehen immer nur im WLAN. Ist das Handy nicht im WLAN, hält der Abgleich an und wartet auf dich.")
+                .font(.footnote)
+                .foregroundStyle(Color.tinte2)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.bottom, Abstand.s)
+            Toggle(isOn: Binding(get: { modell.iCloudLaden }, set: { modell.setzeICloudLaden($0) })) {
+                Text("Originale aus iCloud laden")
+                    .foregroundStyle(Color.tinte)
+            }
+            .tint(Color.knopf)
+            .frame(minHeight: Abstand.tippflaeche)
+            Text("Mit \"iPhone-Speicher optimieren\" liegen viele Originale nur in iCloud. iOS muss sie erst laden, das dauert und braucht Platz und Netz. Aus: Solche Dateien werden übersprungen und bleiben offen.")
                 .font(.footnote)
                 .foregroundStyle(Color.tinte2)
                 .fixedSize(horizontal: false, vertical: true)
@@ -175,7 +209,7 @@ private struct FotosInhalt: View {
             Text("Wie das Sichern läuft")
                 .font(.headline)
                 .foregroundStyle(Color.tinte)
-            Text("iOS entscheidet selbst, wann es im Hintergrund hochlädt, meist nachts am Ladegerät im WLAN. Ein Zeitpunkt ist nicht garantiert. Öffne diesen Tab ab und zu: Dann gleicht die App sofort ab. Der PC muss dafür an sein und Tailscale laufen. Am Handy wird nie etwas gelöscht oder geändert.")
+            Text("Mit \"Abgleich starten\" geht es in kleinen Stücken los, neueste Fotos zuerst. \"Anhalten\" stoppt sofort: Was schon am PC liegt, zählt, die Datei dazwischen wird verworfen und beim nächsten Start neu gesendet. Schließt du die App oder sperrst das Handy, macht iOS mit einer Anzeige weiter, solange es das zulässt. Wischst du Heim im App-Umschalter weg, endet der Abgleich, bis du ihn wieder startest. Nachts am Ladegerät im WLAN setzt iOS ihn fort, wenn du ihn nicht angehalten hast; wann, entscheidet iOS. Der PC muss an sein und Tailscale laufen. Am Handy wird nie etwas gelöscht oder geändert.")
                 .font(.subheadline)
                 .foregroundStyle(Color.tinte2)
                 .fixedSize(horizontal: false, vertical: true)

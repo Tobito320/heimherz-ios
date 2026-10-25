@@ -16,8 +16,11 @@ struct FotoStand: Codable, Sendable, Equatable {
     var eingereicht: [String: Date]?
     /// Anzahl Assets bei der letzten Zählung (für die Anzeige, wenn der PC gerade aus ist).
     var gesamt: Int?
+    /// Originale aus iCloud laden, wenn sie nicht auf dem Handy liegen. nil = Standard (ja).
+    var iCloudLaden: Bool?
 
     var wlanNoetig: Bool { nurWLAN ?? true }
+    var iCloudErlaubt: Bool { iCloudLaden ?? true }
 
     /// Schlüssel mit einem Job, der jünger als drei Tage ist; ältere gelten als verschwunden und werden neu versucht.
     func unterwegs(jetzt: Date) -> Set<String> {
@@ -32,7 +35,7 @@ struct FotoStand: Codable, Sendable, Equatable {
     }
 
     mutating func raeumeAuf() {
-        teil = teil.filter { !fertig.contains(String($0.prefix { $0 != "/" })) }
+        teil = teil.filter { !fertig.contains(FotoRegeln.kennung(vonSchluessel: $0)) }
     }
 }
 
@@ -82,23 +85,37 @@ enum FotoPlan {
         var offen: [FotoRessource]
         /// Assets, die jetzt vollständig am PC liegen und zu `FotoStand.fertig` kommen.
         var neuFertig: Set<String>
+        /// Je Kennung eines Assets in `offen`: wie viele Dateien ihm am PC noch fehlen. Sind alle gesendet, ist das Asset fertig.
+        var fehlend: [String: Int] = [:]
     }
 
     /// Geht die Köpfe (neueste zuerst) durch. `hoechstens` bricht die Suche ab, sobald so viele offene Dateien gefunden sind
     /// (Erweiterung: nur so viele, wie noch Platz für Jobs ist); die Zahlen sind dann unvollständig.
-    /// `uebersprungen`: Schlüssel, die schon als Job unterwegs sind.
-    static func plane(koepfe: [FotoKopf], stand: FotoStand, uebersprungen: Set<String> = [], hoechstens: Int? = nil, ressourcen: (FotoKopf) -> [FotoRessource]) -> Ergebnis {
+    /// `zaehleAlles`: nach dem Stück weiter zählen, aber nur Assets nachschlagen, von denen der PC schon Dateien kennt
+    /// (alle anderen sind sicher offen). So bleiben die Zahlen vollständig, ohne bei 8000 Assets alle Dateilisten zu lesen.
+    /// `uebersprungen`: Schlüssel, die schon als Job unterwegs sind oder in diesem Lauf nicht gingen.
+    static func plane(koepfe: [FotoKopf], stand: FotoStand, uebersprungen: Set<String> = [], hoechstens: Int? = nil, zaehleAlles: Bool = false,
+                      ressourcen: (FotoKopf) -> [FotoRessource]) -> Ergebnis {
         var amPC = 0
         var offen: [FotoRessource] = []
         var neu: Set<String> = []
+        var fehlend: [String: Int] = [:]
+        let bekannt: Set<String> = zaehleAlles ? Set(stand.teil.map(FotoRegeln.kennung(vonSchluessel:))) : []
+        var voll = zaehleAlles && hoechstens == 0
         for kopf in koepfe {
             if stand.fertig.contains(kopf.kennung) { amPC += 1; continue }
+            if voll, !bekannt.contains(kopf.kennung) { continue }
             let alle = ressourcen(kopf)
             let fehlt = alle.filter { !stand.istErledigt($0) }
             if fehlt.isEmpty { amPC += 1; neu.insert(kopf.kennung); continue }
+            if voll { continue }
             offen.append(contentsOf: fehlt.filter { !uebersprungen.contains($0.schluessel) })
-            if let hoechstens, offen.count >= hoechstens { offen = Array(offen.prefix(hoechstens)); break }
+            fehlend[kopf.kennung] = fehlt.count
+            if let hoechstens, offen.count >= hoechstens {
+                offen = Array(offen.prefix(hoechstens))
+                if zaehleAlles { voll = true } else { break }
+            }
         }
-        return Ergebnis(zahlen: FotoZahlen(gesamt: koepfe.count, amPC: amPC), offen: offen, neuFertig: neu)
+        return Ergebnis(zahlen: FotoZahlen(gesamt: koepfe.count, amPC: amPC), offen: offen, neuFertig: neu, fehlend: fehlend)
     }
 }

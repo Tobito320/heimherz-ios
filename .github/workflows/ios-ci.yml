@@ -97,6 +97,9 @@ jobs:
               sleep 5
               xcrun simctl io "$IPHONE_ID" screenshot "screenshots/${modus}-${tab}.png"
             done
+            xcrun simctl launch --terminate-running-process "$IPHONE_ID" com.onlyus.heimherz -heimherzDemo YES -heimherzTab fotos -heimherzFotosRaster YES
+            sleep 5
+            xcrun simctl io "$IPHONE_ID" screenshot "screenshots/${modus}-fotos-raster.png"
             xcrun simctl launch --terminate-running-process "$IPHONE_ID" com.onlyus.heimherz -heimherzDemo YES -heimherzTab mehr -heimherzKoppeln YES
             sleep 5
             xcrun simctl io "$IPHONE_ID" screenshot "screenshots/${modus}-koppeln.png"

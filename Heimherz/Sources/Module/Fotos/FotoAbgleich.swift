@@ -2,15 +2,17 @@ import Foundation
 
 /// Die Fotos-Seite des Handys (PhotoKit); Attrappe im Test.
 protocol FotoQuelle: Sendable {
-    /// Zählt und plant (`FotoPlan.plane` über alle Assets, neueste zuerst).
-    func plane(stand: FotoStand) async -> FotoPlan.Ergebnis
-    /// Schreibt die Datei in eine Temp-Datei und gibt deren Adresse zurück. `fortschritt` 0...1 (iCloud-Original wird dabei geladen).
-    func exportiere(_ r: FotoRessource, fortschritt: @escaping @Sendable (Double) -> Void) async throws -> URL
+    /// Zählt alles (neueste zuerst) und plant das nächste Stück mit höchstens `hoechstens` Dateien (`FotoPlan.plane`).
+    /// `nur`: nur diese Assets (`localIdentifier`), Zahlen dann nur für sie. `uebersprungen`: Schlüssel, die in diesem Lauf nicht gingen.
+    func plane(stand: FotoStand, hoechstens: Int, nur: [String]?, uebersprungen: Set<String>) async -> FotoPlan.Ergebnis
+    /// Schreibt die Datei in eine Temp-Datei und gibt deren Adresse zurück. Bricht sofort ab, wenn die Aufgabe abgebrochen wird.
+    /// `iCloud`: ein Original, das nur in iCloud liegt, darf geladen werden.
+    func exportiere(_ r: FotoRessource, iCloud: Bool) async throws -> URL
 }
 
 /// Die Sende-Seite (Hintergrund-URLSession); Attrappe im Test.
 protocol FotoSender: Sendable {
-    /// Schickt die Datei und kehrt nach dem Ende des Transfers zurück. Wirft `HeimFehler`.
+    /// Schickt die Datei und kehrt nach dem Ende des Transfers zurück. Wirft `HeimFehler`; bei Abbruch der Aufgabe wird der Transfer abgebrochen.
     func sende(datei: URL, anfrage: URLRequest) async throws
 }
 
@@ -24,15 +26,30 @@ struct FotoAnzeige: Sendable, Equatable {
     var zahlen: FotoZahlen?
     /// Klartext zum aktuellen Schritt, nil wenn nichts läuft.
     var schritt: String?
-    /// 0...1 über alle offenen Dateien dieses Laufs.
+    /// 0...1: Anteil der Mediathek, der am PC liegt.
     var fortschritt: Double?
     var laeuft = false
+    /// Der Nutzer (oder das System) hat den Lauf angehalten; er macht beim nächsten Start dort weiter.
+    var angehalten = false
+    /// Kennungen der Assets, die vollständig am PC liegen.
+    var fertig: Set<String> = []
+    /// Kennungen der Assets, von denen gerade eine Datei geladen oder gesendet wird.
+    var laufend: Set<String> = []
+    /// Fehler dieses Laufs je Kennung, in Klartext.
+    var fehler: [String: String] = [:]
+    /// Dateiname der Datei, die zuletzt angefangen wurde.
+    var datei: String?
+    var bytesProSekunde: Double?
+    var restSekunden: Double?
 }
 
-/// Ein Abgleich: Liste vom PC holen, zählen, jede offene Datei exportieren und senden. Läuft in der App im Vordergrund;
-/// was schon unterwegs ist, setzt die Hintergrund-URLSession auch bei gesperrtem Handy fort.
+/// Ein Abgleich in kleinen Stücken (`stueck` Dateien): Liste vom PC holen, das nächste Stück planen (neueste zuerst), jede Datei exportieren
+/// und senden, Stand sichern, nächstes Stück. Abbruch der Aufgabe hält an: fertige Dateien zählen (der Server kennt sie), laufende Übertragungen
+/// und halbe Exporte werden verworfen, der nächste Lauf macht dort weiter. Es liegen nie mehr als `gleichzeitig` Temp-Dateien da.
 /// Der Server ist die Wahrheit: schlägt hier etwas fehl, steht die Datei beim nächsten Lauf wieder in der Liste.
 actor FotoAbgleich {
+    static let stueckGroesse = 20
+
     private let client: HeimClient
     private let quelle: any FotoQuelle
     private let sender: any FotoSender
@@ -41,76 +58,109 @@ actor FotoAbgleich {
     private let melde: @Sendable (FotoAnzeige) -> Void
     private let jetzt: @Sendable () -> Date
     private let gleichzeitig: Int
+    private let stueck: Int
 
     private var stand = FotoStand()
     private var anzeige = FotoAnzeige()
+    private var tempo = FotoTempo(start: Date())
     private var erledigt = 0
-    private var gesamtOffen = 0
     private var gescheitert = 0
+    private var wartetAufWLAN = 0
     /// Grund der letzten übersprungenen Datei (Export oder Server), für den Abschlusstext.
     private var exportFehler: String?
-    private var wartetAufWLAN = 0
     private var abbruch: HeimFehler?
+    private var wlanStop = false
+    /// Nur ein Zähllauf (Tab geöffnet) zeigt nie "läuft": die Oberfläche soll dabei Start anbieten, nicht Anhalten.
+    private var sendet = false
+    /// Schlüssel, die in diesem Lauf nicht gingen: das nächste Stück überspringt sie, sonst käme der Lauf nie zum Ende.
+    private var uebersprungen: Set<String> = []
+    private var fehlend: [String: Int] = [:]
+    private var gesendet: [String: Int] = [:]
+    private var imFlug: [String: Int] = [:]
 
     init(client: HeimClient, quelle: any FotoQuelle, sender: any FotoSender, netz: any Netzart, ablage: FotoStandAblage,
-         gleichzeitig: Int = 2, jetzt: @escaping @Sendable () -> Date = { Date() }, melde: @escaping @Sendable (FotoAnzeige) -> Void) {
+         gleichzeitig: Int = 2, stueck: Int = FotoAbgleich.stueckGroesse, jetzt: @escaping @Sendable () -> Date = { Date() },
+         melde: @escaping @Sendable (FotoAnzeige) -> Void) {
         self.client = client
         self.quelle = quelle
         self.sender = sender
         self.netz = netz
         self.ablage = ablage
         self.gleichzeitig = max(1, gleichzeitig)
+        self.stueck = max(1, stueck)
         self.jetzt = jetzt
         self.melde = melde
     }
 
     private func zeige(schritt: String?, laeuft: Bool = true) {
         anzeige.schritt = schritt
-        anzeige.laeuft = laeuft
-        anzeige.fortschritt = gesamtOffen > 0 ? Double(erledigt + gescheitert + wartetAufWLAN) / Double(gesamtOffen) : nil
+        anzeige.laeuft = laeuft && sendet
+        anzeige.laufend = Set(imFlug.keys)
+        anzeige.fertig = stand.fertig
+        let t = jetzt()
+        anzeige.bytesProSekunde = laeuft ? tempo.bytesProSekunde(jetzt: t) : nil
+        anzeige.restSekunden = laeuft ? anzeige.zahlen.flatMap { tempo.restSekunden(offen: $0.offen, jetzt: t) } : nil
+        anzeige.fortschritt = anzeige.zahlen.flatMap { $0.gesamt > 0 ? Double($0.amPC) / Double($0.gesamt) : nil }
         melde(anzeige)
     }
 
-    func abgleichen() async {
+    /// Nur zählen, was am PC liegt (Tab öffnen), nichts senden.
+    func zaehle() async { await lauf(nur: nil, senden: false) }
+
+    /// Sendet alles Offene, oder nur die Assets in `nur` (`localIdentifier`, Einzel-Upload).
+    func abgleichen(nur: [String]? = nil) async { await lauf(nur: nur, senden: true) }
+
+    private func lauf(nur: [String]?, senden: Bool) async {
         stand = ablage.lade()
-        erledigt = 0; gescheitert = 0; wartetAufWLAN = 0; gesamtOffen = 0; exportFehler = nil; abbruch = nil
+        sendet = senden
+        erledigt = 0; gescheitert = 0; wartetAufWLAN = 0; exportFehler = nil; abbruch = nil; wlanStop = false
+        uebersprungen = []; fehlend = [:]; gesendet = [:]; imFlug = [:]
+        tempo = FotoTempo(start: jetzt())
+        anzeige = FotoAnzeige(zahlen: anzeige.zahlen)
         zeige(schritt: "Frage den PC, was schon da ist …")
         do {
             stand.uebernimm(bekannt: try await client.fotosBekannt())
         } catch {
             stand.fehler = (error as? HeimFehler)?.nutzerText ?? HeimFehler.nichtErreichbar.nutzerText
-            ablage.speichere(stand)
+            sichere()
             anzeige.zahlen = stand.gesamt.map { FotoZahlen(gesamt: $0, amPC: stand.fertig.count) } ?? anzeige.zahlen
             zeige(schritt: nil, laeuft: false)
             return
         }
-        zeige(schritt: "Zähle die Fotos …")
-        let plan = await quelle.plane(stand: stand)
-        stand.fertig.formUnion(plan.neuFertig)
-        stand.raeumeAuf()
-        stand.gesamt = plan.zahlen.gesamt
-        ablage.speichere(stand)
-        anzeige.zahlen = plan.zahlen
-        gesamtOffen = plan.offen.count
-        zeige(schritt: plan.offen.isEmpty ? nil : "Noch \(plan.offen.count.formatted()) offen …")
+        while !Task.isCancelled, abbruch == nil, !wlanStop {
+            aktualisiereEinstellungen()
+            zeige(schritt: senden ? "Suche die nächsten Dateien …" : "Zähle die Fotos …")
+            let plan = await quelle.plane(stand: stand, hoechstens: senden ? stueck : 0, nur: nur, uebersprungen: uebersprungen)
+            stand.fertig.formUnion(plan.neuFertig)
+            stand.raeumeAuf()
+            fehlend = plan.fehlend
+            gesendet = [:]
+            if nur == nil {
+                stand.gesamt = plan.zahlen.gesamt
+                anzeige.zahlen = plan.zahlen
+            }
+            sichere()
+            if !senden || plan.offen.isEmpty { break }
+            let vorher = erledigt + uebersprungen.count
+            await sendeStueck(plan.offen)
+            sichere()
+            if erledigt + uebersprungen.count == vorher { break }   // kein Fortschritt: nicht endlos planen
+        }
+        abschliessen(senden: senden)
+    }
 
-        await sendeAlle(plan.offen)
-
-        // Zum Schluss neu zählen: was jetzt vollständig am PC liegt, kommt in `fertig`.
-        let danach = await quelle.plane(stand: stand)
-        stand.fertig.formUnion(danach.neuFertig)
-        stand.raeumeAuf()
-        stand.gesamt = danach.zahlen.gesamt
-        stand.fehler = abschlussText()
-        ablage.speichere(stand)
-        anzeige.zahlen = danach.zahlen
-        gesamtOffen = 0
+    private func abschliessen(senden: Bool) {
+        let vomNutzer = Task.isCancelled && abbruch == nil
+        if senden { stand.fehler = vomNutzer ? nil : abschlussText() }
+        anzeige.angehalten = vomNutzer
+        anzeige.datei = nil
+        imFlug = [:]
+        sichere()
         zeige(schritt: nil, laeuft: false)
     }
 
     private func abschlussText() -> String? {
         if let abbruch { return abbruch.nutzerText }
-        if Task.isCancelled { return "Abgebrochen. Beim nächsten Abgleich geht es weiter." }
         var teile: [String] = []
         if gescheitert > 0 {
             let grund = exportFehler.map { " (\($0))" } ?? ""
@@ -120,72 +170,122 @@ actor FotoAbgleich {
         return teile.isEmpty ? nil : teile.joined(separator: " ")
     }
 
+    // MARK: Stand
+
+    /// Schreibt nur, was dieser Lauf kennt. Schalter (WLAN, iCloud) und Jobs der Erweiterung bleiben, wie sie auf der Platte stehen:
+    /// Der Nutzer darf sie mitten im Lauf umlegen, und die Erweiterung schreibt gleichzeitig.
+    private func sichere() {
+        ablage.aendere { platte in
+            platte.fertig.formUnion(stand.fertig)
+            platte.teil.formUnion(stand.teil)
+            platte.raeumeAuf()
+            platte.letzteUebertragung = stand.letzteUebertragung ?? platte.letzteUebertragung
+            platte.fehler = stand.fehler
+            platte.gesamt = stand.gesamt ?? platte.gesamt
+        }
+    }
+
+    private func aktualisiereEinstellungen() {
+        let platte = ablage.lade()
+        stand.nurWLAN = platte.nurWLAN
+        stand.iCloudLaden = platte.iCloudLaden
+        stand.eingereicht = platte.eingereicht
+    }
+
     // MARK: Senden
 
     private enum Ausgang: Sendable {
-        case gesendet, wartetAufWLAN, nichtLesbar(String), nichtUebertragen(String), stop(HeimFehler), abgebrochen
+        case gesendet(FotoRessource, Int64), wartetAufWLAN(FotoRessource), nichtLesbar(FotoRessource, String)
+        case nichtUebertragen(FotoRessource, String), stop(HeimFehler), abgebrochen(FotoRessource)
     }
 
-    private func sendeAlle(_ liste: [FotoRessource]) async {
+    private func sendeStueck(_ liste: [FotoRessource]) async {
         var naechste = liste.makeIterator()
         await withTaskGroup(of: Ausgang.self) { gruppe in
             var laufend = 0
             while true {
-                while laufend < gleichzeitig, abbruch == nil, !Task.isCancelled, let r = naechste.next() {
+                while laufend < gleichzeitig, abbruch == nil, !wlanStop, !Task.isCancelled, let r = naechste.next() {
                     gruppe.addTask { await self.bearbeite(r) }
                     laufend += 1
                 }
                 guard laufend > 0, let ausgang = await gruppe.next() else { break }
                 laufend -= 1
                 verbuche(ausgang)
-                if abbruch != nil { gruppe.cancelAll() }
+                if abbruch != nil || wlanStop { gruppe.cancelAll() }
             }
         }
     }
 
     private func verbuche(_ a: Ausgang) {
         switch a {
-        case .gesendet:
+        case .gesendet(let r, let bytes):
             erledigt += 1
-            if erledigt % 25 == 0 { ablage.speichere(stand) }
-        case .wartetAufWLAN: wartetAufWLAN += 1
-        case .nichtLesbar(let grund): gescheitert += 1; exportFehler = grund
-        case .nichtUebertragen(let grund): gescheitert += 1; exportFehler = grund
+            tempo.buche(bytes: bytes)
+            stand.teil.insert(r.schluessel)
+            stand.letzteUebertragung = jetzt()
+            gesendet[r.kennung, default: 0] += 1
+            // Die letzte fehlende Datei eines Assets ist da: sofort fertig, das Häkchen im Raster erscheint ohne auf das nächste Stück zu warten.
+            if gesendet[r.kennung] == fehlend[r.kennung], stand.fertig.insert(r.kennung).inserted { anzeige.zahlen?.amPC += 1 }
+            if erledigt % 25 == 0 { sichere() }
+        case .wartetAufWLAN(let r):
+            wartetAufWLAN += 1
+            if stand.wlanNoetig { wlanStop = true } else { uebersprungen.insert(r.schluessel) }
+        case .nichtLesbar(let r, let grund), .nichtUebertragen(let r, let grund):
+            gescheitert += 1
+            exportFehler = grund
+            uebersprungen.insert(r.schluessel)
+            anzeige.fehler[r.kennung] = grund
         case .stop(let f): abbruch = f
-        case .abgebrochen: break
+        case .abgebrochen(let r): uebersprungen.insert(r.schluessel)
         }
-        zeige(schritt: "Noch \(max(0, gesamtOffen - erledigt - gescheitert - wartetAufWLAN).formatted()) offen …")
+        zeige(schritt: anzeige.schritt)
+    }
+
+    private func beginne(_ r: FotoRessource) {
+        imFlug[r.kennung, default: 0] += 1
+        anzeige.fehler[r.kennung] = nil
+        anzeige.datei = r.dateiname
+        zeige(schritt: "Sende \(r.dateiname) …")
+    }
+
+    private func ende(_ r: FotoRessource) {
+        imFlug[r.kennung, default: 1] -= 1
+        if imFlug[r.kennung, default: 0] <= 0 { imFlug[r.kennung] = nil }
     }
 
     private func bearbeite(_ r: FotoRessource) async -> Ausgang {
-        if (stand.wlanNoetig || r.art.istVideo), !(await netz.istWLAN()) { return .wartetAufWLAN }
+        if (stand.wlanNoetig || r.art.istVideo), !(await netz.istWLAN()) { return .wartetAufWLAN(r) }
+        beginne(r)
+        defer { ende(r) }
         let temp: URL
         do {
-            temp = try await quelle.exportiere(r) { _ in }
+            temp = try await quelle.exportiere(r, iCloud: stand.iCloudErlaubt)
         } catch is CancellationError {
-            return .abgebrochen
+            return .abgebrochen(r)
         } catch {
-            return .nichtLesbar((error as? FotoFehler)?.nutzerText ?? "nicht lesbar")
+            return .nichtLesbar(r, (error as? FotoFehler)?.nutzerText ?? "nicht lesbar")
         }
         defer { try? FileManager.default.removeItem(at: temp) }
+        if Task.isCancelled { return .abgebrochen(r) }
+        let bytes = (try? FileManager.default.attributesOfItem(atPath: temp.path)[.size] as? Int64) ?? 0
         do {
             var anfrage = try client.fotoHochladenAnfrage(kennung: r.kennung, ressource: r.name, aufnahme: r.aufnahme, dateiname: r.dateiname)
             anfrage.allowsCellularAccess = !(stand.wlanNoetig || r.art.istVideo)
             try await sender.sende(datei: temp, anfrage: anfrage)
-            stand.teil.insert(r.schluessel)
-            stand.letzteUebertragung = jetzt()
-            return .gesendet
+            return .gesendet(r, bytes)
+        } catch is CancellationError {
+            return .abgebrochen(r)
         } catch HeimFehler.abgebrochen {
-            return .abgebrochen
+            return .abgebrochen(r)
         } catch let f as HeimFehler {
             // Nur was den ganzen Lauf betrifft hält ihn an: kein Zugang, Platte voll, PC nicht erreichbar.
             // Ein Serverfehler (5xx) oder eine Ablehnung (4xx) trifft diese eine Datei; sie bleibt offen, der Lauf geht weiter.
             switch f {
             case .nichtBerechtigt, .nichtGekoppelt, .speicherVoll, .nichtErreichbar, .zeitueberschreitung: return .stop(f)
-            default: return .nichtUebertragen(Self.kurzGrund(f))
+            default: return .nichtUebertragen(r, Self.kurzGrund(f))
             }
         } catch {
-            return .nichtUebertragen("Übertragung fehlgeschlagen")
+            return .nichtUebertragen(r, "Übertragung fehlgeschlagen")
         }
     }
 
@@ -207,11 +307,13 @@ actor FotoAbgleich {
 enum FotoFehler: Error, Equatable {
     case speicherKnapp
     case nichtGefunden
+    case nurInICloud
 
     var nutzerText: String {
         switch self {
         case .speicherKnapp: return "zu wenig freier Speicher am Handy"
         case .nichtGefunden: return "nicht mehr in der Mediathek"
+        case .nurInICloud: return "liegt nur in iCloud, und das Laden von iCloud ist aus"
         }
     }
 }

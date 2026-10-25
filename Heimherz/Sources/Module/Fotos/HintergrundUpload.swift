@@ -11,6 +11,8 @@ final class HintergrundUpload: NSObject, FotoSender, URLSessionTaskDelegate, Sen
 
     private let wartende = Mutex<[Int: CheckedContinuation<Void, any Error>]>([:])
     private let sitzungBox = Mutex<URLSession?>(nil)
+    /// Wartende `handleEventsForBackgroundURLSession`-Aufrufe, bis iOS alle Ereignisse der Sitzung zugestellt hat.
+    private let ereignisse = Mutex<[CheckedContinuation<Void, Never>]>([])
 
     private var sitzung: URLSession {
         sitzungBox.withLock { box in
@@ -27,12 +29,15 @@ final class HintergrundUpload: NSObject, FotoSender, URLSessionTaskDelegate, Sen
 
     func sende(datei: URL, anfrage: URLRequest) async throws {
         let pfad = datei.path
+        try Task.checkCancellation()
         try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { (c: CheckedContinuation<Void, any Error>) in
                 let task = sitzung.uploadTask(with: anfrage, fromFile: datei)
                 task.taskDescription = pfad
                 wartende.withLock { $0[task.taskIdentifier] = c }
                 task.resume()
+                // Der Abbruch kann vor dem Anlegen des Transfers gekommen sein; dann hat der Handler ihn nicht gefunden.
+                if Task.isCancelled { task.cancel() }
             }
         } onCancel: {
             sitzung.getAllTasks { tasks in tasks.filter { $0.taskDescription == pfad }.forEach { $0.cancel() } }
@@ -44,6 +49,24 @@ final class HintergrundUpload: NSObject, FotoSender, URLSessionTaskDelegate, Sen
         await withCheckedContinuation { (c: CheckedContinuation<Set<String>, Never>) in
             sitzung.getAllTasks { c.resume(returning: Set($0.compactMap(\.taskDescription))) }
         }
+    }
+
+    /// Aus `application(_:handleEventsForBackgroundURLSession:)`: legt die Sitzung mit der festen Kennung wieder an (iOS stellt dann die Ergebnisse
+    /// der Transfers zu, die liefen, als die App beendet wurde) und kehrt zurück, wenn alle Ereignisse verarbeitet sind.
+    func warteAufEreignisse() async {
+        await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in
+            ereignisse.withLock { $0.append(c) }
+            _ = sitzung
+        }
+    }
+
+    func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
+        let offene = ereignisse.withLock { liste -> [CheckedContinuation<Void, Never>] in
+            let alle = liste
+            liste = []
+            return alle
+        }
+        for c in offene { c.resume() }
     }
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: (any Error)?) {
