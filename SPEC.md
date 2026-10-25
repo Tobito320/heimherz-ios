@@ -336,7 +336,7 @@ export async function oeffne(umschlag: Umschlag, schluessel: CryptoKey): Promise
 
 - Immer: Test zuerst; Geheimnisse nur im Speicher, Schlüsselbund oder `systemd-creds`; nie Klartext-Passwort in stdout, Log, Datei (außer `export` auf Ahmeds Wort), Commit oder Kontext eines Agenten; Fotos nie am Handy löschen; Dateien nur in den Papierkorb.
 - Erst fragen (Lovea-Notiz): Bitwarden abschalten, iCloud-Passwörter abschalten, irgendetwas löschen.
-- Nie: Daten an Dritte, Dienst ins offene Internet (Funnel, Cloudflare), eigene Krypto-Primitive (nur CryptoKit und WebCrypto), Kauf von Speicher, echte Tresordaten in Tests oder Fixtures.
+- Nie: Daten an Dritte (einzige Ausnahme: Leck-Prüfung schickt 5 Zeichen eines SHA-1 an api.pwnedpasswords.com, abschaltbar, SPEC 9), Dienst ins offene Internet (Funnel, Cloudflare), eigene Krypto-Primitive (nur CryptoKit und WebCrypto), Kauf von Speicher, echte Tresordaten in Tests oder Fixtures.
 
 ## 20. Erfolgskriterien
 

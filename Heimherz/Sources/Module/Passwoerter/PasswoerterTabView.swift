@@ -67,6 +67,9 @@ struct PasswoerterInhalt: View {
         .task(id: lage) { await lageAnwenden() }
         .task(id: ImportBedingung(bereit: store.zustand == .bereit, hatPaket: postfach.paket != nil)) { await importAusfuehren() }
         .task(id: AktionBedingung(bereit: store.zustand == .bereit && !lage.gesperrt, aktion: aktionen.offen)) { fuehreAktionAus() }
+        .task(id: SpotlightBedingung(bereit: store.zustand == .bereit && !lage.gesperrt, id: SpotlightPostfach.geteilt.angefragt)) {
+            if store.zustand == .bereit, !lage.gesperrt, let id = SpotlightPostfach.geteilt.nimm(in: store) { pfad = [.kategorie(.alle), .eintrag(id)] }
+        }
         .onChange(of: phase) { _, neu in
             if neu == .active, lage.gekoppelt, !lage.gesperrt { Task { await store.abgleichen() } }
         }
@@ -81,6 +84,12 @@ struct PasswoerterInhalt: View {
     private struct AktionBedingung: Equatable {
         let bereit: Bool
         let aktion: Schnellaktion?
+    }
+
+    /// Treffer aus der iPhone-Suche: erst öffnen, wenn der Tresor offen ist.
+    private struct SpotlightBedingung: Equatable {
+        let bereit: Bool
+        let id: String?
     }
 
     private struct ImportAnzeige: Identifiable {
@@ -99,7 +108,12 @@ struct PasswoerterInhalt: View {
             if !lage.gekoppelt {
                 postfach.verwerfe()
                 aktionen.verwirf(tab: .passwoerter)
-                if !umgebung.istDemo { await AutoFillIdentitaeten.leeren() }
+                SpotlightPostfach.geteilt.verwerfe()
+                if !umgebung.istDemo {
+                    await AutoFillIdentitaeten.leeren()
+                    await SpotlightIndex.leeren()
+                    LeckSpeicher().vergiss()
+                }
             }
             return
         }
