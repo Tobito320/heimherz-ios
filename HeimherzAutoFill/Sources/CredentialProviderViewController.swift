@@ -114,9 +114,9 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
             Task { await neu.ansichtIstAktiv() }
         } else {
             // Falls viewDidAppear nie kommt: sonst bliebe die Oberfläche tot. Das -25308-Nachholen im Modell fängt zu frühes Starten ab.
-            Task {
+            Task { [weak self] in
                 try? await Task.sleep(for: .seconds(2))
-                if modell === neu { await neu.ansichtIstAktiv() }
+                if let self, self.modell === neu { await neu.ansichtIstAktiv() }
             }
         }
         entferneOberflaeche()
