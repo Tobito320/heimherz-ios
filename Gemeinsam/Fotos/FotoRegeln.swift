@@ -88,7 +88,7 @@ enum FotoBibliothek {
     static func ressourcen(_ asset: PHAsset) -> [(ressource: FotoRessource, objekt: PHAssetResource)] {
         let kopf = FotoRegeln.kopf(assetId: asset.localIdentifier)
         let objekte = PHAssetResource.assetResources(for: asset).compactMap { o in FotoArt(o.type).map { (art: $0, objekt: o) } }
-        let liste = FotoRegeln.ressourcen(kopf: kopf, aufnahme: asset.creationDate, teile: objekte.map { ($0.art, $0.objekt.originalFilename) })
-        return zip(liste, objekte).map { ($0, $1.objekt) }
+        let liste = FotoRegeln.ressourcen(kopf: kopf, aufnahme: asset.creationDate, teile: objekte.map { (art: $0.art, dateiname: $0.objekt.originalFilename) })
+        return zip(liste, objekte).map { (ressource: $0, objekt: $1.objekt) }
     }
 }
