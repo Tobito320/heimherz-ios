@@ -1,7 +1,8 @@
 import SwiftUI
 
 /// Die Liste hinter einer Kachel (Alle, Favoriten, Passkeys, Codes, Sicherheit, Gelöscht) im Stil der Passwörter-App von Apple:
-/// A bis Z Leiste, Sortierung, "Auswählen" mit Mehrfach-Löschen, Suche und Plus unten.
+/// A bis Z Leiste, Sortierung (in "Alle" auch "Zuletzt benutzt"), "Auswählen" mit Mehrfach-Löschen, Suche und Plus unten.
+/// "Sicherheit" hat oben "In Datenlecks gefunden" und "Doppelt" (zwei Einträge für dasselbe Konto, Vergleich im Blatt), darunter die Empfehlungen.
 struct PasswoerterListe: View {
     let store: TresorStore
     let kategorie: PasswoerterKategorie
@@ -16,21 +17,42 @@ struct PasswoerterListe: View {
     @State private var auswahl = Set<String>()
     @State private var frage: Frage?
     @State private var kopiert: String?
+    @State private var vergleich: DoppelteGruppe?
+    /// Wann welches Konto zuletzt benutzt wurde; einmal geladen (nicht bei jedem Zeichnen), für "Zuletzt benutzt".
+    @State private var benutzt: [String: Date] = [:]
+    @Environment(\.openURL) private var oeffneURL
 
     private var jetzt: Date { Date() }
 
     private var alle: [Eintrag] {
         guard let t = store.tresor else { return [] }
-        return PasswoerterLogik.eintraege(kategorie, in: t, jetzt: jetzt)
+        return PasswoerterLogik.eintraege(kategorie, in: t, jetzt: jetzt, lecks: store.leckIds)
     }
 
     private var gefiltert: [Eintrag] { EintragSuche.filtern(alle, begriff: suche) }
 
-    private var abschnitte: [Abschnitt] { PasswoerterLogik.abschnitte(gefiltert, sortierung: sortierung) }
+    /// In "Sicherheit" stehen Datenlecks in einem eigenen Abschnitt oben und nicht noch einmal in A bis Z.
+    private var leckZeilen: [Eintrag] {
+        kategorie == .sicherheit ? EintragSuche.sortiert(gefiltert.filter { store.leckIds.contains($0.id) }) : []
+    }
+
+    private var abschnitte: [Abschnitt] {
+        let rest = kategorie == .sicherheit ? gefiltert.filter { !store.leckIds.contains($0.id) } : gefiltert
+        return PasswoerterLogik.abschnitte(rest, sortierung: sortierung, benutzt: benutzt)
+    }
+
+    /// Doppelte Konten (nur "Sicherheit"); die Suche filtert nach Name, Benutzer und Host der beteiligten Einträge.
+    private var doppelte: [DoppelteGruppe] {
+        guard kategorie == .sicherheit, let t = store.tresor else { return [] }
+        let gruppen = DoppelteKonten.finde(t.lebendige)
+        guard !suche.trimmingCharacters(in: .whitespaces).isEmpty else { return gruppen }
+        let treffer = Set(EintragSuche.filtern(t.lebendige, begriff: suche).map(\.id))
+        return gruppen.filter { g in g.ids.contains(where: treffer.contains) }
+    }
 
     /// Eintrag-id zu Hinweis, für das rote Ausrufezeichen und die Gründe in "Sicherheit".
     private var hinweise: [String: SicherheitsHinweis] {
-        Dictionary(PasswortSicherheit.pruefe(store.eintraege).map { ($0.eintragId, $0) }, uniquingKeysWith: { a, _ in a })
+        Dictionary(PasswortSicherheit.pruefe(store.eintraege, lecks: store.leckIds).map { ($0.eintragId, $0) }, uniquingKeysWith: { a, _ in a })
     }
 
     private var istBearbeiten: Bool { bearbeiten.isEditing }
@@ -40,7 +62,10 @@ struct PasswoerterListe: View {
         switch kategorie {
         case .passkeys: return n == 1 ? "1 Passkey" : "\(n) Passkeys"
         case .codes: return n == 1 ? "1 Code" : "\(n) Codes"
-        case .sicherheit: return n == 1 ? "1 Empfehlung" : "\(n) Empfehlungen"
+        case .sicherheit:
+            let d = doppelte.count
+            let empfehlungen = n == 1 ? "1 Empfehlung" : "\(n) Empfehlungen"
+            return d == 0 ? empfehlungen : (n == 0 ? "\(d) doppelt" : "\(empfehlungen), \(d) doppelt")
         default: return n == 1 ? "1 Objekt" : "\(n) Objekte"
         }
     }
@@ -57,9 +82,29 @@ struct PasswoerterListe: View {
                         .listRowSeparator(.hidden)
                 }
                 let hinweisListe = hinweise
+                if kategorie == .sicherheit {
+                    if !leckZeilen.isEmpty {
+                        Section {
+                            ForEach(leckZeilen) { e in zeile(e, hinweis: hinweisListe[e.id]) }
+                        } header: { abschnittTitel("In Datenlecks gefunden") }
+                    }
+                    if !istBearbeiten, !doppelte.isEmpty {
+                        Section {
+                            ForEach(doppelte) { g in doppeltZeile(g) }
+                        } header: { abschnittTitel("Doppelt") }
+                    }
+                }
+                let mitTitel = kategorie == .sicherheit && (!leckZeilen.isEmpty || !doppelte.isEmpty)
+                let ersterAbschnitt = abschnitte.first?.id
                 ForEach(abschnitte) { a in
-                    Section {
-                        ForEach(a.eintraege) { e in zeile(e, hinweis: hinweisListe[e.id]) }
+                    if mitTitel, a.id == ersterAbschnitt {   // der Titel steht einmal über allen Buchstaben
+                        Section {
+                            ForEach(a.eintraege) { e in zeile(e, hinweis: hinweisListe[e.id]) }
+                        } header: { abschnittTitel("Weitere Empfehlungen") }
+                    } else {
+                        Section {
+                            ForEach(a.eintraege) { e in zeile(e, hinweis: hinweisListe[e.id]) }
+                        }
                     }
                 }
             }
@@ -94,6 +139,52 @@ struct PasswoerterListe: View {
         }
         .animation(Feder.weich, value: kopiert)
         .onChange(of: bearbeiten) { _, neu in if !neu.isEditing { auswahl = [] } }
+        .onAppear {
+            benutzt = Nutzung().zuletzt
+            #if DEBUG
+            if UserDefaults.standard.string(forKey: "heimherzPwOffen") == "vergleich" { vergleich = doppelte.first }   // nur Screenshots in CI
+            #endif
+        }
+        .sheet(item: $vergleich) { g in VergleichBlatt(store: store, gruppe: g) }
+    }
+
+    private func abschnittTitel(_ text: String) -> some View {
+        Text(text)
+            .font(.footnote.weight(.semibold))
+            .foregroundStyle(Color.tinte2)
+            .textCase(nil)
+    }
+
+    /// Eine Gruppe doppelter Konten: Name des ersten, Benutzer und wie viele Einträge. Antippen öffnet den Vergleich.
+    private func doppeltZeile(_ g: DoppelteGruppe) -> some View {
+        let eintraege = g.ids.compactMap { store.eintrag($0) }
+        return Button { Haptik.auswahl(); vergleich = g } label: {
+            HStack(spacing: Abstand.m) {
+                if let erster = eintraege.first { SymbolKachel(eintrag: erster) }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(eintraege.first.map { $0.name.isEmpty ? "Ohne Namen" : $0.name } ?? "")
+                        .font(.headline)
+                        .foregroundStyle(Color.tinte)
+                        .lineLimit(1)
+                    Text([eintraege.first?.benutzer ?? "", "\(eintraege.count) Einträge"].filter { !$0.isEmpty }.joined(separator: ", "))
+                        .font(.subheadline)
+                        .foregroundStyle(Color.tinte2)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: Abstand.s)
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(Color.tinte3)
+                    .accessibilityHidden(true)
+            }
+            .padding(.vertical, Abstand.xs)
+            .frame(minHeight: Abstand.tippflaeche)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .listRowBackground(Color.clear)
+        .listRowSeparatorTint(Color.haar)
+        .accessibilityHint("Zeigt beide Einträge nebeneinander")
     }
 
     // MARK: Zeilen
@@ -113,6 +204,11 @@ struct PasswoerterListe: View {
                 NavigationLink(value: PasswoerterZiel.eintrag(e.id)) {
                     EintragZeile(eintrag: e, untertitel: zweiteZeile(e, hinweis), hinweis: kategorie != .sicherheit && hinweis != nil)
                 }
+                .contextMenu {
+                    if kategorie == .sicherheit, let url = PasswoerterLogik.passwortAendernURL(von: e) {
+                        Button { oeffneURL(url) } label: { Label("Passwort ändern …", systemImage: "key.horizontal") }
+                    }
+                }
             }
         }
         .tag(e.id)
@@ -129,13 +225,19 @@ struct PasswoerterListe: View {
             if kategorie == .geloescht {
                 Button { Task { await store.stelleWiederHer(ids: [e.id]) } } label: { Label("Wiederherstellen", systemImage: "arrow.uturn.backward") }
                     .tint(Color.knopf)
+            } else if kategorie == .sicherheit, let url = PasswoerterLogik.passwortAendernURL(von: e) {
+                Button { oeffneURL(url) } label: { Label("Passwort ändern", systemImage: "key.horizontal") }
+                    .tint(Color.knopf)
             }
         }
     }
 
     private func zweiteZeile(_ e: Eintrag, _ h: SicherheitsHinweis?) -> String? {
         switch kategorie {
-        case .sicherheit: return h?.text
+        case .sicherheit:
+            // Im Abschnitt "In Datenlecks gefunden" sagt die Überschrift schon den ersten Grund; hier steht der nächste.
+            guard let h else { return nil }
+            return store.leckIds.contains(e.id) ? h.gruende.dropFirst().first?.text : h.text
         case .passkeys:
             let konten = PasswoerterLogik.passkeys(von: e)
             return konten.first.map { $0.konto.isEmpty ? $0.seite : $0.konto }
@@ -157,7 +259,10 @@ struct PasswoerterListe: View {
     private var kopfKarte: some View {
         switch kategorie {
         case .sicherheit:
-            HinweisKarte(text: "Heim prüft deine Passwörter nur auf diesem Handy und ohne Netz: ob ein Passwort in mehreren Konten steckt oder leicht zu erraten ist. Eine Abfrage bei Datenleck-Diensten gibt es bewusst nicht, deine Passwörter verlassen nie deine Geräte.", symbol: "lock.shield")
+            HinweisKarte(text: GeteilteEinstellungen().leckPruefung
+                         ? "Heim prüft auf diesem Handy, ob Passwörter mehrfach vorkommen oder leicht zu erraten sind. Für Datenlecks geht nur ein kurzer Teil einer Prüfsumme ins Netz, nie ein Passwort."
+                         : "Heim prüft auf diesem Handy, ob Passwörter mehrfach vorkommen oder leicht zu erraten sind. Die Prüfung auf Datenlecks ist ausgeschaltet.",
+                         symbol: "lock.shield")
         case .passkeys:
             HinweisKarte(text: "Passkeys aus Bitwarden sind gespeichert. Anmelden damit kommt in einem späteren Build.", symbol: "info.circle")
         case .codes:
@@ -178,7 +283,7 @@ struct PasswoerterListe: View {
 
     @ViewBuilder
     private var leer: some View {
-        if abschnitte.isEmpty {
+        if abschnitte.isEmpty, leckZeilen.isEmpty, doppelte.isEmpty {
             if !suche.trimmingCharacters(in: .whitespaces).isEmpty {
                 Text("Nichts gefunden für „\(suche)“.")
                     .font(.body)
@@ -264,14 +369,17 @@ struct PasswoerterListe: View {
     private var sortierMenue: some View {
         Menu {
             Picker("Sortieren nach", selection: $sortierung) {
-                ForEach(Sortierung.allCases, id: \.self) { Text($0.titel).tag($0) }
+                ForEach(Sortierung.allCases.filter { $0 != .zuletztBenutzt || kategorie == .alle }, id: \.self) { Text($0.titel).tag($0) }
             }
         } label: {
             Image(systemName: "arrow.up.arrow.down")
         }
         .accessibilityLabel("Sortieren")
         .accessibilityValue(sortierung.titel)
-        .onChange(of: sortierung) { _, _ in Haptik.auswahl() }
+        .onChange(of: sortierung) { _, neu in
+            Haptik.auswahl()
+            if neu == .zuletztBenutzt { benutzt = Nutzung().zuletzt }
+        }
     }
 
     private var plusMenue: some View {
@@ -331,10 +439,12 @@ struct PasswoerterListe: View {
             Task { if await GeraeteAbfrage.pruefe(grund: "Einmalcodes anzeigen") { store.gebeCodesFrei() } }
             return
         }
-        guard let z = TOTPAnzeige.zustand(e.totp, datum: Date()) else { return }
-        Zwischenablage.kopiere(z.code)
+        // Entscheidet im Moment des Tippens: in den letzten Sekunden eines Codes geht gleich der nächste in die Zwischenablage.
+        guard let k = PasswoerterLogik.codeZumKopieren(e.totp, datum: Date()) else { return }
+        Zwischenablage.kopiere(k.code)
+        Nutzung().merke(id: e.id)
         Haptik.erfolg()
-        kopiert = "Code"
+        kopiert = k.istNaechster ? "Nächster Code" : "Code"
         Task {
             try? await Task.sleep(for: .seconds(2))
             kopiert = nil

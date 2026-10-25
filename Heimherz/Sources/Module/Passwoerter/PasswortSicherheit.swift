@@ -2,12 +2,13 @@ import Foundation
 
 /// Warum ein Eintrag in "Sicherheit" steht.
 enum SicherheitsGrund: Int, Comparable, Hashable, Sendable {
-    case wiederverwendet, schwach
+    case datenleck, wiederverwendet, schwach
 
     static func < (a: SicherheitsGrund, b: SicherheitsGrund) -> Bool { a.rawValue < b.rawValue }
 
     var text: String {
         switch self {
+        case .datenleck: return "In einem Datenleck gefunden"
         case .wiederverwendet: return "Bereits verwendetes Passwort"
         case .schwach: return "Schwaches Passwort"
         }
@@ -22,8 +23,8 @@ struct SicherheitsHinweis: Equatable, Sendable, Identifiable {
     var text: String { gruende.first?.text ?? "" }
 }
 
-/// Die Prüfung läuft nur auf dem Handy, ohne Netz. Es gibt bewusst keine Abfrage bei Datenleck-Diensten: Passwörter (auch Teile oder
-/// Prüfsummen davon) verlassen nie Ahmeds Geräte.
+/// Wiederverwendet und schwach prüft das Handy selbst, ohne Netz. Datenlecks kommen von `LeckPruefung` (Pwned Passwords, nur wenn die Einstellung an ist,
+/// k-Anonymität: nur 5 Zeichen eines SHA-1 gehen raus, nie das Passwort); hier fließt nur das Ergebnis (`lecks`, Eintrags-ids) ein.
 enum PasswortSicherheit {
     static let mindestLaenge = 8
     /// Ab dieser Länge ist ein Passwort nie "zu kurz oder zu einfach" (Passphrasen aus kleingeschriebenen Wörtern sind stark); Muster zählen trotzdem.
@@ -36,12 +37,14 @@ enum PasswortSicherheit {
     private static let reihen = ["qwertzuiop", "qwertyuiop", "asdfghjkl", "yxcvbnm", "zxcvbnm", "1234567890", "0987654321", "abcdefghijklmnopqrstuvwxyz"]
 
     /// Alle Einträge mit einem Hinweis, in der Reihenfolge der übergebenen Einträge. Nur lebendige Logins mit Passwort zählen.
-    static func pruefe(_ eintraege: [Eintrag]) -> [SicherheitsHinweis] {
+    /// `lecks`: ids, deren Passwort in einem Datenleck steckt (steht als wichtigster Grund zuerst).
+    static func pruefe(_ eintraege: [Eintrag], lecks: Set<String> = []) -> [SicherheitsHinweis] {
         let logins = eintraege.filter { !$0.geloescht && $0.art == Eintrag.artLogin && !$0.passwort.isEmpty }
         var haeufigkeit: [String: Int] = [:]
         for e in logins { haeufigkeit[e.passwort, default: 0] += 1 }
         return logins.compactMap { e in
             var gruende: [SicherheitsGrund] = []
+            if lecks.contains(e.id) { gruende.append(.datenleck) }
             if (haeufigkeit[e.passwort] ?? 0) > 1 { gruende.append(.wiederverwendet) }
             if istSchwach(e.passwort, benutzer: e.benutzer, name: e.name) { gruende.append(.schwach) }
             return gruende.isEmpty ? nil : SicherheitsHinweis(eintragId: e.id, gruende: gruende)
