@@ -36,3 +36,13 @@ Quelle: `SPEC.md`. Module und Reihenfolge: SPEC Abschnitt 3.
 4. Modell (`AutoFillModell`: Aufträge `.passkey`, `.passkeyNeu`, Phase `.passkeyWahl`) + Tests mit Attrappen. Prüfung: CI.
 5. Erweiterung (Controller, Ansicht Auswahl, Info.plist `ProvidesPasskeys`). Prüfung: CI grün inkl. Release-Bau.
 6. Merge nach main, TestFlight, Wunschliste/Übersicht, Bericht. Prüfung: Build in TestFlight; Gerät = Ahmed.
+
+## T21 dateien-durchsuchen (Ahmed 26.10.2026, Stand-Datei `~/.claude/buero-stand/heimcloud-dateien2-26-10.md`)
+Ziel: Startseite des Tabs wie "Durchsuchen" in Apple Dateien (ohne Tags/Favoriten), drei Abschnitte Bürokratie, Projekte, Weitere; Ordnersymbol wie Apple (selbst gezeichnet, nicht schwarz im Schlitz).
+1. Logik zuerst, Tests zuerst (`Tests/Dateien/DateienStartTests.swift`): Abschnitte bilden (feste Reihenfolge, fehlende Kategorie fehlt, Weitere sammelt Fremde, volle Pfade), Symbol-Tabelle (echte Ordnernamen), Sortierung (`_` zuletzt), Einklapp-Zustand (RawRepresentable). Prüfung: `swift-syntax-check`.
+2. `DateienStart.swift`: Typen, Logik, `DateienStartModell` (Wurzel + drei Kategorien parallel, Fehler behalten alte Daten). Prüfung: Tests.
+3. `OrdnerSymbol` (SwiftUI-Shapes) in `DateienAnsichten.swift`, in `DateiBild` und Informationen statt `folder.fill`. Prüfung: Screenshots hell/dunkel.
+4. Startseite im Wurzel-`OrdnerSeite` (groß betitelt, inset grouped, Kopfzeile mit Pfeil, AppStorage). Prüfung: Screenshots.
+5. Demo-Daten und Debug-Schalter auf die neue Ordnung, CI-Screenshots (Start hell/dunkel/XXL, Ordnerraster, Liste). Prüfung: CI grün, Screenshots gegen Vorbilder.
+6. SPEC 12, todo T21. Prüfung: `bun test`, `check-schnell.sh`.
+Grenzen: kein Merge nach main, kein TestFlight, keine neue Server-Route, `Gemeinsam/` unberührt.
