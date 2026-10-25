@@ -80,7 +80,7 @@ jobs:
       - name: Screenshots aufnehmen
         if: ${{ !cancelled() }}
         continue-on-error: true
-        timeout-minutes: 10
+        timeout-minutes: 16
         run: |
           set -u
           mkdir -p screenshots
