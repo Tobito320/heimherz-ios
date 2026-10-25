@@ -20,6 +20,8 @@ struct AutoFillWurzel: View {
                 KonfigurationAnsicht(fertig: { modell.fertigKonfiguration() })
             case .fremdesKonto(let eintrag, let seite):
                 FremdesKontoAnsicht(eintrag: eintrag, seite: seite, ausfuellen: { modell.bestaetigeFremdes() }, abbrechen: { modell.lehneFremdesAb() })
+            case .passkeyWahl(let liste):
+                PasskeyAuswahl(liste: liste, waehle: { modell.waehlePasskey($0) }, abbrechen: { modell.abbrechen() })
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -79,8 +81,7 @@ private struct AuswahlListe: View {
     @Bindable var modell: AutoFillModell
 
     private var codes: Bool {
-        if case .liste(_, let c) = modell.auftrag { return c }
-        return false
+        modell.listenArt?.codes ?? false
     }
 
     var body: some View {
@@ -126,6 +127,41 @@ private struct AuswahlListe: View {
                 .frame(maxWidth: .infinity, minHeight: Abstand.tippflaeche, alignment: .leading)
             }
             .listRowBackground(Color.karte)
+        }
+    }
+}
+
+private struct PasskeyAuswahl: View {
+    let liste: [Passkey]
+    let waehle: (Passkey) -> Void
+    let abbrechen: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            List(Array(liste.enumerated()), id: \.offset) { _, p in
+                Button { waehle(p) } label: {
+                    Label {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(p.userName.isEmpty ? "Ohne Namen" : p.userName)
+                                .font(.headline)
+                                .foregroundStyle(Color.tinte)
+                            Text(p.rpId)
+                                .font(.subheadline)
+                                .foregroundStyle(Color.tinte2)
+                        }
+                    } icon: {
+                        Image(systemName: "person.badge.key.fill")
+                    }
+                    .frame(maxWidth: .infinity, minHeight: Abstand.tippflaeche, alignment: .leading)
+                }
+                .listRowBackground(Color.karte)
+            }
+            .scrollContentBackground(.hidden)
+            .navigationTitle("Passkey wählen")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Abbrechen", action: abbrechen) }
+            }
         }
     }
 }

@@ -43,7 +43,7 @@ struct ImportAnleitungBlatt: View {
                         VStack(alignment: .leading, spacing: Abstand.s) {
                             punkt("Gleicher Benutzer und gleiche Seite mit gleichem Passwort: wird übersprungen.")
                             punkt("Gleicher Benutzer und gleiche Seite mit neuerem Passwort: Heimcloud übernimmt das neue, das alte bleibt im Verlauf des Eintrags.")
-                            punkt("Passkeys werden gesichert (mit Seite, Konto und Schlüssel, nur im verschlüsselten Tresor). Anmelden damit kommt in einem späteren Build.")
+                            punkt("Passkeys werden gesichert (mit Seite, Konto und Schlüssel, nur im verschlüsselten Tresor). Anmelden damit geht über Automatisch ausfüllen.")
                             punkt("WLAN-Passwörter, Karten und Ausweise kennt Heimcloud nicht und überspringt sie.")
                             punkt("Heimcloud muss in den iPhone-Einstellungen unter Allgemein, AutoFill und Passwörter als Anbieter eingeschaltet sein, falls Apple die App sonst nicht anbietet.")
                         }
@@ -97,7 +97,7 @@ struct ImportErgebnisBlatt: View {
                         WertZeile(name: "Übersprungen", wert: "\(ergebnis.uebersprungen)")
                     }
                     if ergebnis.passkeys > 0 {
-                        Text("Die Passkeys liegen sicher im Tresor. Anmelden damit kommt in einem späteren Build.")
+                        Text("Die Passkeys liegen sicher im Tresor. Anmelden damit geht über Automatisch ausfüllen.")
                             .font(.footnote)
                             .foregroundStyle(Color.tinte2)
                     }

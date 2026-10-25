@@ -107,6 +107,8 @@ targets:
             ASCredentialProviderExtensionCapabilities:
               ProvidesPasswords: true
               ProvidesOneTimeCodes: true
+              # Passkeys (SPEC 24): Einstellungen zeigen dann "Passkeys, Passwörter und Codes"
+              ProvidesPasskeys: true
               ShowsConfigurationUI: true
               SupportsSavePasswordCredentials: true
               SupportsGeneratePasswordCredentials: true
