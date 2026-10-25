@@ -182,7 +182,7 @@ final class AppUmgebungTests: XCTestCase {
         let u = AppUmgebung(bund: bund, ablage: TresorAblage(ordner: try tempOrdner()), sperreAktiv: false)
         XCTAssertTrue(u.istGekoppelt)
         XCTAssertThrowsError(try u.entkoppeln()) { XCTAssertEqual($0 as? SchluesselbundFehler, .loeschen(-25244)) }
-        XCTAssertTrue(u.istGekoppelt, "der Zustand folgt dem Schlüsselbund: das Token ist noch da")
+        XCTAssertFalse(u.istGekoppelt, "URL und Schlüssel sind trotz des Fehlers weg, ohne Token gibt es keinen Zugang")
     }
 
     func testNeuerZugangErsetztDenAltenCacheUndZaehltHoch() async throws {

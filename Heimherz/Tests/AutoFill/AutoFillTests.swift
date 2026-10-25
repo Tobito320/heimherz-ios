@@ -278,7 +278,7 @@ final class AutoFillSitzungTests: XCTestCase {
         let (m, _) = try modell(.liste(hosts: ["example.com"], codes: false), tresor: beispiel) { _ in }
         await m.starte()
         XCTAssertEqual(m.phase, .liste)
-        XCTAssertEqual(m.gruppen.passend.map(\.id), ["2", "1"])
+        XCTAssertEqual(m.gruppen.passend.map(\.id), ["1", "2"], "genau example.com vor m.example.com")
         XCTAssertEqual(m.gruppen.uebrige.map(\.id), ["3"])
         m.suche = "andere"
         XCTAssertEqual(m.gruppen.passend.count, 0)
