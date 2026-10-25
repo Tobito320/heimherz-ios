@@ -6,7 +6,7 @@ import { join } from 'node:path';
 export const TEMPO_MAX_ZEILEN = 20_000;
 
 export type TempoZeile = {
-  zeit: string; bytes: number; empfangMs: number; ergebnis: 'neu' | 'schon' | 'abbruch'; art: string;
+  zeit: string; bytes: number; empfangMs: number; gesamtMs: number; ergebnis: 'neu' | 'schon' | 'abbruch'; art: string;
   exportMs: number | null; warteMs: number | null; aktiv: number | null; exporte: number | null;
   vordergrund: 0 | 1 | null; durchgang: 'lokal' | 'icloud' | null; session: 'vorder' | 'hinter' | null;
 };

@@ -6,7 +6,7 @@ import { fasseTempo, leseTempo } from './tempo';
 import type { TempoZeile } from '../server/tempo';
 
 const zeile = (sek: number, o: Partial<TempoZeile> = {}): TempoZeile => ({
-  zeit: new Date(Date.UTC(2026, 9, 25, 15, 24, sek)).toISOString(), bytes: 1_000_000, empfangMs: 1000, ergebnis: 'neu', art: 'foto',
+  zeit: new Date(Date.UTC(2026, 9, 25, 15, 24, sek)).toISOString(), bytes: 1_000_000, empfangMs: 1000, gesamtMs: 1000, ergebnis: 'neu', art: 'foto',
   exportMs: 100, warteMs: 50, aktiv: 6, exporte: 2, vordergrund: 1, durchgang: 'lokal', session: 'vorder', ...o,
 });
 
@@ -42,4 +42,19 @@ test('leseTempo liest .1 und Hauptdatei, ignoriert halbe Zeile', () => {
   writeFileSync(join(d, 'foto-tempo.jsonl'), JSON.stringify(zeile(2)) + '\n{"zeit":');
   expect(leseTempo(d)).toHaveLength(2);
   rmSync(d, { recursive: true, force: true });
+});
+
+test('Leerlauf: Lücke zwischen Uploads wird gezählt, überlappende Uploads nicht doppelt', () => {
+  // Uploads je 1 s lang, zwei überlappend (Ende 1 s und 1,5 s), dann 8 s nichts, dann einer (Ende 11 s): Spanne 0..11 s
+  const z = [zeile(1), { ...zeile(1), zeit: new Date(Date.UTC(2026, 9, 25, 15, 24, 1, 500)).toISOString() }, zeile(11)];
+  const t = fasseTempo(z, 10).join('\n');
+  expect(t).toContain('Lücken über 3 s: 1, größte 8.5 s');
+  expect(t).toContain('Leerlauf am Server (kein Upload läuft): 77 %');  // besetzt 0..1,5 und 10..11 = 2,5 von 11 s
+  const dicht = Array.from({ length: 10 }, (_, i) => zeile(i + 1));
+  expect(fasseTempo(dicht, 10).join('\n')).toContain('Leerlauf am Server (kein Upload läuft): 0 %, Lücken über 3 s: 0, größte 0.0 s');
+});
+
+test('Ablegen danach = gesamtMs minus empfangMs', () => {
+  const t = fasseTempo([zeile(1, { gesamtMs: 1300 }), zeile(2, { gesamtMs: 1500 })]).join('\n');
+  expect(t).toContain('Ablegen danach (Server, gesamt minus Empfang): Ø 400 ms');
 });

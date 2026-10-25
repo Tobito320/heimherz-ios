@@ -69,8 +69,10 @@ export class Fotos {
     if (!ID.test(kennung) || !ID.test(ressource)) return leer(400);
     const schluessel = `${kennung}/${ressource}`;
     const start = performance.now();
-    const messe = (ergebnis: 'neu' | 'schon' | 'abbruch', bytes: number, ms = Math.round(performance.now() - start)) =>
-      this.tempo.schreibe({ zeit: new Date().toISOString(), bytes, empfangMs: ms, ergebnis, ...tempoKopf(req.headers, ressource) });
+    const seit = () => Math.round(performance.now() - start);
+    // empfangMs: bis das letzte Byte auf der Platte ist; gesamtMs: bis zur Antwort (dazu zählen Ablegen und SQLite-Insert).
+    const messe = (ergebnis: 'neu' | 'schon' | 'abbruch', bytes: number, empfangMs = seit()) =>
+      this.tempo.schreibe({ zeit: new Date().toISOString(), bytes, empfangMs, gesamtMs: seit(), ergebnis, ...tempoKopf(req.headers, ressource) });
     const cl = req.headers.get('content-length');
     const da = this.db.query('SELECT groesse FROM fotos WHERE kennung = ? AND ressource = ?').get(kennung, ressource) as { groesse: number } | null;
     if (da && cl !== null && Number(cl) === da.groesse) { messe('schon', 0); return json({ schon: true }); }

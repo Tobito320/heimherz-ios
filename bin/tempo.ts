@@ -40,10 +40,12 @@ export function fasseTempo(alle: TempoZeile[], minuten = 10): string[] {
     `Ergebnisse: neu ${neu.length}, schon da ${z.filter(x => x.ergebnis === 'schon').length}, abgebrochen ${z.filter(x => x.ergebnis === 'abbruch').length}`,
   ];
   if (!neu.length) return aus;
+  aus.push(luecken(z, start, ende));
   aus.push(
     `Export (Handy): ${ms(neu.map(x => x.exportMs))}`,
     `Warten (Export fertig bis Upload-Start): ${ms(neu.map(x => x.warteMs))}`,
     `Empfang (Server): ${ms(neu.map(x => x.empfangMs))}`,
+    `Ablegen danach (Server, gesamt minus Empfang): ${ms(neu.map(x => (x.gesamtMs ?? x.empfangMs) - x.empfangMs))}`,
     `Empfang je Upload: ${empfangSek > 0 ? (bytes / 1e6 / empfangSek).toFixed(2) : '-'} MB/s; Ø gleichzeitig am Server: ${(empfangSek / sek).toFixed(1)}`,
     `Handy meldet im Mittel: ${schnitt(neu.map(x => x.aktiv))} Uploads, ${schnitt(neu.map(x => x.exporte))} Exporte`,
     `Vordergrund: ${anteil(neu.filter(x => x.vordergrund === 1).length, neu.filter(x => x.vordergrund !== null).length)}; Session vorder ${neu.filter(x => x.session === 'vorder').length}, hinter ${neu.filter(x => x.session === 'hinter').length}`,
@@ -51,4 +53,18 @@ export function fasseTempo(alle: TempoZeile[], minuten = 10): string[] {
     `Arten: ${[...new Set(neu.map(x => x.art))].sort().map(a => `${a} ${neu.filter(x => x.art === a).length}`).join(', ')}`,
   );
   return aus;
+}
+
+// Zeit, in der am Server kein Upload lief: Vereinigung der Spannen [Ende - Gesamtdauer, Ende]. Viel Leerlauf heißt, das Handy füttert zu langsam
+// (Export, Planung zwischen den Stücken, iCloud-Wartezeit); wenig Leerlauf und trotzdem langsam heißt, Netz oder Server sind die Grenze.
+export function luecken(z: TempoZeile[], start: number, ende: number): string {
+  const spannen = z.map(x => [Date.parse(x.zeit) - (x.gesamtMs ?? x.empfangMs), Date.parse(x.zeit)] as const).sort((a, b) => a[0] - b[0]);
+  let besetzt = 0, bis = start, groesste = 0, anzahl = 0;
+  for (const [von, zu] of spannen) {
+    if (von > bis) { const l = von - bis; if (l > 3000) anzahl++; groesste = Math.max(groesste, l); }
+    besetzt += Math.max(0, zu - Math.max(von, bis));
+    bis = Math.max(bis, zu);
+  }
+  const gesamt = Math.max(1, ende - start);
+  return `Leerlauf am Server (kein Upload läuft): ${Math.round((100 * (gesamt - besetzt)) / gesamt)} %, Lücken über 3 s: ${anzahl}, größte ${(groesste / 1000).toFixed(1)} s`;
 }
