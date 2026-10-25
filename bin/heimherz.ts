@@ -35,9 +35,16 @@ async function bwJson(): Promise<string> {
   } catch { throw gesperrt; }
 }
 
-async function anzeigen(datei: string) {
-  const cmd = Bun.which('claude-start') ? ['claude-start', '--fuer-ahmed', 'imv', datei] : ['xdg-open', datei];
-  Bun.spawn(cmd, { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore' }).unref();
+// Gibt zurück, wie man den Betrachter wieder schließt (koppeln ruft es im finally): claude-start druckt die Fensteradresse, die schließt hyprctl.
+async function anzeigen(datei: string): Promise<() => void> {
+  if (!Bun.which('claude-start')) {
+    const p = Bun.spawn(['xdg-open', datei], { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore' }); // shortcut: schließt nur xdg-open selbst, nicht den Betrachter
+    return () => p.kill();
+  }
+  const adresse = (await ausgabeVon(['claude-start', '--fuer-ahmed', 'imv', datei])).trim();
+  return () => {
+    if (/^0x[0-9a-f]+$/.test(adresse)) Bun.spawn(['hyprctl', 'dispatch', 'closewindow', `address:${adresse}`], { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore' }).unref();
+  };
 }
 
 async function main(argv: string[]) {
