@@ -113,6 +113,12 @@ jobs:
             xcrun simctl launch --terminate-running-process "$IPHONE_ID" com.onlyus.heimherz -heimherzDemo YES -heimherzTab passwoerter -heimherzPwSeite codes -heimherzCodeVorschau YES
             sleep 5
             xcrun simctl io "$IPHONE_ID" screenshot "screenshots/${modus}-passwoerter-codes-danach.png"
+            # Neue 2FA-Codes (W-028): Auswahl über das Postfach, Rückfrage beim Ersetzen, fertig mit laufendem Code
+            for blatt in auswahl ersetzen fertig; do
+              xcrun simctl launch --terminate-running-process "$IPHONE_ID" com.onlyus.heimherz -heimherzDemo YES -heimherzTab passwoerter -heimherzCodeBlatt "$blatt"
+              sleep 6
+              xcrun simctl io "$IPHONE_ID" screenshot "screenshots/${modus}-code-${blatt}.png"
+            done
             xcrun simctl launch --terminate-running-process "$IPHONE_ID" com.onlyus.heimherz -heimherzDemo YES -heimherzTab fotos -heimherzFotosRaster YES
             sleep 5
             xcrun simctl io "$IPHONE_ID" screenshot "screenshots/${modus}-fotos-raster.png"
@@ -135,7 +141,7 @@ jobs:
             sleep 5
             xcrun simctl io "$IPHONE_ID" screenshot "screenshots/${modus}-ungekoppelt.png"
             # Unterseiten der Einstellungen (Demo springt per -heimherzEinstellungenSeite hinein)
-            for seite in pc autofill sichern; do
+            for seite in pc autofill sichern codes; do
               xcrun simctl launch --terminate-running-process "$IPHONE_ID" com.onlyus.heimherz -heimherzDemo YES -heimherzTab einstellungen -heimherzEinstellungenSeite "$seite"
               sleep 5
               xcrun simctl io "$IPHONE_ID" screenshot "screenshots/${modus}-einstellungen-${seite}.png"

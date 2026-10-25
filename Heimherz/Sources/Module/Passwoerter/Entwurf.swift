@@ -62,7 +62,10 @@ struct Entwurf: Equatable {
             e.benutzer = benutzer.trimmingCharacters(in: .whitespacesAndNewlines)
             e.passwort = passwort
             e.urls = urls
-            e.totp = totp.trimmingCharacters(in: .whitespacesAndNewlines)
+            let neuerCode = totp.trimmingCharacters(in: .whitespacesAndNewlines)
+            // Ein geänderter oder geleerter Schlüssel soll nicht still verloren gehen: der alte bleibt im Verlauf des Eintrags.
+            if neuerCode != e.totp, let verlauf = CodeEintrag.verlauf(von: e, bis: Zeit.iso(Date())) { e.unbekannt["totpVerlauf"] = verlauf }
+            e.totp = neuerCode
         }
         return e
     }

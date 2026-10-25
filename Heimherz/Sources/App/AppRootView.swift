@@ -35,6 +35,9 @@ struct AppRootView: View {
         .heimherzImportAnnahme()
         .onChange(of: ImportPostfach.geteilt.holt) { _, holt in if holt { tab = .passwoerter } }
         .heimherzSpotlightAnnahme()
+        // Neuer 2FA-Code per otpauth://-Link (iOS "Codes konfigurieren in") oder QR aus den Einstellungen: das Blatt hängt am Passwörter-Tab.
+        .heimherzCodeAnnahme()
+        .onChange(of: CodePostfach.geteilt.wartet) { _, wartet in if wartet { tab = .passwoerter } }
         .onChange(of: SpotlightPostfach.geteilt.angefragt) { _, id in if id != nil { tab = .passwoerter } }
         // Schnellaktion vom App-Symbol: der Tab wechselt gleich (auch unter der Sperre); ausgeführt wird sie erst nach dem Entsperren, im Ziel-Tab.
         .onChange(of: aktionen.offen, initial: true) { _, aktion in if let aktion { tab = aktion.tab } }

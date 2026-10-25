@@ -3,7 +3,7 @@ import UIKit
 
 /// Wohin ein Tipp in den Einstellungen führt (Unterseiten für Seltenes).
 enum EinstellungenSeite: Hashable {
-    case pc, autoFill, sichern
+    case pc, autoFill, sichern, codes
 }
 
 /// Tab "Einstellungen" (SPEC "Einstellungen"): eine gruppierte Liste wie in iOS. Oben der PC, dann Sicherheit, Passwörter, Fotos, Dateien, Über.
@@ -34,6 +34,7 @@ struct EinstellungenTabView: View {
         case "pc": return [.pc]
         case "autofill": return [.autoFill]
         case "sichern": return [.sichern]
+        case "codes": return [.codes]
         default: break
         }
         #endif
@@ -69,6 +70,7 @@ struct EinstellungenTabView: View {
                 case .pc: PCEinstellungenSeite()
                 case .autoFill: AutoFillAnleitung()
                 case .sichern: SichernErklaerung()
+                case .codes: CodesAnleitung()
                 }
             }
             .refreshable { await umgebung.ladeStatus() }
@@ -199,6 +201,10 @@ struct EinstellungenTabView: View {
         Section {
             NavigationLink(value: EinstellungenSeite.autoFill) {
                 KachelTitel(titel: "AutoFill einschalten", symbol: "checkmark.shield.fill", ton: .tuerkis)
+            }
+            .heimherzZeile()
+            NavigationLink(value: EinstellungenSeite.codes) {
+                KachelTitel(titel: "Neue 2FA-Codes in Heimcloud", symbol: "qrcode.viewfinder", ton: .gelb)
             }
             .heimherzZeile()
             Button { zeigeImport = true } label: {

@@ -16,6 +16,8 @@ struct PasswoerterInhalt: View {
     @State private var store: TresorStore
     @State private var symbole: SymbolLader
     @State private var postfach = ImportPostfach.geteilt
+    @State private var codes = CodePostfach.geteilt
+    @State private var codeModell: CodeEinrichten?
     @State private var aktionen = SchnellaktionPostfach.geteilt
     @State private var suche = ""
     @State private var pfad: [PasswoerterZiel] = []
@@ -56,6 +58,12 @@ struct PasswoerterInhalt: View {
         .sheet(item: $formular) { ziel in EintragFormular(store: store, ziel: ziel) }
         .sheet(isPresented: $zeigeGenerator) { GeneratorBlatt(uebernehmen: nil) }
         .sheet(isPresented: $zeigeAnleitung) { ImportAnleitungBlatt() }
+        .sheet(item: $codeModell) { CodeEinrichtenBlatt(modell: $0) }
+        .alert("Code einrichten", isPresented: Binding(get: { codes.fehler != nil && !lage.gesperrt }, set: { if !$0 { codes.schliesseFehler() } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(codes.fehler ?? "")
+        }
         .sheet(item: Binding(get: { postfach.ergebnis.map(ImportAnzeige.init) }, set: { if $0 == nil { postfach.schliesseErgebnis() } })) { anzeige in
             ImportErgebnisBlatt(ergebnis: anzeige.zaehler)
         }
@@ -66,6 +74,8 @@ struct PasswoerterInhalt: View {
         }
         .task(id: lage) { await lageAnwenden() }
         .task(id: ImportBedingung(bereit: store.zustand == .bereit, hatPaket: postfach.paket != nil)) { await importAusfuehren() }
+        .task(id: CodeBedingung(bereit: store.zustand == .bereit && !lage.gesperrt, gekoppelt: lage.gekoppelt, hatCode: codes.konto != nil,
+                                frei: formular == nil && !zeigeGenerator && !zeigeAnleitung && codeModell == nil)) { codeAnnehmen() }
         .task(id: AktionBedingung(bereit: store.zustand == .bereit && !lage.gesperrt, aktion: aktionen.offen)) { fuehreAktionAus() }
         .task(id: SpotlightBedingung(bereit: store.zustand == .bereit && !lage.gesperrt, id: SpotlightPostfach.geteilt.angefragt)) {
             if store.zustand == .bereit, !lage.gesperrt, let id = SpotlightPostfach.geteilt.nimm(in: store) { pfad = [.kategorie(.alle), .eintrag(id)] }
@@ -73,6 +83,14 @@ struct PasswoerterInhalt: View {
         .onChange(of: phase) { _, neu in
             if neu == .active, lage.gekoppelt, !lage.gesperrt { Task { await store.abgleichen() } }
         }
+    }
+
+    /// Ein angekommener Code wartet, bis der Tresor offen ist und kein anderes Blatt im Weg ist.
+    private struct CodeBedingung: Equatable {
+        let bereit: Bool
+        let gekoppelt: Bool
+        let hatCode: Bool
+        let frei: Bool
     }
 
     private struct ImportBedingung: Equatable {
@@ -105,6 +123,7 @@ struct PasswoerterInhalt: View {
             formular = nil
             zeigeGenerator = false
             zeigeAnleitung = false
+            codeModell = nil   // das Blatt hält das Geheimnis: gesperrt = weg
             if !lage.gekoppelt {
                 postfach.verwerfe()
                 aktionen.verwirf(tab: .passwoerter)
@@ -121,6 +140,18 @@ struct PasswoerterInhalt: View {
         #if DEBUG
         if umgebung.istDemo { demoSeite() }
         #endif
+    }
+
+    /// Der Code aus dem Postfach wird erst jetzt gelesen: der Tresor ist offen, also war Face ID oder das Entsperr-Fenster da (`TresorStore.oeffnen`).
+    /// Ohne Kopplung gibt es keinen Tresor: der Code wird verworfen und das gesagt.
+    private func codeAnnehmen() {
+        if !lage.gekoppelt, codes.nimm() != nil {
+            codes.zeigeFehler("Koppel Heimcloud zuerst mit dem PC (Tab Einstellungen). Danach öffne den Link oder den QR-Code noch einmal.")
+            return
+        }
+        guard store.zustand == .bereit, !lage.gesperrt, formular == nil, !zeigeGenerator, !zeigeAnleitung, codeModell == nil,
+              let konto = codes.nimm() else { return }
+        codeModell = CodeEinrichten(konto: konto, store: store, demo: umgebung.istDemo)
     }
 
     /// "Codes" und "Neues Passwort" vom App-Symbol: Liste Codes beziehungsweise das Formular, so wie ein Tipp in der App.
@@ -178,6 +209,7 @@ struct PasswoerterInhalt: View {
     #if DEBUG
     /// Nur Screenshots in CI (`-heimherzPwSeite alle|passkeys|codes|sicherheit|geloescht|detail|import`): springt in die Demo auf die Seite.
     private func demoSeite() {
+        demoCodeBlatt()
         switch UserDefaults.standard.string(forKey: "heimherzPwSeite") {
         case "alle": pfad = [.kategorie(.alle)]
         case "passkeys": pfad = [.kategorie(.passkeys)]
@@ -187,6 +219,22 @@ struct PasswoerterInhalt: View {
         case "detail": pfad = [.kategorie(.alle), .eintrag("demo-1")]
         case "import": zeigeAnleitung = true
         default: break
+        }
+    }
+
+    /// Nur Screenshots in CI (`-heimherzCodeBlatt auswahl|ersetzen|fertig`): das Blatt "Code einrichten" mit erfundenen Codes.
+    /// `auswahl` geht den echten Weg über das Postfach, die anderen öffnen das Blatt gleich im gewünschten Schritt.
+    private func demoCodeBlatt() {
+        guard let schritt = UserDefaults.standard.string(forKey: "heimherzCodeBlatt") else { return }
+        let bank = "otpauth://totp/Online-Bank:mia.beispiel?secret=JBSWY3DPEHPK3PXP&issuer=Online-Bank"
+        let github = "otpauth://totp/GitHub:mia?secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ&issuer=GitHub&digits=8&algorithm=SHA256"
+        if schritt == "auswahl" { codes.empfange(text: bank); return }
+        guard let konto = try? OtpAuth.lese(schritt == "ersetzen" ? github : bank) else { return }
+        let modell = CodeEinrichten(konto: konto, store: store, demo: true)
+        codeModell = modell
+        Task {
+            if schritt == "ersetzen", let e = store.eintrag("demo-1") { await modell.waehle(e) }
+            if schritt == "fertig", let e = store.eintrag("demo-2") { await modell.waehle(e) }
         }
     }
     #endif

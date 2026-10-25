@@ -42,6 +42,12 @@ targets:
         # Import aus Apple Passwörter (Credential Exchange, iOS 26): das System startet die App mit dieser Aktivität. Apples Seite nennt den Typ
         # "ASCredentialExchangeActivityType", die Konstante im SDK heißt `ASCredentialExchangeActivity`; beide stehen drin, damit eines davon greift.
         NSUserActivityTypes: [ASCredentialExchangeActivity, ASCredentialExchangeActivityType]
+        # Neue 2FA-Codes (W-028): wer das Schema `otpauth` annimmt, steht in iOS unter AutoFill & Passwörter > "Codes konfigurieren in" (Quelle: SPEC 9;
+        # Apple-Forum 711392, Herstellerseiten von Bitwarden und Dashlane). Ob iOS 26 das noch genauso macht, zeigt nur das Gerät.
+        CFBundleURLTypes:
+          - CFBundleURLName: com.onlyus.heimherz.otpauth
+            CFBundleTypeRole: Viewer
+            CFBundleURLSchemes: [otpauth]
         # Foto-Abgleich im Hintergrund: Kennungen siehe FotoHintergrund.swift (Fortsetzung iOS 26, Nachtlauf mit Strom)
         BGTaskSchedulerPermittedIdentifiers:
           - com.onlyus.heimherz.fotos-abgleich
@@ -71,7 +77,7 @@ targets:
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_NSPhotoLibraryUsageDescription: "Heim sichert deine Fotos und Videos auf deinen PC. Am Handy wird nie etwas gelöscht oder geändert."
-        INFOPLIST_KEY_NSCameraUsageDescription: "Heim scannt damit den QR-Code vom PC, um das Handy zu koppeln."
+        INFOPLIST_KEY_NSCameraUsageDescription: "Heimcloud scannt damit den QR-Code vom PC, um das Handy zu koppeln, und QR-Codes für neue 2FA-Codes."
         INFOPLIST_KEY_NSFaceIDUsageDescription: "Heim entsperrt deinen Tresor mit Face ID."
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"   # wie Lovea und Bahnherz, sonst lehnt der Upload ab (90474)
