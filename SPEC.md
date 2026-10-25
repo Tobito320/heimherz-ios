@@ -161,6 +161,16 @@ Foto-Erweiterung (iOS 26.1, aus Apples Doku "Uploading asset resources in the ba
 
 Liste mit Suche (Name, Benutzer, Host), Favoriten oben. Detail: Benutzer und Passwort kopieren (Zwischenablage `localOnly`, Ablauf 60 s), Passwort zeigen nach Face ID, TOTP-Code mit Ring. Neu und Bearbeiten, Löschen als Grabstein. Generator (Länge 8 bis 64, Ziffern, Zeichen, Wortgruppen-Modus). Abgleich: beim Öffnen, nach jeder Änderung, per Ziehen; Ablauf `GET` → entschlüsseln → zusammenführen → verschlüsseln → `PUT If-Match`; 409 = nochmal (höchstens 3). Nach jedem Abgleich Identitäten an `ASCredentialIdentityStore` geben (nur Host, Benutzer, id). App sperrt nach 5 min im Hintergrund.
 
+### Gebaut (T5, Abweichungen und Festlegungen)
+
+- Dateien: `Heimherz/Sources/Module/Passwoerter/` (`TresorStore` = Klartext nur im Speicher, `PasswoerterTabView`, `EintragDetailView`, `EintragFormular`, `GeneratorBlatt`, `Entwurf`, `Hilfen`), geteilt in `Gemeinsam/AutoFill/` (`EintragSuche`, `AutoFillIdentitaeten`, `PasswortGenerator`, `Wortliste`).
+- Sperren: Der Store leert Tresor und Schlüssel, sobald die App sperrt oder entkoppelt wird; Ergebnisse von Aufgaben, die vor der Sperre starteten, werden verworfen (`sperrZaehler`).
+- Änderungen werden erst lokal verschlüsselt gespeichert (`speichereLokal`), dann abgeglichen; Abgleich beim Öffnen, nach jeder Änderung, beim Zurückkehren in die App und per Ziehen. "Zuletzt abgeglichen" bleibt über Neustarts (UserDefaults, nur die Zeit).
+- Passwort zeigen: Geräteabfrage (`LAContext` `.deviceOwnerAuthentication`), danach 30 s sichtbar. Kopieren: `UIPasteboard` mit `localOnly` und Ablauf 60 s.
+- Generator: Zeichen-Modus (8 bis 64, Ziffern, Sonderzeichen `!#$%&*+-=?@_`, von jeder Klasse mindestens eins), Wortgruppen-Modus (3 bis 8 Wörter, optional Zahl, Trenner). Wortliste (1180 Wörter, kleingeschrieben, ASCII) steht im Quelltext (`Wortliste.swift`) statt als Bundle-Ressource, weil die AutoFill-Erweiterung dasselbe Modul `Gemeinsam` nutzt und kein Zugriff auf das App-Bundle hat. Zufall: `SystemRandomNumberGenerator`.
+- Identitäten (`AutoFillIdentitaeten.baue`): je lebendigem Login mit Benutzer und je Host der URLs eine `ASPasswordCredentialIdentity` (`.domain`, `recordIdentifier` = Eintrag-id, `rank` 1 bei Favorit); bei lesbarem TOTP zusätzlich eine `ASOneTimeCodeCredentialIdentity`. Nie Passwort oder TOTP-Geheimnis.
+- Hostzuordnung: gleicher Host oder Unterdomain an der Punktgrenze (`m.example.com` passt zu `example.com`, `evilexample.com` nicht). Keine Public-Suffix-Liste (`shortcut:` im Code).
+
 ## 10. Modul `ios-autofill`
 
 `ASCredentialProviderViewController`:
@@ -169,6 +179,17 @@ Liste mit Suche (Name, Benutzer, Host), Favoriten oben. Detail: Benutzer und Pas
 - Speichern und Generieren (ab iOS 26.2, API-Namen vor dem Bau in Apple-Doku prüfen): neuer Eintrag landet im Cache und wird beim nächsten App-Start abgeglichen (Erweiterung macht kurz selbst `PUT`, wenn der PC erreichbar ist).
 - Info.plist: `ASCredentialProviderExtensionCapabilities` mit `ProvidesPasswords`, `ProvidesOneTimeCodes`, `SupportsCredentialExchange` (für späteren iCloud-Import).
 - Speichergrenze der Erweiterung beachten (kein großes Laden, Tresor nur einmal entschlüsseln).
+
+### Gebaut (T8, Abweichungen und Festlegungen)
+
+- Dateien: `HeimherzAutoFill/Sources/` (`CredentialProviderViewController` übersetzt nur zwischen System und Modell, `AutoFillAnsichten` = SwiftUI aus `Gemeinsam/Design`), Ablauf testbar in `Gemeinsam/AutoFill/` (`AutoFillSitzung`, `AutoFillModell`, `PasswortSpeichern`, `PasswortVorschlaege`).
+- `provideCredentialWithoutUserInteraction` und `performWithoutUserInteractionIfPossible(savePasswordRequest:)` melden immer `userInteractionRequired`: K liegt mit `.userPresence` im Schlüsselbund und ist ohne Face ID nie lesbar. Der Weg ist darum immer `prepareInterfaceToProvideCredential(for:)` (Vorschlagsleiste: ein Face ID, dann direkt zurück ohne Tippen) oder `prepareCredentialList`.
+- Ein Face ID je Aufruf: ein `EntsperrKontext` je `AutoFillSitzung`, der Tresor wird einmal aus dem verschlüsselten Cache geöffnet und nur im Speicher gehalten.
+- Speichern (iOS 26.2, belegt in der Apple-Doku): `performWithoutUserInteractionIfPossible(savePasswordRequest:)`, `prepareInterface(for: ASSavePasswordRequest)`, `completeSavePasswordRequest(completionHandler:)`; Info.plist `SupportsSavePasswordCredentials`. Bei `event == .userInitiated` und neuem Konto wird sofort gesichert, sonst fragt eine Karte "In Heimherz sichern?". Gleicher Benutzer und passender Host mit anderem Passwort fragt immer nach ("Passwort aktualisieren?"). Gleiches Passwort ist schon da: nichts tun. Lokal verschlüsselt speichern, dann höchstens 6 s mit dem PC abgleichen, danach Identitäten setzen.
+- Passwort-Vorschläge (iOS 26.2): `performWithoutUserInteraction(generatePasswordsRequest:)`, `completeGeneratePasswordRequest(results:completionHandler:)`, `ASGeneratedPassword(kind:value:)` mit `.strong`, `.alphanumeric`, `.passphrase`; Info.plist `SupportsGeneratePasswordCredentials` und `SupportsGeneratePasswordCredentialsWithUI` = false (keine eigene Oberfläche, das System zeigt die Auswahl). Es werden nur `minlength` und `maxlength` der Seitenregeln beachtet (`shortcut:` im Code); Vorschläge, die länger als `maxlength` wären, entfallen.
+- Einstellungen: `ShowsConfigurationUI` = true, `prepareInterfaceForExtensionConfiguration` zeigt einen kurzen Hinweis, `completeExtensionConfigurationRequest()` schließt.
+- `SupportsCredentialExchange` ist nicht gesetzt: nichts dahinter gebaut (SPEC 2: iCloud-Import offen). Nachziehen, wenn der Import kommt.
+- Die Passwörter-App mischt vor jedem Schreiben und Abgleichen den Cache-Stand ein, falls die Erweiterung zwischendurch gespeichert hat. Ein gleichzeitiges Schreiben beider Prozesse im selben Augenblick ist nicht abgesichert (kleines Fenster, der Merge holt es beim nächsten Abgleich nach, solange der Eintrag in einer der beiden Fassungen steht).
 
 ## 11. Modul `ios-fotos`
 
