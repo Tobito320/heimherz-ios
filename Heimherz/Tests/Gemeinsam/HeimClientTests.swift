@@ -112,6 +112,43 @@ final class HeimClientTests: XCTestCase {
         XCTAssertEqual(liste[1].datum, Date(timeIntervalSince1970: 1_792_836_000.123))
     }
 
+    func testDateienSucheKodiertQuelleUndLiestTreffer() async throws {
+        let c = client { r, _ in
+            XCTAssertEqual(r.url?.path, "/v1/dateien/suche")
+            XCTAssertEqual(r.httpMethod, "GET")
+            XCTAssertEqual(r.value(forHTTPHeaderField: "Authorization"), "Bearer \(TestSchluessel.token)")
+            XCTAssertEqual(URLComponents(url: r.url ?? URL(fileURLWithPath: "/"), resolvingAgainstBaseURL: false)?.percentEncodedQuery, "q=M%C3%BCller%20%26%20Co%2B1&pfad=B%C3%BCro%2F2026")
+            return .json(#"[{"pfad":"Büro/2026/Müller.pdf","name":"Müller.pdf","ordner":false,"groesse":42,"geaendert":"2026-10-24T10:00:00.123Z"},{"pfad":"Büro/Müller","name":"Müller","ordner":true,"groesse":0,"geaendert":"2026-10-25T00:00:00.000Z"}]"#)
+        }
+        let t = try await c.dateienSuche(q: "Müller & Co+1", pfad: "Büro/2026")
+        XCTAssertEqual(t.map(\.pfad), ["Büro/2026/Müller.pdf", "Büro/Müller"])
+        XCTAssertEqual(t[0].groesse, 42)
+        XCTAssertEqual(t[0].datum, Date(timeIntervalSince1970: 1_792_836_000.123))
+        XCTAssertTrue(t[1].ordner)
+        for status in [400, 403, 404] {
+            let fehl = client { _, _ in .init(status: status) }
+            do { _ = try await fehl.dateienSuche(q: "x"); XCTFail("\(status)") } catch { XCTAssertNotNil(error as? HeimFehler) }
+        }
+    }
+
+    func testDateiVorschauHatPfadUndPxUndNilBei404() async throws {
+        let bild = Data([0xff, 0xd8, 0xff])
+        let c = client { r, _ in
+            XCTAssertEqual(r.url?.path, "/v1/dateien/vorschau")
+            XCTAssertEqual(URLComponents(url: r.url ?? URL(fileURLWithPath: "/"), resolvingAgainstBaseURL: false)?.percentEncodedQuery, "pfad=a%2Fb%20c.pdf&px=300")
+            return .init(status: 200, kopf: ["Content-Type": "image/jpeg"], koerper: bild)
+        }
+        let d = try await c.dateiVorschau(pfad: "a/b c.pdf", px: 300)
+        XCTAssertEqual(d, bild)
+        let keins = client { _, _ in .init(status: 404) }
+        let n = try await keins.dateiVorschau(pfad: "x.docx", px: 120)
+        XCTAssertNil(n)
+        let kaputt = client { _, _ in .init(status: 401) }
+        do { _ = try await kaputt.dateiVorschau(pfad: "x.pdf", px: 120); XCTFail("401") } catch { XCTAssertEqual(error as? HeimFehler, .nichtBerechtigt) }
+        let aus = client { _, _ in .fehler(.notConnectedToInternet) }
+        do { _ = try await aus.dateiVorschau(pfad: "x.pdf", px: 120); XCTFail("offline") } catch { XCTAssertEqual(error as? HeimFehler, .nichtErreichbar) }
+    }
+
     func testBasisMitPfadUndSchraegstrich() throws {
         let c = HeimClient(basis: try XCTUnwrap(URL(string: "https://pc.example/heim/")), token: "t")
         XCTAssertEqual(try c.anfrage("GET", "/v1/status").url?.absoluteString, "https://pc.example/heim/v1/status")

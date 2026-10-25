@@ -7,14 +7,103 @@ enum DateiPfad {
         (ordner + [name]).joined(separator: "/")
     }
 
-    /// Brotkrumen: "Dateien" (Tiefe 0) und je Ordner eine Stufe. `tiefe` ist die Zahl der Ordner, die geöffnet bleiben.
-    static func krumen(ordner: [String]) -> [(titel: String, tiefe: Int)] {
-        [("Dateien", 0)] + ordner.enumerated().map { ($0.element, $0.offset + 1) }
+    static func teile(_ pfad: String) -> [String] {
+        pfad.split(separator: "/").map(String.init)
+    }
+
+    /// Alle Stufen bis zum Ordner, damit "Zurück" nach einem Sprung aus der Suche Schritt für Schritt hinausführt: ["A", "B"] gibt [["A"], ["A", "B"]].
+    static func stufen(_ ordner: [String]) -> [[String]] {
+        ordner.indices.map { Array(ordner[...$0]) }
+    }
+}
+
+/// Womit die Dateien sortiert werden (Menü "Sortieren nach", wie in Apples Dateien).
+enum SortierKriterium: String, CaseIterable, Sendable {
+    case name, datum, groesse, art
+
+    var titel: String {
+        switch self {
+        case .name: return "Name"
+        case .datum: return "Datum"
+        case .groesse: return "Größe"
+        case .art: return "Art"
+        }
+    }
+
+    /// Richtung beim ersten Antippen: Namen und Arten A bis Z, Datum und Größe das Größte oder Neueste zuerst.
+    var startAufsteigend: Bool { self == .name || self == .art }
+}
+
+struct DateiSortierung: Equatable, Sendable {
+    var kriterium: SortierKriterium
+    var aufsteigend: Bool
+
+    static let standard = DateiSortierung(kriterium: .name, aufsteigend: true)
+
+    init(kriterium: SortierKriterium, aufsteigend: Bool) {
+        self.kriterium = kriterium
+        self.aufsteigend = aufsteigend
+    }
+
+    /// Aus dem gemerkten Text ("name-auf"); Unbekanntes gibt nil.
+    init?(rohwert: String) {
+        let teile = rohwert.split(separator: "-").map(String.init)
+        guard teile.count == 2, let k = SortierKriterium(rawValue: teile[0]), teile[1] == "auf" || teile[1] == "ab" else { return nil }
+        self.init(kriterium: k, aufsteigend: teile[1] == "auf")
+    }
+
+    var rohwert: String { "\(kriterium.rawValue)-\(aufsteigend ? "auf" : "ab")" }
+
+    /// Menü: ein neues Kriterium startet in seiner üblichen Richtung, dasselbe noch einmal dreht um.
+    func nachTippen(auf k: SortierKriterium) -> DateiSortierung {
+        k == kriterium ? DateiSortierung(kriterium: k, aufsteigend: !aufsteigend) : DateiSortierung(kriterium: k, aufsteigend: k.startAufsteigend)
+    }
+
+    /// Ordner stehen immer oben (wie der Dienst sie liefert); bei Gleichstand entscheidet der Name von A bis Z.
+    func sortiere(_ liste: [DateiInfo]) -> [DateiInfo] {
+        liste.sorted { a, b in
+            if a.ordner != b.ordner { return a.ordner }
+            let c = vergleiche(a, b)
+            if c != 0 { return aufsteigend ? c < 0 : c > 0 }
+            return a.name.localizedStandardCompare(b.name) == .orderedAscending
+        }
+    }
+
+    private func vergleiche(_ a: DateiInfo, _ b: DateiInfo) -> Int {
+        switch kriterium {
+        case .name: return a.name.localizedStandardCompare(b.name).rawValue
+        case .datum: return Self.zahl(a.datum ?? .distantPast, b.datum ?? .distantPast)
+        case .groesse: return Self.zahl(a.groesse, b.groesse)
+        case .art:
+            return (a.name as NSString).pathExtension.lowercased().localizedStandardCompare((b.name as NSString).pathExtension.lowercased()).rawValue
+        }
+    }
+
+    private static func zahl<T: Comparable>(_ a: T, _ b: T) -> Int { a < b ? -1 : (a > b ? 1 : 0) }
+}
+
+/// Suche im Namen, wie sie der Dienst macht: Groß und klein sowie Umlaute egal (ä = ae, ö = oe, ü = ue, ß = ss), alle Wörter müssen vorkommen.
+enum DateiSuche {
+    static func normalisiere(_ text: String) -> String {
+        text.precomposedStringWithCanonicalMapping.lowercased()
+            .replacingOccurrences(of: "ä", with: "ae").replacingOccurrences(of: "ö", with: "oe")
+            .replacingOccurrences(of: "ü", with: "ue").replacingOccurrences(of: "ß", with: "ss")
+    }
+
+    static func woerter(_ text: String) -> [String] {
+        normalisiere(text).split(whereSeparator: \.isWhitespace).map(String.init)
+    }
+
+    static func passt(name: String, woerter: [String]) -> Bool {
+        let n = normalisiere(name)
+        return !woerter.isEmpty && woerter.allSatisfy { n.contains($0) }
     }
 }
 
 /// Anzeige-Regeln für Zeilen.
 enum DateiAnzeige {
+    private static let de = Locale(identifier: "de_DE")
+
     static func symbol(name: String, ordner: Bool) -> String {
         if ordner { return "folder.fill" }
         switch (name as NSString).pathExtension.lowercased() {
@@ -30,14 +119,53 @@ enum DateiAnzeige {
         }
     }
 
-    static func groesse(_ bytes: Int64) -> String {
-        bytes.formatted(.byteCount(style: .file))
+    /// Dieselben Endungen wie der Dienst (`server/vorschau.ts`): nur dafür fragt die App ein Vorschaubild an.
+    static func hatVorschau(name: String) -> Bool {
+        ["pdf", "jpg", "jpeg", "png", "gif", "webp", "heic", "heif", "tif", "tiff", "bmp", "mp4", "mov", "m4v", "mkv", "avi", "webm"]
+            .contains((name as NSString).pathExtension.lowercased())
     }
 
-    /// "12 KB, 25. Okt. 2026" bzw. "Ordner, ..." für die zweite Zeile.
+    static func groesse(_ bytes: Int64) -> String {
+        bytes.formatted(ByteCountFormatStyle(style: .file, allowedUnits: .all, spellsOutZero: false, includesActualByteCount: false, locale: de))
+    }
+
+    static func datum(_ e: DateiInfo) -> String? {
+        datum(e.datum)
+    }
+
+    static func datum(_ d: Date?) -> String? {
+        d?.formatted(.dateTime.day().month(.abbreviated).year().locale(de))
+    }
+
+    /// "1 Objekt", "12 Objekte".
+    static func objekte(_ n: Int) -> String { n == 1 ? "1 Objekt" : "\(n) Objekte" }
+
+    /// Zeile unter der Liste wie in Dateien: "805 Objekte, 3,2 GB verfügbar" (ohne `frei`: nur die Zahl).
+    static func fusszeile(anzahl: Int, frei: Int64?) -> String {
+        guard let frei else { return objekte(anzahl) }
+        return "\(objekte(anzahl)), \(groesse(frei)) verfügbar"
+    }
+
+    /// Listenansicht, zweite Zeile: "25. Okt. 2026 – 482 KB"; Ordner: "25. Okt. 2026 – 12 Objekte".
+    static func listenUntertitel(_ e: DateiInfo) -> String {
+        let rest = e.ordner ? e.anzahl.map(objekte) : groesse(e.groesse)
+        return [datum(e), rest].compactMap { $0 }.joined(separator: " – ")
+    }
+
+    /// Symbolansicht unter dem Namen: Ordner "12 Objekte" (sonst nichts), Dateien Datum und Größe in zwei Zeilen.
+    static func rasterZeilen(_ e: DateiInfo) -> [String] {
+        if e.ordner { return [e.anzahl.map(objekte)].compactMap { $0 } }
+        return [datum(e), groesse(e.groesse)].compactMap { $0 }
+    }
+
+    /// Treffer in der Suche, zweite Zeile: der Ordner, in dem er liegt.
+    static func ort(_ ordner: [String]) -> String {
+        ordner.isEmpty ? "Dateien" : ordner.joined(separator: " › ")
+    }
+
+    /// "12 KB, 25. Okt. 2026" bzw. "Ordner, ..." (Informationen, VoiceOver).
     static func untertitel(_ e: DateiInfo) -> String {
-        let datum = e.datum?.formatted(.dateTime.day().month(.abbreviated).year().locale(Locale(identifier: "de_DE")))
-        return [e.ordner ? "Ordner" : groesse(e.groesse), datum].compactMap { $0 }.joined(separator: ", ")
+        [e.ordner ? "Ordner" : groesse(e.groesse), datum(e)].compactMap { $0 }.joined(separator: ", ")
     }
 }
 

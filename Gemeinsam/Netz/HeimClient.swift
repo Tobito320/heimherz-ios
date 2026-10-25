@@ -23,8 +23,25 @@ struct DateiInfo: Codable, Sendable, Hashable, Identifiable {
     var groesse: Int64
     /// ISO-Zeit (UTC); `datum` wandelt um.
     var geaendert: String
+    /// Nur bei Ordnern: wie viele Einträge darin liegen ("12 Objekte"). Ältere Dienste schicken es nicht.
+    var anzahl: Int? = nil
     var id: String { name }
     var datum: Date? { Zeit.millis(iso: geaendert).map { Date(timeIntervalSince1970: Double($0) / 1000) } }
+}
+
+/// Ein Treffer der Suche `GET /v1/dateien/suche`. `pfad` ist relativ zur Wurzel und endet mit dem Namen.
+struct SuchTreffer: Codable, Sendable, Hashable, Identifiable {
+    var pfad: String
+    var name: String
+    var ordner: Bool
+    var groesse: Int64
+    var geaendert: String
+    var id: String { pfad }
+
+    /// Als Eintrag der Ordnerliste (für Zeilen, Menü und Papierkorb).
+    var info: DateiInfo { DateiInfo(name: name, ordner: ordner, groesse: groesse, geaendert: geaendert) }
+    /// Die Ordner, in denen der Treffer liegt ("A/B/c.pdf" gibt ["A", "B"]).
+    var uebergeordnet: [String] { pfad.split(separator: "/").dropLast().map(String.init) }
 }
 
 /// Ergebnis von `PUT /v1/tresor`.
@@ -248,6 +265,21 @@ struct HeimClient: Sendable {
         let (daten, status) = try await sende(anfrage("GET", "/v1/dateien", abfrage: [("pfad", pfad)]))
         try Self.pruefe(status)
         return try dekodiere([DateiInfo].self, daten)
+    }
+
+    /// Suche im Namen, rekursiv ab `pfad` (leer = alles). Höchstens 200 Treffer, Ordner zuerst.
+    func dateienSuche(q: String, pfad: String = "") async throws -> [SuchTreffer] {
+        let (daten, status) = try await sende(anfrage("GET", "/v1/dateien/suche", abfrage: [("q", q), ("pfad", pfad)]))
+        try Self.pruefe(status)
+        return try dekodiere([SuchTreffer].self, daten)
+    }
+
+    /// Kleines JPEG zu einer Datei (`px` 120 bis 600). nil, wenn der PC keins machen kann (404: anderer Typ oder kaputte Datei).
+    func dateiVorschau(pfad: String, px: Int) async throws -> Data? {
+        let (daten, status) = try await sende(anfrage("GET", "/v1/dateien/vorschau", abfrage: [("pfad", pfad), ("px", String(px))]))
+        if status == 404 { return nil }
+        try Self.pruefe(status)
+        return daten
     }
 
     /// Lädt eine Datei in `ziel` (ersetzt eine vorhandene). Der Server unterstützt `Range`; hier wird alles geladen.
