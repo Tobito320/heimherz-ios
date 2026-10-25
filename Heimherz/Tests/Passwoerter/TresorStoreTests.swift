@@ -131,8 +131,56 @@ final class TresorStoreTests: XCTestCase {
         let amPC = try XCTUnwrap(try a.pc.umschlag?.oeffne(schluessel: k))
         let stein = try XCTUnwrap(amPC.eintraege.first { $0.id == "a" })
         XCTAssertTrue(stein.geloescht)
-        XCTAssertEqual(stein.passwort, "")
-        XCTAssertEqual(stein.name, "")
+        XCTAssertEqual(stein.passwort, "geheim", "Löschen heißt jetzt Papierkorb: die Felder bleiben, bis endgültig gelöscht wird")
+        XCTAssertEqual(stein.name, "Konto")
+        await a.store.warteAufIdentitaeten()
+        XCTAssertEqual(a.identitaeten.staende_.last?.lebendige.map(\.id), ["b"], "AutoFill bekommt nichts aus dem Papierkorb")
+    }
+
+    func testWiederherstellenUndEndgueltigLoeschenGehenAmPCAn() async throws {
+        let a = try aufbau(serverTresor: Tresor(eintraege: [testEintrag("a"), testEintrag("b"), testEintrag("c")]))
+        await a.store.oeffnen()
+        let puts = a.pc.puts
+        await a.store.loesche(ids: ["a", "b", "c"])
+        await a.store.warteAufAbgleich()
+        XCTAssertEqual(a.pc.puts, puts + 1, "drei Einträge, ein Speichern und ein Abgleich")
+        XCTAssertEqual(a.store.eintraege, [])
+        XCTAssertEqual(Set(a.store.geloeschte.map(\.id)), ["a", "b", "c"])
+        await a.store.stelleWiederHer(ids: ["a"])
+        await a.store.warteAufAbgleich()
+        await a.store.loescheEndgueltig(ids: ["b"])
+        await a.store.warteAufAbgleich()
+        XCTAssertEqual(a.store.eintraege.map(\.id), ["a"])
+        XCTAssertEqual(a.store.eintrag("a")?.passwort, "geheim")
+        XCTAssertEqual(a.store.eintrag("a")?.geaendert, Zeit.iso(jetzt))
+        XCTAssertEqual(a.store.geloeschte.map(\.id), ["c"], "endgültig Gelöschtes erscheint nirgends mehr")
+        let amPC = try XCTUnwrap(try a.pc.umschlag?.oeffne(schluessel: k))
+        XCTAssertFalse(try XCTUnwrap(amPC.eintraege.first { $0.id == "a" }).geloescht)
+        let b = try XCTUnwrap(amPC.eintraege.first { $0.id == "b" })
+        XCTAssertTrue(b.geloescht)
+        XCTAssertEqual([b.name, b.passwort, b.benutzer], ["", "", ""])
+        await a.store.warteAufIdentitaeten()
+        XCTAssertEqual(a.identitaeten.staende_.last?.lebendige.map(\.id), ["a"])
+    }
+
+    func testCodesBleibenBisZumSperrenGesperrt() async throws {
+        let a = try aufbau(serverTresor: Tresor(eintraege: [testEintrag("a")]))
+        await a.store.oeffnen()
+        XCTAssertFalse(a.store.codesFreigegeben)
+        a.store.gebeCodesFrei()
+        XCTAssertTrue(a.store.codesFreigegeben)
+        a.store.sperren()
+        XCTAssertFalse(a.store.codesFreigegeben)
+    }
+
+    func testOeffnenLeertAlteGrabsteine() async throws {
+        let alt = Eintrag(id: "alt", name: "Alt", passwort: "pw", geaendert: Zeit.iso(jetzt.addingTimeInterval(-31 * 86_400)), geloescht: true)
+        let a = try aufbau(serverTresor: Tresor(eintraege: [alt, testEintrag("b")]))
+        await a.store.oeffnen()
+        await a.store.warteAufAbgleich()
+        XCTAssertEqual(a.store.geloeschte, [])
+        let amPC = try XCTUnwrap(try a.pc.umschlag?.oeffne(schluessel: k))
+        XCTAssertEqual(amPC.eintraege.first { $0.id == "alt" }?.passwort, "")
     }
 
     func testBearbeitenBehaeltUnbekannteFelder() async throws {

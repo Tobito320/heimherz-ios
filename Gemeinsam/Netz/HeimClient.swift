@@ -229,6 +229,14 @@ struct HeimClient: Sendable {
         return .gespeichert(try dekodiere(Umschlag.self, daten))
     }
 
+    /// Das Symbol einer Webseite (`GET /v1/symbol?host=`), vom PC bei der Seite selbst geholt. nil, wenn die Seite keins hat (404) oder der Name nicht gilt (400).
+    func symbolHolen(host: String) async throws -> Data? {
+        let (daten, status) = try await sende(anfrage("GET", "/v1/symbol", abfrage: [("host", host)]))
+        if status == 404 || status == 400 { return nil }
+        try Self.pruefe(status)
+        return daten
+    }
+
     func fotosBekannt() async throws -> [BekanntesFoto] {
         let (daten, status) = try await sende(anfrage("GET", "/v1/fotos/bekannt"))
         try Self.pruefe(status)

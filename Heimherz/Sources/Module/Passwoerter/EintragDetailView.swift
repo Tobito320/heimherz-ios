@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// Der Eintrag im Detail: Benutzer und Passwort kopieren (Zwischenablage 60 s, nur dieses Gerät), Passwort erst nach Face ID zeigen,
-/// Einmalcode mit Ring und Restzeit. Der Eintrag wird bei jeder Änderung neu aus dem Store gelesen.
+/// Der Eintrag im Detail im Stil der Passwörter-App von Apple: Kopf mit Symbol und Name, Benutzer und Passwort kopieren (Zwischenablage 60 s, nur dieses Gerät),
+/// Passwort erst nach Face ID zeigen, Einmalcode mit Ring und Restzeit (ebenfalls erst nach Face ID), Verlauf geänderter Passwörter, Passkeys.
+/// Der Eintrag wird bei jeder Änderung neu aus dem Store gelesen. Ein gelöschter Eintrag ist nur lesbar und lässt sich wiederherstellen.
 struct EintragDetailView: View {
     let store: TresorStore
     let id: String
@@ -10,11 +11,12 @@ struct EintragDetailView: View {
     @Environment(\.dismiss) private var schliessen
     @State private var zeigePasswort = false
     @State private var frageLoeschen = false
+    @State private var frageEndgueltig = false
     @State private var kopiert: String?
 
     var body: some View {
         Group {
-            if let e = store.eintrag(id) {
+            if let e = store.eintrag(id) ?? store.geloeschterEintrag(id) {
                 inhalt(e)
             } else {
                 ScrollView { LeerZustand(titel: "Eintrag nicht mehr da", text: "Er wurde gelöscht oder der Tresor ist gesperrt.") }
@@ -28,8 +30,12 @@ struct EintragDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: Abstand.l) {
                 kopf(e)
+                if e.geloescht { geloeschtHinweis }
+                if let hinweis = sicherheit(e) { StatusChip(text: hinweis, symbol: "exclamationmark.triangle.fill", ton: .warn) }
                 if e.art == Eintrag.artLogin { zugang(e) }
                 if !e.notiz.isEmpty { notiz(e) }
+                if !PasswoerterLogik.passkeys(von: e).isEmpty { passkeyKarte(e) }
+                if !passwortVerlauf(e).isEmpty { verlaufKarte(e) }
                 Text("Geändert: \(Self.datum(e.geaendert))")
                     .font(.footnote)
                     .foregroundStyle(Color.tinte2)
@@ -38,23 +44,42 @@ struct EintragDetailView: View {
             .padding(.bottom, Abstand.xl)
         }
         .toolbar {
-            ToolbarItemGroup(placement: .primaryAction) {
-                Button {
-                    Haptik.auswahl()
-                    Task { await store.setzeFavorit(id: e.id, !e.favorit) }
-                } label: {
-                    Image(systemName: e.favorit ? "star.fill" : "star")
-                        .frame(minWidth: Abstand.tippflaeche, minHeight: Abstand.tippflaeche)
+            if e.geloescht {
+                ToolbarItem(placement: .primaryAction) {
+                    Menu {
+                        Button {
+                            Task {
+                                await store.stelleWiederHer(ids: [e.id])
+                                Haptik.erfolg()
+                                schliessen()
+                            }
+                        } label: { Label("Wiederherstellen", systemImage: "arrow.uturn.backward") }
+                        Button(role: .destructive) { frageEndgueltig = true } label: { Label("Endgültig löschen", systemImage: "trash") }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                            .frame(minWidth: Abstand.tippflaeche, minHeight: Abstand.tippflaeche)
+                    }
+                    .accessibilityLabel("Mehr")
                 }
-                .accessibilityLabel(e.favorit ? "Favorit entfernen" : "Als Favorit markieren")
-                Menu {
-                    Button { bearbeiten(e) } label: { Label("Bearbeiten", systemImage: "pencil") }
-                    Button(role: .destructive) { frageLoeschen = true } label: { Label("Löschen", systemImage: "trash") }
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                        .frame(minWidth: Abstand.tippflaeche, minHeight: Abstand.tippflaeche)
+            } else {
+                ToolbarItemGroup(placement: .primaryAction) {
+                    Button {
+                        Haptik.auswahl()
+                        Task { await store.setzeFavorit(id: e.id, !e.favorit) }
+                    } label: {
+                        Image(systemName: e.favorit ? "star.fill" : "star")
+                            .frame(minWidth: Abstand.tippflaeche, minHeight: Abstand.tippflaeche)
+                    }
+                    .accessibilityLabel(e.favorit ? "Favorit entfernen" : "Als Favorit markieren")
+                    Menu {
+                        Button { bearbeiten(e) } label: { Label("Bearbeiten", systemImage: "pencil") }
+                        Button(role: .destructive) { frageLoeschen = true } label: { Label("Löschen", systemImage: "trash") }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                            .frame(minWidth: Abstand.tippflaeche, minHeight: Abstand.tippflaeche)
+                    }
+                    .accessibilityLabel("Mehr")
                 }
-                .accessibilityLabel("Mehr")
             }
         }
         .confirmationDialog("Diesen Eintrag löschen?", isPresented: $frageLoeschen, titleVisibility: .visible) {
@@ -66,7 +91,18 @@ struct EintragDetailView: View {
             }
             Button("Abbrechen", role: .cancel) {}
         } message: {
-            Text("Er verschwindet auf allen deinen Geräten. Am PC bleibt er im Verlauf des Tresors.")
+            Text("Er bleibt 30 Tage in „Gelöscht“ und lässt sich zurückholen. Auf deinen Geräten verschwindet er aus der Liste.")
+        }
+        .confirmationDialog("Diesen Eintrag endgültig löschen?", isPresented: $frageEndgueltig, titleVisibility: .visible) {
+            Button("Endgültig löschen", role: .destructive) {
+                Task {
+                    await store.loescheEndgueltig(ids: [e.id])
+                    schliessen()
+                }
+            }
+            Button("Abbrechen", role: .cancel) {}
+        } message: {
+            Text("Passwörter, Codes und Notizen sind danach weg und lassen sich nicht zurückholen. Am PC bleibt eine alte Fassung im Verlauf des Tresors.")
         }
         .overlay(alignment: .bottom) {
             if let kopiert {
@@ -82,20 +118,77 @@ struct EintragDetailView: View {
     // MARK: Teile
 
     private func kopf(_ e: Eintrag) -> some View {
-        HeroKarte {
-            Text(e.name.isEmpty ? "Ohne Namen" : e.name)
-                .font(.title.weight(.bold))
-                .foregroundStyle(Color.tinte)
-                .fixedSize(horizontal: false, vertical: true)
-            if e.art == Eintrag.artLogin, let host = EintragSuche.hosts(von: e).first {
-                Text(host)
-                    .font(.subheadline)
-                    .foregroundStyle(Color.tinte2)
-            } else if e.art == Eintrag.artNotiz {
-                Text("Notiz").font(.subheadline).foregroundStyle(Color.tinte2)
+        HStack(spacing: Abstand.l) {
+            SymbolKachel(eintrag: e, groesse: 64)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(e.name.isEmpty ? "Ohne Namen" : e.name)
+                    .font(.title2.weight(.bold))
+                    .foregroundStyle(Color.tinte)
+                    .fixedSize(horizontal: false, vertical: true)
+                if e.art == Eintrag.artLogin, let host = EintragSuche.hosts(von: e).first {
+                    Text(host)
+                        .font(.subheadline)
+                        .foregroundStyle(Color.tinte2)
+                } else if e.art == Eintrag.artNotiz {
+                    Text("Notiz").font(.subheadline).foregroundStyle(Color.tinte2)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.top, Abstand.s)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var geloeschtHinweis: some View {
+        HinweisKarte(text: "Dieser Eintrag ist gelöscht. Er bleibt 30 Tage hier, dann werden seine Inhalte gelöscht. Oben rechts kannst du ihn wiederherstellen.", symbol: "trash")
+    }
+
+    /// Der Sicherheitshinweis zu diesem Eintrag (gleiches Passwort in mehreren Konten, leicht zu erraten), lokal berechnet.
+    private func sicherheit(_ e: Eintrag) -> String? {
+        guard !e.geloescht else { return nil }
+        return PasswortSicherheit.pruefe(store.eintraege).first { $0.eintragId == e.id }?.text
+    }
+
+    private func passkeyKarte(_ e: Eintrag) -> some View {
+        ListenKarte {
+            Text("Passkeys").font(.footnote).foregroundStyle(Color.tinte2)
+            ForEach(Array(PasswoerterLogik.passkeys(von: e).enumerated()), id: \.offset) { _, p in
+                Text([p.seite, p.konto].filter { !$0.isEmpty }.joined(separator: ", "))
+                    .font(.body)
+                    .foregroundStyle(Color.tinte)
+                    .frame(minHeight: Abstand.tippflaeche, alignment: .leading)
+            }
+            Text("Gesichert im Tresor. Anmelden mit Passkeys kommt in einem späteren Build.")
+                .font(.footnote)
+                .foregroundStyle(Color.tinte2)
+        }
+    }
+
+    /// Frühere Passwörter aus `passwortVerlauf` (neueste zuerst): Datum sichtbar, das Passwort selbst erst mit dem Auge (Face ID) wie das aktuelle.
+    private func passwortVerlauf(_ e: Eintrag) -> [(passwort: String, bis: String)] {
+        (e.unbekannt["passwortVerlauf"]?.alsListe ?? []).compactMap { w in
+            guard case .objekt(let d) = w, let p = d["passwort"]?.alsText, !p.isEmpty else { return nil }
+            return (p, d["bis"]?.alsText ?? "")
+        }
+    }
+
+    private func verlaufKarte(_ e: Eintrag) -> some View {
+        ListenKarte {
+            Text("Frühere Passwörter").font(.footnote).foregroundStyle(Color.tinte2)
+            ForEach(Array(passwortVerlauf(e).enumerated()), id: \.offset) { _, v in
+                HStack(spacing: Abstand.s) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(zeigePasswort ? v.passwort : String(repeating: "•", count: 10))
+                            .font(zeigePasswort ? .system(.body, design: .monospaced) : .body)
+                            .foregroundStyle(Color.tinte)
+                            .textSelection(.disabled)
+                        if !v.bis.isEmpty { Text("Bis \(Self.datum(v.bis))").font(.footnote).foregroundStyle(Color.tinte2) }
+                    }
+                    Spacer(minLength: Abstand.s)
+                    knopf("doc.on.doc", "Früheres Passwort kopieren") { kopiere(v.passwort, "Passwort") }
+                }
             }
         }
-        .accessibilityElement(children: .combine)
     }
 
     private func zugang(_ e: Eintrag) -> some View {
@@ -144,10 +237,26 @@ struct EintragDetailView: View {
 
     private func totpZeile(_ e: Eintrag) -> some View {
         TimelineView(.periodic(from: .now, by: 1)) { zeit in
-            if let z = TOTPAnzeige.zustand(e.totp, datum: zeit.date) {
+            if !store.codesFreigegeben {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Bestätigungscode").font(.footnote).foregroundStyle(Color.tinte2)
+                        Text("••• •••").font(.system(.title, design: .rounded).weight(.semibold)).foregroundStyle(Color.tinte3)
+                    }
+                    Spacer(minLength: Abstand.s)
+                    Button {
+                        Task { if await GeraeteAbfrage.pruefe(grund: "Einmalcodes anzeigen") { store.gebeCodesFrei() } }
+                    } label: {
+                        Label("Anzeigen", systemImage: "faceid").frame(minHeight: Abstand.tippflaeche)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Color.gruen)
+                    .accessibilityLabel("Einmalcode mit Face ID anzeigen")
+                }
+            } else if let z = TOTPAnzeige.zustand(e.totp, datum: zeit.date) {
                 HStack(spacing: Abstand.m) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Einmalcode").font(.footnote).foregroundStyle(Color.tinte2)
+                        Text("Bestätigungscode").font(.footnote).foregroundStyle(Color.tinte2)
                         Text(z.gruppiert)
                             .font(.system(.title, design: .rounded).monospacedDigit().weight(.semibold))
                             .foregroundStyle(Color.tinte)
@@ -248,19 +357,20 @@ struct EintragDetailView: View {
 struct TOTPRing: View {
     let anteil: Double
     let rest: Int
+    var groesse: CGFloat = 44
 
     var body: some View {
         ZStack {
-            Circle().stroke(Color.haar, lineWidth: 5)
+            Circle().stroke(Color.haar, lineWidth: groesse > 36 ? 5 : 4)
             Circle()
                 .trim(from: 0, to: anteil)
-                .stroke(rest <= 5 ? Color.warn : Color.knopf, style: StrokeStyle(lineWidth: 5, lineCap: .round))
+                .stroke(rest <= 5 ? Color.warn : Color.knopf, style: StrokeStyle(lineWidth: groesse > 36 ? 5 : 4, lineCap: .round))
                 .rotationEffect(.degrees(-90))
             Text("\(rest)")
-                .font(.footnote.monospacedDigit().weight(.semibold))
+                .font(groesse > 36 ? .footnote.monospacedDigit().weight(.semibold) : .caption2.monospacedDigit().weight(.semibold))
                 .foregroundStyle(Color.tinte)
         }
-        .frame(width: 44, height: 44)
+        .frame(width: groesse, height: groesse)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Noch \(rest) Sekunden gültig")
     }

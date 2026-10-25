@@ -1,7 +1,8 @@
 import Foundation
 
 /// Ein Tresoreintrag (SPEC 5). Feldnamen und Reihenfolge beim Schreiben wie dort; unbekannte Felder bleiben in `unbekannt` erhalten.
-/// Gelöschte Einträge bleiben als Grabstein (`geloescht == true`, Felder leer) 90 Tage im Tresor (`Zusammenfuehren`).
+/// Gelöschte Einträge bleiben als Grabstein (`geloescht == true`) 90 Tage im Tresor (`Zusammenfuehren`). Löschen in der App behält die Felder
+/// ("Gelöscht", 30 Tage wiederherstellbar); "Endgültig löschen" leert sie (`endgueltigGeloescht`).
 struct Eintrag: Codable, Sendable, Equatable, Identifiable {
     static let artLogin = "login"
     static let artNotiz = "notiz"
@@ -100,8 +101,30 @@ struct Eintrag: Codable, Sendable, Equatable, Identifiable {
         return JSONWert.objektText(vorn: vorn, rest: unbekannt)
     }
 
-    /// Der Grabstein zu diesem Eintrag: gleiche id, alle Inhalte leer, neuer Zeitstempel (so löschen Geräte per Merge mit).
+    /// Löschen mit Papierkorb: gleiche id und Felder bleiben, `geloescht` an, neuer Zeitstempel (so löschen Geräte per Merge mit).
+    /// AutoFill und Listen lesen nur `lebendige`, ein solcher Grabstein taucht dort nie auf.
     func alsGrabstein(geaendert: String = Zeit.iso(Date())) -> Eintrag {
+        var e = self
+        e.geloescht = true
+        e.geaendert = geaendert
+        return e
+    }
+
+    /// Zurück aus dem Papierkorb. Das neuere `geaendert` gewinnt beim Zusammenführen gegen den Grabstein.
+    func wiederhergestellt(geaendert: String = Zeit.iso(Date())) -> Eintrag {
+        var e = self
+        e.geloescht = false
+        e.geaendert = geaendert
+        return e
+    }
+
+    /// Endgültig gelöscht: gleiche id, alle Inhalte und alle unbekannten Felder weg (Passkeys, alte Passwörter), neuer Zeitstempel.
+    func endgueltigGeloescht(geaendert: String = Zeit.iso(Date())) -> Eintrag {
         Eintrag(id: id, art: art, name: "", urls: [], geaendert: geaendert, geloescht: true)
+    }
+
+    /// Hat noch Inhalt: ein leerer (endgültig gelöschter oder alter) Grabstein hat keinen und erscheint nirgends als Zeile.
+    var hatInhalt: Bool {
+        !(name.isEmpty && benutzer.isEmpty && passwort.isEmpty && urls.isEmpty && totp.isEmpty && notiz.isEmpty && unbekannt.isEmpty)
     }
 }

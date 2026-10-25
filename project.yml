@@ -39,6 +39,9 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         HeimherzBuildDatum: $(HEIMHERZ_BUILD_DATUM)
         BackgroundUploadURLBase: $(HEIMHERZ_UPLOAD_URL_BASE)
+        # Import aus Apple Passwörter (Credential Exchange, iOS 26): das System startet die App mit dieser Aktivität. Apples Seite nennt den Typ
+        # "ASCredentialExchangeActivityType", die Konstante im SDK heißt `ASCredentialExchangeActivity`; beide stehen drin, damit eines davon greift.
+        NSUserActivityTypes: [ASCredentialExchangeActivity, ASCredentialExchangeActivityType]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.onlyus.heimherz
@@ -85,6 +88,9 @@ targets:
               SupportsSavePasswordCredentials: true
               SupportsGeneratePasswordCredentials: true
               SupportsGeneratePasswordCredentialsWithUI: false
+              # Credential Exchange: Heim erscheint in "Daten an andere App exportieren" (nur Import, `ImportPostfach`); einzige Version ist 1.0.
+              SupportsCredentialExchange: true
+              SupportedCredentialExchangeVersions: ["1.0"]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.onlyus.heimherz.autofill

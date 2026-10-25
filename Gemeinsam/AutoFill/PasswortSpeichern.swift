@@ -36,7 +36,7 @@ enum PasswortSpeichern {
     }
 
     /// Der Verlauf mit dem jetzigen Passwort vorn: Liste von `{passwort, bis}`, neueste zuerst, höchstens `verlaufMax`.
-    private static func verlauf(von e: Eintrag, bis: String) -> JSONWert {
+    static func verlauf(von e: Eintrag, bis: String) -> JSONWert {
         var liste = e.unbekannt["passwortVerlauf"]?.alsListe ?? []
         if !e.passwort.isEmpty { liste.insert(.objekt(["passwort": .text(e.passwort), "bis": .text(bis)]), at: 0) }
         return .liste(Array(liste.prefix(verlaufMax)))

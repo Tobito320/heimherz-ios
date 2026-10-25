@@ -10,7 +10,7 @@ afterAll(t.ende);
 
 const ROUTEN: [string, string][] = [
   ['GET', '/v1/status'], ['GET', '/v1/tresor'], ['PUT', '/v1/tresor'], ['GET', '/v1/fotos/bekannt'], ['PUT', '/v1/fotos/abc/def'],
-  ['GET', '/v1/dateien'], ['GET', '/v1/datei?pfad=a'], ['PUT', '/v1/datei?pfad=a'], ['POST', '/v1/datei/papierkorb'], ['GET', '/v1/gibtsnicht'],
+  ['GET', '/v1/symbol?host=example.org'], ['GET', '/v1/dateien'], ['GET', '/v1/datei?pfad=a'], ['PUT', '/v1/datei?pfad=a'], ['POST', '/v1/datei/papierkorb'], ['GET', '/v1/gibtsnicht'],
 ];
 
 test('jede Route ohne oder mit falschem Token: 401 ohne Text', async () => {

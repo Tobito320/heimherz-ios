@@ -104,8 +104,8 @@ final class TresorModellTests: XCTestCase {
         XCTAssertThrowsError(try Tresor.aus(daten: Data(#"{"format":1,"eintraege":[{"name":"x"}]}"#.utf8))) { XCTAssertEqual($0 as? TresorFehler, .inhaltUngueltig) }
     }
 
-    func testGrabsteinLeertDieInhalte() {
-        let g = testEintrag("a").alsGrabstein(geaendert: "2026-10-02T00:00:00.000Z")
+    func testEndgueltigGeloeschterGrabsteinLeertDieInhalte() {
+        let g = testEintrag("a").endgueltigGeloescht(geaendert: "2026-10-02T00:00:00.000Z")
         XCTAssertTrue(g.geloescht)
         XCTAssertEqual([g.name, g.benutzer, g.passwort, g.totp, g.notiz], ["", "", "", "", ""])
         XCTAssertEqual(g.urls, [])

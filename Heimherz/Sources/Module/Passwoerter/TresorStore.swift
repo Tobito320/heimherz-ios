@@ -57,6 +57,27 @@ final class TresorStore {
         eintraege.first { $0.id == id }
     }
 
+    /// Der Papierkorb ("Gelöscht"): Grabsteine mit Inhalt, höchstens 30 Tage alt.
+    var geloeschte: [Eintrag] {
+        guard let t = tresor else { return [] }
+        return PasswoerterLogik.eintraege(.geloescht, in: t, jetzt: jetzt())
+    }
+
+    func geloeschterEintrag(_ id: String) -> Eintrag? {
+        geloeschte.first { $0.id == id }
+    }
+
+    /// Die Zahlen der Kacheln der Startseite.
+    var zaehler: [PasswoerterKategorie: Int] {
+        guard let t = tresor else { return [:] }
+        return PasswoerterLogik.zaehler(in: t, jetzt: jetzt())
+    }
+
+    /// Einmalcodes sind erst nach Face ID oder Code sichtbar, einmal je Öffnen der App (`sperren()` setzt es zurück).
+    private(set) var codesFreigegeben = false
+
+    func gebeCodesFrei() { codesFreigegeben = true }
+
     // MARK: Öffnen und Sperren
 
     /// Lädt K (Face ID), zeigt den lokalen Stand und gleicht danach mit dem PC ab. Ohne Netz bleibt der lokale Stand.
@@ -66,6 +87,7 @@ final class TresorStore {
         if umgebung.istDemo {
             tresor = Self.demoTresor
             zuletzt = jetzt()
+            codesFreigegeben = true   // Demo: nie Face ID, die Screenshots sollen Codes zeigen
             zustand = .bereit
             return
         }
@@ -91,6 +113,13 @@ final class TresorStore {
             }
         }
         await abgleichen()
+        await bereinigeGeloeschte()
+    }
+
+    /// Grabsteine, die länger als 30 Tage im Papierkorb liegen, verlieren ihre Felder (sonst blieben sie bis zum 90. Tag unsichtbar lesbar).
+    private func bereinigeGeloeschte() async {
+        guard let t = tresor, let bereinigt = PasswoerterLogik.bereinige(t, jetzt: jetzt()) else { return }
+        await aendere { $0 = bereinigt }
     }
 
     /// App gesperrt, entkoppelt oder im Hintergrund zu lange: Klartext und Schlüssel aus dem Speicher.
@@ -100,6 +129,7 @@ final class TresorStore {
         abgleichTask = nil
         tresor = nil
         schluessel = nil
+        codesFreigegeben = false
         zustand = .leer
         offlineText = nil
         abgleichFehler = nil
@@ -164,11 +194,31 @@ final class TresorStore {
         }
     }
 
-    /// Löschen als Grabstein, damit die Löschung auf allen Geräten ankommt (SPEC 5).
+    /// Löschen als Grabstein mit Feldern ("Gelöscht", 30 Tage wiederherstellbar), damit die Löschung auf allen Geräten ankommt (SPEC 5).
     func loesche(id: String) async {
+        await loesche(ids: [id])
+    }
+
+    /// Mehrere auf einmal: ein Speichern und ein Abgleich (Auswählen in der Liste).
+    func loesche(ids: [String]) async {
+        await aendereEintraege(ids) { $0.alsGrabstein(geaendert: $1) }
+    }
+
+    /// Aus "Gelöscht" zurück in die Liste, mit neuem Zeitstempel, damit der Merge auf allen Geräten die Wiederherstellung nimmt.
+    func stelleWiederHer(ids: [String]) async {
+        await aendereEintraege(ids) { $0.geloescht ? $0.wiederhergestellt(geaendert: $1) : $0 }
+    }
+
+    /// Leert die Felder sofort (der Grabstein bleibt, damit die Löschung ankommt). Am PC bleiben alte Fassungen im Verlauf des Tresors.
+    func loescheEndgueltig(ids: [String]) async {
+        await aendereEintraege(ids) { $0.endgueltigGeloescht(geaendert: $1) }
+    }
+
+    private func aendereEintraege(_ ids: [String], _ umwandeln: (Eintrag, String) -> Eintrag) async {
         let stempel = Zeit.iso(jetzt())
+        let menge = Set(ids)
         await aendere { tresor in
-            if let i = tresor.eintraege.firstIndex(where: { $0.id == id }) { tresor.eintraege[i] = tresor.eintraege[i].alsGrabstein(geaendert: stempel) }
+            for i in tresor.eintraege.indices where menge.contains(tresor.eintraege[i].id) { tresor.eintraege[i] = umwandeln(tresor.eintraege[i], stempel) }
         }
     }
 
@@ -176,6 +226,19 @@ final class TresorStore {
         guard var e = eintrag(id) else { return }
         e.favorit = wert
         await speichere(e)
+    }
+
+    /// Import aus Apple Passwörter: mischt die Konten ein, speichert einmal lokal und gleicht sofort mit dem PC ab. Nur Zahlen kommen zurück.
+    func importiere(_ paket: ImportPaket) async -> ImportZaehler {
+        var zaehler = ImportZaehler(uebersprungen: paket.uebersprungen)
+        let stand = jetzt()
+        await aendere { tresor in
+            let r = ImportAbbildung.einarbeiten(tresor, paket.konten, uebersprungenVorher: paket.uebersprungen, jetzt: stand)
+            tresor = r.tresor
+            zaehler = r.zaehler
+        }
+        await warteAufAbgleich()
+        return zaehler
     }
 
     /// Die AutoFill-Erweiterung kann den verschlüsselten Cache geändert haben, während die App offen war (neues Passwort aus Safari):
