@@ -492,5 +492,10 @@ Ahmed (26.10.): "35, 36, 37 kannst du implementieren. Das Backup würde dann in 
 - Grenze: `geaendert` bewegt sich bei jeder Änderung (auch Favorit), "alt" ist darum nur eine Näherung an "Passwort zuletzt geändert".
 - Ansicht "Passwort-Gesundheit", erreichbar aus der Liste "Sicherheit"; Zeile je Gruppe mit Zahl, Tippen öffnet die Einträge, Tippen auf einen Eintrag öffnet ihn. Alles lokal im Speicher, nichts verlässt das Gerät.
 
+### Gebaut (26.10., ungeprüft bis CI)
+- PC: `lib/sicherung.ts`, `bin/sicherung.ts`, `server/wiederherstellung.ts`, Units `server/heimherz-sicherung.{service,timer}`.
+- iOS: `Gemeinsam/Tresor/Wiederherstellung.swift` (+ `HeimClient.wiederherstellungSetzen`), Einstellungen > "Sicherung und Wiederherstellung" (`SicherungSeite`: Letzte Sicherung, Code erzeugen mit frischer Face ID, Drucken, Code verschwindet beim Verlassen der App; erst hochladen, dann zeigen), `PasswortGesundheit` + `GesundheitAnsicht` (Zeile oben in "Sicherheit").
+- Offen: Weg "neuer PC holt Tresor vom Handy" (siehe oben), Sicherung als Datei vom Handy teilen.
+
 ### Prüfung
 `bun test` (Sicherung enthält keine Testpasswörter, K oder Code in b64/b64url/hex; Aufbewahrung; nur bei geänderter rev; Wiederherstellen ergibt denselben Tresor und schützt neuere Einträge; Testvektor). Swift nur per CI (Repo privat: Lauf nur über `scripts/ci-fenster.sh`, siehe Abschnitt 15).

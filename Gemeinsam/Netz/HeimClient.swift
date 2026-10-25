@@ -268,6 +268,16 @@ struct HeimClient: Sendable {
         return try dekodiere([DateiInfo].self, daten)
     }
 
+    /// `PUT /v1/wiederherstellung` (SPEC 25): der Dienst legt nur das umwickelte K ab (ein neuer Code ersetzt den alten); Code und K sieht er nie.
+    func wiederherstellungSetzen(_ blatt: WiederherstellungsBlatt) async throws {
+        var r = try anfrage("PUT", "/v1/wiederherstellung")
+        r.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        let (_, status) = try await sende(r, daten: try encoder.encode(blatt))
+        try Self.pruefe(status)
+    }
+
     /// Suche im Namen, rekursiv ab `pfad` (leer = alles). Höchstens 200 Treffer, Ordner zuerst.
     func dateienSuche(q: String, pfad: String = "") async throws -> [SuchTreffer] {
         let (daten, status) = try await sende(anfrage("GET", "/v1/dateien/suche", abfrage: [("q", q), ("pfad", pfad)]))

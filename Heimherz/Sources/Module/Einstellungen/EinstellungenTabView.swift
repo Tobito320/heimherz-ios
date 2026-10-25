@@ -3,7 +3,7 @@ import UIKit
 
 /// Wohin ein Tipp in den Einstellungen führt (Unterseiten für Seltenes).
 enum EinstellungenSeite: Hashable {
-    case pc, autoFill, sichern, codes
+    case pc, autoFill, sichern, codes, sicherung
 }
 
 /// Tab "Einstellungen" (SPEC "Einstellungen"): eine gruppierte Liste wie in iOS. Oben der PC, dann Sicherheit, Passwörter, Fotos, Dateien, Über.
@@ -35,6 +35,7 @@ struct EinstellungenTabView: View {
         case "autofill": return [.autoFill]
         case "sichern": return [.sichern]
         case "codes": return [.codes]
+        case "sicherung": return [.sicherung]
         default: break
         }
         #endif
@@ -58,6 +59,7 @@ struct EinstellungenTabView: View {
                 sicherheitGruppe
                 passwoerterGruppe
                 if umgebung.istGekoppelt {
+                    sicherungGruppe
                     fotosGruppe
                     dateienGruppe
                 }
@@ -71,6 +73,7 @@ struct EinstellungenTabView: View {
                 case .autoFill: AutoFillAnleitung()
                 case .sichern: SichernErklaerung()
                 case .codes: CodesAnleitung()
+                case .sicherung: SicherungSeite()
                 }
             }
             .refreshable { await umgebung.ladeStatus() }
@@ -219,6 +222,17 @@ struct EinstellungenTabView: View {
             GruppenText(text: "Passwörter")
         } footer: {
             GruppenText(text: "Es gehen nur 5 Zeichen eines Hashs an haveibeenpwned.com, nie das Passwort.", fuss: true)
+        }
+    }
+
+    // MARK: Sicherung
+
+    private var sicherungGruppe: some View {
+        Section {
+            NavigationLink(value: EinstellungenSeite.sicherung) {
+                KachelTitel(titel: "Sicherung und Wiederherstellung", symbol: "externaldrive.fill.badge.checkmark", ton: .gruen)
+            }
+            .heimherzZeile()
         }
     }
 

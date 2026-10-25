@@ -191,4 +191,17 @@ final class HeimClientTests: XCTestCase {
         let verboten = client { _, _ in .init(status: 403) }
         do { try await verboten.inPapierkorb(pfad: "../x"); XCTFail("403") } catch { XCTAssertEqual(error as? HeimFehler, .verboten) }
     }
+
+    func testWiederherstellungSetzenSendetNurDasBlatt() async throws {
+        let blatt = WiederherstellungsBlatt(v: 1, salt: Data(count: 16).base64EncodedString(), nonce: Data(count: 12).base64EncodedString(), daten: Data(count: 48).base64EncodedString())
+        let c = client { r, body in
+            XCTAssertEqual(r.httpMethod, "PUT")
+            XCTAssertEqual(r.url?.path, "/v1/wiederherstellung")
+            XCTAssertEqual(try? JSONDecoder().decode(WiederherstellungsBlatt.self, from: body), blatt)
+            return .json("{}")
+        }
+        try await c.wiederherstellungSetzen(blatt)
+        let abgelehnt = client { _, _ in .init(status: 400) }
+        do { try await abgelehnt.wiederherstellungSetzen(blatt); XCTFail("sollte scheitern") } catch { XCTAssertEqual(error as? HeimFehler, .abgelehnt(400)) }
+    }
 }
