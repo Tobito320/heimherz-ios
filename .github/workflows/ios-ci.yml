@@ -3,6 +3,8 @@ name: iOS CI
 on:
   push:
     branches: [main]
+  # Modul-Zweige: scripts/ci-fenster.sh startet den Lauf von Hand
+  workflow_dispatch:
   pull_request:
 
 # Nur lesen: im öffentlichen Fenster bekommt der Lauf kein Schreibrecht auf das Repo.

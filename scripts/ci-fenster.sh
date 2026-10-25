@@ -6,6 +6,10 @@
 set -u
 REPO="Tobito320/heimherz-ios"
 cd "$(git rev-parse --show-toplevel)" || exit 2
+# Mehrere Agenten: nur ein Fenster zur Zeit, sonst schaltet der trap des einen das Repo mitten im Lauf des anderen privat.
+exec 9>"${XDG_RUNTIME_DIR:-/tmp}/heimherz-ci.lock"
+flock 9
+zweig=$(git rev-parse --abbrev-ref HEAD)
 tag=""
 [ "${1:-}" = "--tag" ] && tag="${2:-}"
 
@@ -22,11 +26,13 @@ echo "Sichtbarkeit: $(gh repo view "$REPO" --json visibility -q .visibility)"
 
 # Direkt nach dem Öffentlich-Schalten antwortet GitHub beim Push manchmal kurz mit 403: bis zu fünfmal wiederholen.
 for versuch in 1 2 3 4 5; do
-  if git push origin main >/dev/null 2>&1; then echo "Push ok (Versuch $versuch)"; break; fi
+  if git push origin "$zweig" >/dev/null 2>&1; then echo "Push ok (Versuch $versuch)"; break; fi
   echo "Push Versuch $versuch fehlgeschlagen"
   sleep 15
 done
 sha=$(git rev-parse HEAD)
+# Nicht main: ios-ci.yml per workflow_dispatch auf dem Zweig starten
+if [ "$zweig" != main ]; then gh workflow run ios-ci.yml --repo "$REPO" --ref "$zweig" >/dev/null || { echo "workflow_dispatch fehlgeschlagen"; exit 5; }; fi
 id=""
 # Kurz auf den vom Push ausgelösten Lauf warten (höchstens vier Minuten)
 for _ in $(seq 1 24); do
