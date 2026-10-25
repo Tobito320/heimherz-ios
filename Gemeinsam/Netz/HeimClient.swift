@@ -157,7 +157,6 @@ struct HeimClient: Sendable {
     func fotoHochladenAnfrage(kennung: String, ressource: String, aufnahme: Date?, dateiname: String) throws -> URLRequest {
         guard Self.istKennung(kennung), Self.istKennung(ressource) else { throw HeimFehler.ungueltigeAdresse }
         var r = try anfrage("PUT", "/v1/fotos/\(kennung)/\(ressource)")
-        r.timeoutInterval = 0   // Hintergrund-Upload: das System bestimmt die Dauer
         r.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
         if let aufnahme { r.setValue(Zeit.iso(aufnahme), forHTTPHeaderField: "X-Aufnahme") }
         r.setValue(Self.kodiere(dateiname), forHTTPHeaderField: "X-Dateiname")
