@@ -3,6 +3,7 @@ import { Database } from 'bun:sqlite';
 import { mkdirSync, rmSync, statfsSync } from 'node:fs';
 import { join } from 'node:path';
 import { json, leer } from './http';
+import { TempoLog, tempoKopf } from './tempo';
 import { ablegeFehler, legeOhneUeberschreibenAb, loescheLeise, MINDEST_FREI, pruefeUpload, streameInDatei } from './dateiio';
 
 const ID = /^[A-Za-z0-9_-]{1,128}$/;
@@ -40,12 +41,14 @@ export class Fotos {
   private db: Database;
   private teil: string;
   private laeuft = new Set<string>();
+  private tempo: TempoLog;
 
   constructor(private ordner: string, daten: string, private mindestFrei = MINDEST_FREI) {
     mkdirSync(ordner, { recursive: true, mode: 0o700 });
     this.teil = join(ordner, '.teil');
     rmSync(this.teil, { recursive: true, force: true }); // Reste abgebrochener Läufe (nur unser eigener Ordner)
     mkdirSync(this.teil, { recursive: true, mode: 0o700 });
+    this.tempo = new TempoLog(daten);
     this.db = new Database(join(daten, 'fotos.db'), { create: true });
     this.db.run('PRAGMA journal_mode = WAL');
     this.db.run('CREATE TABLE IF NOT EXISTS fotos (kennung TEXT NOT NULL, ressource TEXT NOT NULL, groesse INTEGER NOT NULL, pfad TEXT NOT NULL, empfangen TEXT NOT NULL, PRIMARY KEY (kennung, ressource))');
@@ -65,9 +68,14 @@ export class Fotos {
   async empfange(req: Request, kennung: string, ressource: string): Promise<Response> {
     if (!ID.test(kennung) || !ID.test(ressource)) return leer(400);
     const schluessel = `${kennung}/${ressource}`;
+    const start = performance.now();
+    const seit = () => Math.round(performance.now() - start);
+    // empfangMs: bis das letzte Byte auf der Platte ist; gesamtMs: bis zur Antwort (dazu zählen Ablegen und SQLite-Insert).
+    const messe = (ergebnis: 'neu' | 'schon' | 'abbruch', bytes: number, empfangMs = seit()) =>
+      this.tempo.schreibe({ zeit: new Date().toISOString(), bytes, empfangMs, gesamtMs: seit(), ergebnis, ...tempoKopf(req.headers, ressource) });
     const cl = req.headers.get('content-length');
     const da = this.db.query('SELECT groesse FROM fotos WHERE kennung = ? AND ressource = ?').get(kennung, ressource) as { groesse: number } | null;
-    if (da && cl !== null && Number(cl) === da.groesse) return json({ schon: true });
+    if (da && cl !== null && Number(cl) === da.groesse) { messe('schon', 0); return json({ schon: true }); }
     if (this.laeuft.has(schluessel)) return leer(409);
     const abgelehnt = pruefeUpload(req, this.ordner, this.mindestFrei, false);
     if (abgelehnt) return abgelehnt;
@@ -77,7 +85,8 @@ export class Fotos {
     try {
       loescheLeise(temp);
       let n: number;
-      try { n = await streameInDatei(req, temp); } catch (e) { loescheLeise(temp); return ablegeFehler(e) ?? leer(400); }
+      try { n = await streameInDatei(req, temp); } catch (e) { loescheLeise(temp); messe('abbruch', 0); return ablegeFehler(e) ?? leer(400); }
+      const empfangMs = Math.round(performance.now() - start);
       if (da && da.groesse === n) { loescheLeise(temp); return json({ schon: true }); } // Länge kam ohne Content-Length
       const { jahr, monat, stempel } = zeitName(req.headers.get('x-aufnahme'));
       const name = `${stempel}_${bereinigeName(req.headers.get('x-dateiname'))}`;
@@ -88,6 +97,7 @@ export class Fotos {
         throw e;
       }
       this.db.query('INSERT OR REPLACE INTO fotos (kennung, ressource, groesse, pfad, empfangen) VALUES (?, ?, ?, ?, ?)').run(kennung, ressource, n, ziel, new Date().toISOString());
+      messe('neu', n, empfangMs);
       return json({ gespeichert: true });
     } finally {
       this.laeuft.delete(schluessel);

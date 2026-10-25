@@ -1,9 +1,11 @@
 import { afterAll, expect, test } from 'bun:test';
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { bereinigeName, zeitName } from './fotos';
 import { ablegeFehler, MINDEST_FREI } from './dateiio';
 import { baue } from './testhilfe';
+import { TEMPO_MAX_ZEILEN, TempoLog } from './tempo';
 
 const t = baue();
 afterAll(t.ende);
@@ -212,4 +214,38 @@ test('neue Foto-Dateien 0600, neue Ordner 0700', async () => {
   const modus = (p: string) => statSync(p).mode & 0o777;
   expect(modus(join(t.fotos, '2031/02/2031-02-03_04-05-06_m.jpg'))).toBe(0o600);
   for (const d of [t.fotos, join(t.fotos, '2031'), join(t.fotos, '2031/02'), join(t.fotos, '.teil')]) expect([d, modus(d)]).toEqual([d, 0o700]);
+});
+
+test('Tempo: je Upload eine Zeile mit nur Zahlen, Datei 0600, ungültige Kopfzeilen werden null', async () => {
+  const datei = join(t.daten, 'foto-tempo.jsonl');
+  const h = { 'x-heim-export-ms': '120', 'x-heim-warte-ms': '35', 'x-heim-aktiv': '6', 'x-heim-exporte': '3', 'x-heim-vordergrund': '1', 'x-heim-durchgang': 'lokal', 'x-heim-session': 'vorder' };
+  expect((await foto('T1', 'foto-0', new Uint8Array(10), { ...h, 'x-dateiname': 'GEHEIM.HEIC' })).status).toBe(200);
+  expect((await foto('T2', 'alternative-0', new Uint8Array(7), { 'x-heim-export-ms': 'abc', 'x-heim-durchgang': 'quatsch', 'x-heim-vordergrund': '2' })).status).toBe(200);
+  const zeilen = readFileSync(datei, 'utf8').trim().split('\n').map(z => JSON.parse(z));
+  const a = zeilen.find(z => z.bytes === 10 && z.exportMs === 120)!, b = zeilen.find(z => z.bytes === 7 && z.art === 'alternative')!;
+  expect(a).toMatchObject({ bytes: 10, ergebnis: 'neu', exportMs: 120, warteMs: 35, aktiv: 6, exporte: 3, vordergrund: 1, durchgang: 'lokal', session: 'vorder' });
+  expect(a.empfangMs).toBeGreaterThanOrEqual(0);
+  expect(a.gesamtMs).toBeGreaterThanOrEqual(a.empfangMs);
+  expect(new Date(a.zeit).getTime()).toBeGreaterThan(0);
+  expect(b).toMatchObject({ bytes: 7, exportMs: null, warteMs: null, vordergrund: null, durchgang: null, session: null });
+  expect(readFileSync(datei, 'utf8')).not.toContain('GEHEIM');
+  expect(statSync(datei).mode & 0o777).toBe(0o600);
+});
+
+test('Tempo: Doppeltes wird als schon (0 Bytes) gezählt', async () => {
+  await foto('T1', 'foto-0', new Uint8Array(10));
+  const z = readFileSync(join(t.daten, 'foto-tempo.jsonl'), 'utf8').trim().split('\n').map(x => JSON.parse(x));
+  expect(z.some(x => x.ergebnis === 'schon' && x.bytes === 0)).toBe(true);
+});
+
+test('Tempo: nach 20.000 Zeilen wird rotiert (.1), neue Datei beginnt leer', () => {
+  const ordner = mkdtempSync(join(tmpdir(), 'tempo-'));
+  const log = new TempoLog(ordner, 3);
+  const z = { zeit: 'x', bytes: 1, empfangMs: 1, gesamtMs: 1, ergebnis: 'neu', art: 'foto', exportMs: null, warteMs: null, aktiv: null, exporte: null, vordergrund: null, durchgang: null, session: null } as const;
+  for (let i = 0; i < 4; i++) log.schreibe(z);
+  expect(readFileSync(join(ordner, 'foto-tempo.jsonl'), 'utf8').trim().split('\n')).toHaveLength(1);
+  expect(readFileSync(join(ordner, 'foto-tempo.jsonl.1'), 'utf8').trim().split('\n')).toHaveLength(3);
+  expect(new TempoLog(ordner, 3)).toBeTruthy(); // zählt die vorhandene Zeile, wirft nicht
+  expect(TEMPO_MAX_ZEILEN).toBe(20_000);
+  rmSync(ordner, { recursive: true, force: true });
 });

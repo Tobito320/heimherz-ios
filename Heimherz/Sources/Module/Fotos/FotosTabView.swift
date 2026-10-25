@@ -175,6 +175,11 @@ private struct FotosInhalt: View {
                     .font(.footnote)
                     .foregroundStyle(Color.tinte2)
             }
+            if modell.laeuft {
+                Text(FotoText.vordergrundHinweis)
+                    .font(.footnote)
+                    .foregroundStyle(Color.tinte2)
+            }
             if modell.laeuft, amStrom || modell.istDemo {
                 Label("Bildschirm bleibt an, solange am Strom", systemImage: "bolt.fill")
                     .font(.footnote)

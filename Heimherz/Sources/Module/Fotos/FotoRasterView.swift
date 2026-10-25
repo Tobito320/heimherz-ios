@@ -236,6 +236,9 @@ enum FotoText {
         return "\(z.amPC.formatted()) von \(z.gesamt.formatted()) am PC"
     }
 
+    /// Unter dem Tempo, solange ein Lauf aktiv ist: iOS drosselt Hintergrund-Übertragungen; ob und wie stark, zeigt `heimherz tempo` (Session vorder gegen hinter, SPEC 11).
+    static let vordergrundHinweis = "Schneller, wenn Heimcloud offen bleibt."
+
     /// "4,2 MB/s · ca. 1 Std. 30 Min. übrig"
     static func tempo(_ a: FotoAnzeige) -> String? {
         var teile: [String] = []
