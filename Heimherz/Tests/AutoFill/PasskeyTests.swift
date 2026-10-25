@@ -26,7 +26,7 @@ final class PasskeyTests: XCTestCase {
     private static let kennung = Data((0xA0...0xAF).map { UInt8($0) })
     private static let anmeldeDaten = hex("74a6ea9213c99c2f74b22492b320cf40262a94c1a950a0397f29250b60841ef01d00000000")
     private static let attestation = hex("a363666d74646e6f6e656761747453746d74a0686175746844617461589474a6ea9213c99c2f74b22492b320cf40262a94c1a950a0397f29250b60841ef05d00000000000000000000000000000000000000000010a0a1a2a3a4a5a6a7a8a9aaabacadaeafa5010203262001215820515c3d6eb9e396b904d3feca7f54fdcd0cc1e997bf375dca515ad0a6c3b4035f2258204536be3a50f318fbf9a5475902a221502bef0d57e08c53b2cc0a56f17d9f9354")
-    private static let hash = Data(repeating: 0x42, count: 32)
+    private static let clientHash = Data(repeating: 0x42, count: 32)
 
     private static func eigener(rp: String = "webauthn.io", id: Data = kennung, key: String = pkcs8Url, user: String = "mia") -> JSONWert {
         .objekt(["credentialId": .text(Passkeys.base64url(id)), "rpId": .text(rp), "userName": .text(user), "userDisplayName": .text("Mia"),
@@ -72,10 +72,10 @@ final class PasskeyTests: XCTestCase {
             Eintrag(id: "a", name: "A", unbekannt: ["passkeys": .liste([Self.eigener(), Self.eigener(id: Data([9]), user: "tom")])]),
             Eintrag(id: "b", name: "B", unbekannt: ["passkeys": .liste([Self.eigener(rp: "login.webauthn.io", id: Data([7]))])])
         ])
-        XCTAssertEqual(Passkeys.kandidaten(PasskeyAnfrage(rpId: "WebAuthn.io", clientDataHash: Self.hash), in: t).map(\.userName), ["mia", "tom"])
-        XCTAssertEqual(Passkeys.kandidaten(PasskeyAnfrage(rpId: "webauthn.io", clientDataHash: Self.hash, credentialID: Data([9])), in: t).map(\.userName), ["tom"])
-        XCTAssertEqual(Passkeys.kandidaten(PasskeyAnfrage(rpId: "webauthn.io", clientDataHash: Self.hash, erlaubt: [Self.kennung]), in: t).map(\.userName), ["mia"])
-        XCTAssertEqual(Passkeys.kandidaten(PasskeyAnfrage(rpId: "evilwebauthn.io", clientDataHash: Self.hash), in: t), [])
+        XCTAssertEqual(Passkeys.kandidaten(PasskeyAnfrage(rpId: "WebAuthn.io", clientDataHash: Self.clientHash), in: t).map(\.userName), ["mia", "tom"])
+        XCTAssertEqual(Passkeys.kandidaten(PasskeyAnfrage(rpId: "webauthn.io", clientDataHash: Self.clientHash, credentialID: Data([9])), in: t).map(\.userName), ["tom"])
+        XCTAssertEqual(Passkeys.kandidaten(PasskeyAnfrage(rpId: "webauthn.io", clientDataHash: Self.clientHash, erlaubt: [Self.kennung]), in: t).map(\.userName), ["mia"])
+        XCTAssertEqual(Passkeys.kandidaten(PasskeyAnfrage(rpId: "evilwebauthn.io", clientDataHash: Self.clientHash), in: t), [])
     }
 
     func testIdentitaetenOhneSchluessel() throws {
@@ -95,20 +95,20 @@ final class PasskeyTests: XCTestCase {
 
     func testAnmeldenTestvektorUndSignatur() throws {
         let p = try XCTUnwrap(Passkeys.von(Eintrag(id: "a", name: "A", unbekannt: ["passkeys": .liste([Self.eigener()])])).first)
-        let a = try Passkeys.anmelden(p, clientDataHash: Self.hash)
+        let a = try Passkeys.anmelden(p, clientDataHash: Self.clientHash)
         XCTAssertEqual(a.authenticatorData, Self.anmeldeDaten)
         XCTAssertEqual(a.credentialID, Self.kennung)
         XCTAssertEqual(a.userHandle, Data([1, 2]))
         XCTAssertEqual(a.rpId, "webauthn.io")
         let pub = try P256.Signing.PublicKey(rawRepresentation: Self.x + Self.y)
         let sig = try P256.Signing.ECDSASignature(derRepresentation: a.signatur)
-        XCTAssertTrue(pub.isValidSignature(sig, for: Self.anmeldeDaten + Self.hash))
+        XCTAssertTrue(pub.isValidSignature(sig, for: Self.anmeldeDaten + Self.clientHash))
         XCTAssertFalse(pub.isValidSignature(sig, for: Self.anmeldeDaten + Data(repeating: 0, count: 32)))
     }
 
     func testAnlegenTestvektorUndTresorWert() throws {
         let k = try XCTUnwrap(Passkeys.privaterSchluessel(Self.pkcs8Url))
-        let r = PasskeyRegistrierung(rpId: "WebAuthn.io", userName: "mia", userHandle: Data([1, 2]), clientDataHash: Self.hash)
+        let r = PasskeyRegistrierung(rpId: "WebAuthn.io", userName: "mia", userHandle: Data([1, 2]), clientDataHash: Self.clientHash)
         let neu = Passkeys.anlegen(r, jetzt: Date(timeIntervalSince1970: 0), schluessel: k, kennung: Self.kennung)
         XCTAssertEqual(neu.antwort.attestation, Self.attestation)
         XCTAssertEqual(neu.antwort.rpId, "webauthn.io")
@@ -123,7 +123,7 @@ final class PasskeyTests: XCTestCase {
     }
 
     func testZufallsKennungUndFrischerSchluessel() {
-        let r = PasskeyRegistrierung(rpId: "webauthn.io", userName: "mia", userHandle: Data([1]), clientDataHash: Self.hash)
+        let r = PasskeyRegistrierung(rpId: "webauthn.io", userName: "mia", userHandle: Data([1]), clientDataHash: Self.clientHash)
         let a = Passkeys.anlegen(r, jetzt: Date())
         let b = Passkeys.anlegen(r, jetzt: Date())
         XCTAssertEqual(a.antwort.credentialID.count, 16)
@@ -184,7 +184,7 @@ final class PasskeyModellTests: XCTestCase {
                         "userHandle": .text("AQI"), "key": .text(Passkeys.base64url(schluessel.derRepresentation))])
     }
 
-    private let hash = Data(repeating: 7, count: 32)
+    private let clientHash = Data(repeating: 7, count: 32)
 
     private lazy var tresor = Tresor(eintraege: [
         Eintrag(id: "a", name: "WebAuthn", benutzer: "mia", passwort: "pw", urls: ["https://webauthn.io"],
@@ -193,17 +193,17 @@ final class PasskeyModellTests: XCTestCase {
 
     func testEinPasskeyAusDerLeisteMeldetSofortAn() async throws {
         var ergebnis: AutoFillErgebnis?
-        let (m, _) = try modell(.passkey(PasskeyAnfrage(rpId: "webauthn.io", clientDataHash: hash, credentialID: Data([2]))), tresor: tresor) { ergebnis = $0 }
+        let (m, _) = try modell(.passkey(PasskeyAnfrage(rpId: "webauthn.io", clientDataHash: clientHash, credentialID: Data([2]))), tresor: tresor) { ergebnis = $0 }
         await m.starte()
         guard case .passkeyAnmeldung(let a) = ergebnis else { return XCTFail("\(String(describing: ergebnis))") }
         XCTAssertEqual(a.credentialID, Data([2]))
-        XCTAssertEqual(a.clientDataHash, hash)
+        XCTAssertEqual(a.clientDataHash, clientHash)
         XCTAssertFalse(a.signatur.isEmpty)
     }
 
     func testMehrerePasskeysZeigenAuswahl() async throws {
         var ergebnis: AutoFillErgebnis?
-        let (m, _) = try modell(.passkey(PasskeyAnfrage(rpId: "webauthn.io", clientDataHash: hash)), tresor: tresor) { ergebnis = $0 }
+        let (m, _) = try modell(.passkey(PasskeyAnfrage(rpId: "webauthn.io", clientDataHash: clientHash)), tresor: tresor) { ergebnis = $0 }
         await m.starte()
         guard case .passkeyWahl(let liste) = m.phase else { return XCTFail("\(m.phase)") }
         XCTAssertEqual(liste.map(\.userName), ["mia", "tom"])
@@ -214,7 +214,7 @@ final class PasskeyModellTests: XCTestCase {
 
     func testKeinPasskeyZeigtPasswoerterDerSeite() async throws {
         var ergebnis: AutoFillErgebnis?
-        let (m, _) = try modell(.passkey(PasskeyAnfrage(rpId: "webauthn.io", clientDataHash: hash, erlaubt: [Data([9])])), tresor: tresor) { ergebnis = $0 }
+        let (m, _) = try modell(.passkey(PasskeyAnfrage(rpId: "webauthn.io", clientDataHash: clientHash, erlaubt: [Data([9])])), tresor: tresor) { ergebnis = $0 }
         await m.starte()
         XCTAssertEqual(m.phase, .liste)
         XCTAssertEqual(m.gruppen.passend.map(\.id), ["a"])
@@ -224,21 +224,21 @@ final class PasskeyModellTests: XCTestCase {
 
     func testUnbekannteKennungAusDerLeiste() async throws {
         var ergebnis: AutoFillErgebnis?
-        let (m, _) = try modell(.passkey(PasskeyAnfrage(rpId: "webauthn.io", clientDataHash: hash, credentialID: Data([9]))), tresor: tresor) { ergebnis = $0 }
+        let (m, _) = try modell(.passkey(PasskeyAnfrage(rpId: "webauthn.io", clientDataHash: clientHash, credentialID: Data([9]))), tresor: tresor) { ergebnis = $0 }
         await m.starte()
         XCTAssertEqual(ergebnis, .nichtGefunden)
     }
 
     func testOhneFensterBrauchtEsDasBlatt() async throws {
         var ergebnis: AutoFillErgebnis?
-        let (m, _) = try modell(.passkey(PasskeyAnfrage(rpId: "webauthn.io", clientDataHash: hash, credentialID: Data([1]))), tresor: tresor) { ergebnis = $0 }
+        let (m, _) = try modell(.passkey(PasskeyAnfrage(rpId: "webauthn.io", clientDataHash: clientHash, credentialID: Data([1]))), tresor: tresor) { ergebnis = $0 }
         await m.starteOhneAbfrage()
         XCTAssertEqual(ergebnis, .abfrageNoetig, "MemorySpeicher ohne Entsperr-Fenster")
     }
 
     func testAnlegenSpeichertImTresor() async throws {
         var ergebnis: AutoFillErgebnis?
-        let r = PasskeyRegistrierung(rpId: "webauthn.io", userName: "mia", userHandle: Data([1, 2]), clientDataHash: hash)
+        let r = PasskeyRegistrierung(rpId: "webauthn.io", userName: "mia", userHandle: Data([1, 2]), clientDataHash: clientHash)
         let (m, ablage) = try modell(.passkeyNeu(r), tresor: tresor) { ergebnis = $0 }
         await m.starte()
         guard case .passkeyAngelegt(let a) = ergebnis else { return XCTFail("\(String(describing: ergebnis))") }
@@ -250,7 +250,7 @@ final class PasskeyModellTests: XCTestCase {
 
     func testAnlegenBeiBekannterKennungBrichtAb() async throws {
         var ergebnis: AutoFillErgebnis?
-        let r = PasskeyRegistrierung(rpId: "webauthn.io", userName: "mia", userHandle: Data([1]), clientDataHash: hash, ausgeschlossen: [Data([1])])
+        let r = PasskeyRegistrierung(rpId: "webauthn.io", userName: "mia", userHandle: Data([1]), clientDataHash: clientHash, ausgeschlossen: [Data([1])])
         let (m, ablage) = try modell(.passkeyNeu(r), tresor: tresor) { ergebnis = $0 }
         await m.starte()
         XCTAssertEqual(ergebnis, .passkeySchonDa)
