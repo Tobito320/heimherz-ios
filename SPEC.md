@@ -1,5 +1,7 @@
 # SPEC: Heimherz
 
+Sichtbarer Name: **Heim** (Ahmed 25.10.: "Ich möchte rename. Ohne herz. Apps die nur für mich sich ohne herz."). Home-Bildschirm, Texte in der App und Rechte-Texte sagen "Heim", App-Store-Connect-Name "Heim Tresor" ("Heim" ist weltweit vergeben). Intern bleibt alles `heimherz` (Bundle IDs, App Group, Repo, Typen, CLI, Dienst, Ordner `~/Heimherz`, AAD).
+
 Eigene Brücke zwischen Ahmeds PC und seinem iPhone für Passwörter, Fotos und Dateien. Ersetzt Bitwarden und iCloud (Passwörter, Fotos) am Handy. Stand 25.10.2026. Idee und Recherche: Vault `01 Inbox/Idee – Eigene Cloud (Passwörter, Fotos, Dateien).md`, `01 Inbox/Eigene Cloud – Recherche 25.10.2026.md`.
 
 ## 0. Ahmeds Auftrag (wörtlich)
@@ -31,7 +33,7 @@ Nutzer: nur Ahmed (ein iPhone, ein PC). Annika nicht.
 
 - Nicht 100 %: eigener Code ohne externe Prüfung. Darum: Bitwarden bleibt 4 Wochen parallel, Notausgang Export, Tresor-Verlauf am PC.
 - TestFlight-Builds laufen nach 90 Tagen ab. Die App warnt ab Tag 75 (Build-Datum im Bundle).
-- Hintergrund-Upload der Fotos entscheidet iOS. Die Foto-Erweiterung von iOS 26.1 ist laut Apple-Forum wacklig (26.2 löst teils nicht aus). Darum zwei Wege: Abgleich beim Öffnen der App plus Erweiterung.
+- Hintergrund-Upload der Fotos entscheidet iOS. Die Foto-Erweiterung von iOS 26.1 ist laut Apple-Forum wacklig (26.2 löst teils nicht aus). Darum mehrere Wege: Abgleich per Knopf (Start/Anhalten in Stücken, `BGContinuedProcessingTask` trägt ihn weiter), Nachtlauf (`BGProcessingTask`) und Erweiterung. Kein Auto-Start beim Öffnen mehr (sonst startet er nach "Anhalten" wieder; W-003).
 - iCloud-Passwörter-Import per Credential Exchange: iOS listet Ziel-Apps nach eigenen Regeln, ob Heimherz erscheint, ist offen (unsicher).
 - Passkeys: Phase 2, nicht im ersten Build (Abschnitt 14).
 - PC aus = kein Abgleich. Tailscale weckt den PC nicht.
@@ -214,7 +216,7 @@ Gebaut (25.10., Prüfung): genauer Host-Treffer geht vor Unterdomain-Treffer (Li
 - Anzeige: Fotos gesamt, am PC, offen, letzte Übertragung, Fehler in Klartext. Nur WLAN als Schalter (Standard an, Videos immer nur WLAN).
 - Nie etwas in der Mediathek löschen oder ändern.
 
-Gebaut (25.10.): Server antwortet auf `OPTIONS /v1/fotos/…` ohne Token mit 501 (kein Resumable Upload, Apple-Weg) und nimmt POST wie PUT; Teil-Uploads 400. Ressourcen `foto-N`, `video-N`, `live-N`, `alternative-N`, `ton-N`; bearbeitete Fassungen gehen nicht mit (später). `Gemeinsam/Fotos/` teilt Kennung, Plan und Stand (`fotos-stand.json` in der App Group) zwischen App und Erweiterung; die Erweiterung hat kein Netz zum Abfragen und liest `bekannt` aus dem Stand. Vor iOS 26.5 merkt sie eingereichte Jobs selbst (3 Tage), vor 26.4 kein `job.error`. Ohne WLAN wartet die App statt iCloud-Originale mobil zu laden. Kein `handleEventsForBackgroundURLSession`: alte Transfers werden beim nächsten Öffnen des Tabs eingesammelt.
+Gebaut (25.10.): Server antwortet auf `OPTIONS /v1/fotos/…` ohne Token mit 501 (kein Resumable Upload, Apple-Weg) und nimmt POST wie PUT; Teil-Uploads 400. Ressourcen `foto-N`, `video-N`, `live-N`, `alternative-N`, `ton-N`; bearbeitete Fassungen gehen nicht mit (später). `Gemeinsam/Fotos/` teilt Kennung, Plan und Stand (`fotos-stand.json` in der App Group) zwischen App und Erweiterung; die Erweiterung hat kein Netz zum Abfragen und liest `bekannt` aus dem Stand. Vor iOS 26.5 merkt sie eingereichte Jobs selbst (3 Tage), vor 26.4 kein `job.error`. Ohne WLAN wartet die App statt iCloud-Originale mobil zu laden. Runde 2 (W-003, 25.10.): Abgleich nur per Knopf "Abgleich starten"/"Anhalten", neueste zuerst, Stücke zu 20 Dateien, Stand dauerhaft in `fotos-stand.json`; Anhalten bricht laufenden Upload und Export ab (`requestData`/`cancelDataRequest`), fertige Dateien zählen. Der Tab zählt beim Öffnen nur, startet nicht. `BGContinuedProcessingTask` (`com.onlyus.heimherz.fotos-abgleich`) trägt einen gestarteten Lauf, `BGProcessingTask` (`.fotos-nacht`) nachts mit Strom, solange etwas offen ist. `handleEventsForBackgroundURLSession` über `HeimherzAppDelegate`. Raster "Fotos sehen" mit Filter Alle / Am PC / Noch nicht und Status je Bild, Einzelbild mit "Jetzt hochladen" (gesperrt während eines Laufs). Schalter "Originale aus iCloud laden". "Anhalten" stoppt nicht die Foto-Erweiterung (eigener Schalter).
 
 Prüfung (25.10.): Ein Serverfehler (5xx) oder eine Ablehnung (4xx außer 401) überspringt nur diese Datei (gezählt, Grund im Stand, beim nächsten Lauf wieder offen). Den Lauf halten nur 401, 507 (`HeimFehler.speicherVoll`, Platte am PC voll) und echte Verbindungsfehler an. 411 kann nicht vorkommen: Uploads laufen über `uploadTask(with:fromFile:)` (Länge aus der Datei). Nach dem Entkoppeln ist die Foto-Erweiterung aus; sie schaltet sich nur bei gekoppeltem Handy wieder ein. Bereits angelegte Jobs tragen das alte Token und scheitern am PC.
 

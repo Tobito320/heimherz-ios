@@ -10,3 +10,5 @@
 - [x] T8 ios-autofill. Verify: CI grün (Lauf 40152224883, 142 Tests, Release-Bau mit Erweiterung)
 - [ ] T9 freigabe: Dienst, Tailscale HTTPS, Portal, Profile, TestFlight, Lovea-Notiz. Verify: Build in TestFlight, `curl` über Tailnet mit Token = 200, ohne = 401 — Stand 25.10.: Dienst, Tailscale HTTPS, Portal, Profile, Build 1 in TestFlight erledigt; offen nur Ahmeds Test am Gerät (SPEC 20)
 - [x] T10 passwoerter-wie-apple (W-001, W-002, W-004): Kacheln, Listen A bis Z, Codes, Passkeys, Sicherheit, Gelöscht (Grabstein behält Felder), Symbole (`GET /v1/symbol`), Import aus Apple Passwörter (Credential Exchange). Verify: `bun test`, CI grün, Screenshots; offen nur am Gerät (Symbole echter Seiten, Face ID, Exportliste von iOS)
+- [x] T11 fotos-runde2 (W-003): Start/Anhalten in Stücken, Raster mit Status, Hintergrund (BGContinuedProcessingTask, Nachtlauf, handleEventsForBackgroundURLSession). Verify: CI grün, Screenshots; offen nur am Gerät (Hintergrund, 8000+ Bilder, iCloud-Originale)
+- [x] T12 umbenennen (W-005): sichtbarer Name "Heim", ASC-Name "Heim Tresor"; Import-Annahme in `AppRootView` (springt auf Passwörter)

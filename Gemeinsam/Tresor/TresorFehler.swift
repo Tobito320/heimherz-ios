@@ -19,7 +19,7 @@ enum TresorFehler: Error, Equatable, LocalizedError {
         case .umschlagUngueltig: return "Die Tresordaten haben ein unbekanntes Format."
         case .entschluesselungFehlgeschlagen: return "Der Tresor lässt sich mit diesem Schlüssel nicht öffnen. Bitte das Handy neu koppeln."
         case .inhaltUngueltig: return "Der Tresor ist beschädigt."
-        case .formatUnbekannt: return "Der Tresor stammt aus einer neueren Version. Bitte Heimherz aktualisieren."
+        case .formatUnbekannt: return "Der Tresor stammt aus einer neueren Version. Bitte Heim aktualisieren."
         }
     }
 

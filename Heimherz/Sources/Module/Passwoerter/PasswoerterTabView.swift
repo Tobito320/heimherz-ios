@@ -52,7 +52,6 @@ struct PasswoerterInhalt: View {
                 .heimherzHintergrund()
         }
         .environment(symbole)
-        .heimherzImportAnnahme()
         .sheet(item: $formular) { ziel in EintragFormular(store: store, ziel: ziel) }
         .sheet(isPresented: $zeigeGenerator) { GeneratorBlatt(uebernehmen: nil) }
         .sheet(isPresented: $zeigeAnleitung) { ImportAnleitungBlatt() }

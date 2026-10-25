@@ -30,6 +30,9 @@ struct AppRootView: View {
             if umgebung.sperre.verdeckt { DeckFlaeche() }
         }
         .onChange(of: tab) { _, _ in Haptik.auswahl() }
+        // Export aus Apple Passwörter kommt in jedem Tab an; das Ergebnisblatt hängt am Passwörter-Tab.
+        .heimherzImportAnnahme()
+        .onChange(of: ImportPostfach.geteilt.holt) { _, holt in if holt { tab = .passwoerter } }
         .onChange(of: phase) { _, neu in umgebung.sperre.szene(neu) }
     }
 }

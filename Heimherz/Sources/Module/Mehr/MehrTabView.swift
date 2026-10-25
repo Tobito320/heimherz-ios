@@ -151,14 +151,14 @@ struct MehrTabView: View {
             Text("AutoFill einschalten")
                 .font(.headline)
                 .foregroundStyle(Color.tinte)
-            Text("Damit füllt iOS Passwörter und Einmalcodes aus Heimherz aus, in Safari und in Apps.")
+            Text("Damit füllt iOS Passwörter und Einmalcodes aus Heim aus, in Safari und in Apps.")
                 .font(.subheadline)
                 .foregroundStyle(Color.tinte2)
                 .padding(.top, Abstand.xs)
             VStack(alignment: .leading, spacing: Abstand.s) {
                 schritt(1, "Einstellungen öffnen")
                 schritt(2, "Allgemein, dann AutoFill & Passwörter")
-                schritt(3, "Unter „Ausfüllen von“ Heimherz einschalten")
+                schritt(3, "Unter „Ausfüllen von“ Heim einschalten")
                 schritt(4, "Erst wenn alles sicher läuft: iCloud-Passwörter ausschalten")
             }
             .padding(.vertical, Abstand.m)
