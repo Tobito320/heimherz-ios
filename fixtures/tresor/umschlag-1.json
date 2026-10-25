@@ -1,0 +1,30 @@
+{
+ "hinweis": "Nur Test: fester Schlüssel 0x01..0x20, feste Nonce 0xa0..0xab, erfundene Daten",
+ "schluessel": "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA=",
+ "tresor": {
+  "format": 1,
+  "eintraege": [
+   {
+    "id": "0F8E2C1A-0000-4000-8000-000000000001",
+    "art": "login",
+    "name": "Beispiel",
+    "benutzer": "tobi@example.org",
+    "passwort": "Grüne-Wiese-42!",
+    "urls": [
+     "https://example.org/login"
+    ],
+    "totp": "otpauth://totp/Beispiel:tobi?secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+    "notiz": "Erfundener Testeintrag, kein echtes Konto",
+    "favorit": true,
+    "geaendert": "2026-10-25T01:40:00.000Z",
+    "geloescht": false
+   }
+  ]
+ },
+ "umschlag": {
+  "v": 1,
+  "rev": 3,
+  "nonce": "oKGio6Slpqeoqaqr",
+  "daten": "wvNbCY/YO3BdNJNH0+BJ6iOl0Xw/DUK+fCD3lDZs4hcBl6GN3ZGBdQBG8KmWG3oXKYZd/Pyrzvh41LPA8gY3WJxyk9WMB26QqORkziC2lLik8TRnWpgzG6zQ/BilojzSdLdnMWPNesvB5zsCCQOO5NvwLRizuZy0vIAlxoYiHLqI6mTTE7WKgDICmDVmANWEogFOzr6nfjMJa7drEUJpdAH9uK4p9VA5f7MfdRAI/DdatCjwa2KzE1fkZU8El4I7bn2WxcKMy+1QmVKW+dlXf0cdRXtyn/Fa8mD8Ax6r2AiK4TKPcLehQNMYI9bSrKpPoH2vliPp61zF7vdH+QFOzhaEazTIpINXFoNrBEEUtRV/0awe01c07SFRlV5wpB5TaxuAQslaQMHz/Q8hhXxYl7l+4IDGG93xOTBqWvALTWJSNTtmzslzOZWWNN9Ml11HQtCNsxMqWwCbp147smWuo2IpD7qIfNh2ENjyjGQQZSADrhHZgDuevi6DZg1A4VfypX4SkGfxbXniGagUGCke/TemARnBogipnPdnt9ZNJxK9FyY="
+ }
+}

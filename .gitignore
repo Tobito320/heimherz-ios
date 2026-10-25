@@ -1,0 +1,24 @@
+.DS_Store
+DerivedData/
+derived/
+Heimherz.xcodeproj/
+*.xcuserstate
+xcuserdata/
+*.p12
+*.p8
+*.mobileprovision
+.env
+AuthKey_*.p8
+*.key
+*.pem
+*.cer
+*.csr
+*.cred
+.claude/
+.build/
+node_modules/
+# XcodeGen schreibt diese Dateien bei jedem generate neu
+Heimherz/Info.plist
+HeimherzAutoFill/Info.plist
+HeimherzFotos/Info.plist
+/screenshots/

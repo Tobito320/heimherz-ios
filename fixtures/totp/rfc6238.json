@@ -1,0 +1,172 @@
+{
+ "quelle": "RFC 6238 Anhang B",
+ "vektoren": [
+  {
+   "geheim": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+   "algorithmus": "SHA1",
+   "stellen": 8,
+   "periode": 30,
+   "zeit": 59,
+   "code": "94287082"
+  },
+  {
+   "geheim": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZA",
+   "algorithmus": "SHA256",
+   "stellen": 8,
+   "periode": 30,
+   "zeit": 59,
+   "code": "46119246"
+  },
+  {
+   "geheim": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNA",
+   "algorithmus": "SHA512",
+   "stellen": 8,
+   "periode": 30,
+   "zeit": 59,
+   "code": "90693936"
+  },
+  {
+   "geheim": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+   "algorithmus": "SHA1",
+   "stellen": 8,
+   "periode": 30,
+   "zeit": 1111111109,
+   "code": "07081804"
+  },
+  {
+   "geheim": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZA",
+   "algorithmus": "SHA256",
+   "stellen": 8,
+   "periode": 30,
+   "zeit": 1111111109,
+   "code": "68084774"
+  },
+  {
+   "geheim": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNA",
+   "algorithmus": "SHA512",
+   "stellen": 8,
+   "periode": 30,
+   "zeit": 1111111109,
+   "code": "25091201"
+  },
+  {
+   "geheim": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+   "algorithmus": "SHA1",
+   "stellen": 8,
+   "periode": 30,
+   "zeit": 1111111111,
+   "code": "14050471"
+  },
+  {
+   "geheim": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZA",
+   "algorithmus": "SHA256",
+   "stellen": 8,
+   "periode": 30,
+   "zeit": 1111111111,
+   "code": "67062674"
+  },
+  {
+   "geheim": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNA",
+   "algorithmus": "SHA512",
+   "stellen": 8,
+   "periode": 30,
+   "zeit": 1111111111,
+   "code": "99943326"
+  },
+  {
+   "geheim": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+   "algorithmus": "SHA1",
+   "stellen": 8,
+   "periode": 30,
+   "zeit": 1234567890,
+   "code": "89005924"
+  },
+  {
+   "geheim": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZA",
+   "algorithmus": "SHA256",
+   "stellen": 8,
+   "periode": 30,
+   "zeit": 1234567890,
+   "code": "91819424"
+  },
+  {
+   "geheim": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNA",
+   "algorithmus": "SHA512",
+   "stellen": 8,
+   "periode": 30,
+   "zeit": 1234567890,
+   "code": "93441116"
+  },
+  {
+   "geheim": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+   "algorithmus": "SHA1",
+   "stellen": 8,
+   "periode": 30,
+   "zeit": 2000000000,
+   "code": "69279037"
+  },
+  {
+   "geheim": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZA",
+   "algorithmus": "SHA256",
+   "stellen": 8,
+   "periode": 30,
+   "zeit": 2000000000,
+   "code": "90698825"
+  },
+  {
+   "geheim": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNA",
+   "algorithmus": "SHA512",
+   "stellen": 8,
+   "periode": 30,
+   "zeit": 2000000000,
+   "code": "38618901"
+  },
+  {
+   "geheim": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+   "algorithmus": "SHA1",
+   "stellen": 8,
+   "periode": 30,
+   "zeit": 20000000000,
+   "code": "65353130"
+  },
+  {
+   "geheim": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZA",
+   "algorithmus": "SHA256",
+   "stellen": 8,
+   "periode": 30,
+   "zeit": 20000000000,
+   "code": "77737706"
+  },
+  {
+   "geheim": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQGEZDGNA",
+   "algorithmus": "SHA512",
+   "stellen": 8,
+   "periode": 30,
+   "zeit": 20000000000,
+   "code": "47863826"
+  }
+ ],
+ "uris": [
+  {
+   "uri": "otpauth://totp/Beispiel:tobi?secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ&issuer=Beispiel",
+   "geheim": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+   "algorithmus": "SHA1",
+   "stellen": 6,
+   "periode": 30
+  },
+  {
+   "uri": "otpauth://totp/x?secret=gezd%20gnbv&algorithm=SHA256&digits=8&period=60",
+   "geheim": "GEZDGNBV",
+   "algorithmus": "SHA256",
+   "stellen": 8,
+   "periode": 60
+  },
+  {
+   "uri": "GEZD GNBV GY3T QOJQ",
+   "geheim": "GEZDGNBVGY3TQOJQ",
+   "algorithmus": "SHA1",
+   "stellen": 6,
+   "periode": 30
+  }
+ ]
+}

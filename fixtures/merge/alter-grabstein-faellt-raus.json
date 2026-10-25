@@ -1,0 +1,64 @@
+{
+ "beschreibung": "alter-grabstein-faellt-raus",
+ "jetzt": "2026-10-25T00:00:00.000Z",
+ "a": {
+  "format": 1,
+  "eintraege": [
+   {
+    "id": "alt",
+    "art": "login",
+    "name": "",
+    "benutzer": "",
+    "passwort": "",
+    "urls": [
+     "https://example.org"
+    ],
+    "totp": "",
+    "notiz": "",
+    "favorit": false,
+    "geaendert": "2026-07-01T00:00:00.000Z",
+    "geloescht": true
+   }
+  ]
+ },
+ "b": {
+  "format": 1,
+  "eintraege": [
+   {
+    "id": "jung",
+    "art": "login",
+    "name": "",
+    "benutzer": "",
+    "passwort": "",
+    "urls": [
+     "https://example.org"
+    ],
+    "totp": "",
+    "notiz": "",
+    "favorit": false,
+    "geaendert": "2026-08-01T00:00:00.000Z",
+    "geloescht": true
+   }
+  ]
+ },
+ "erwartet": {
+  "format": 1,
+  "eintraege": [
+   {
+    "id": "jung",
+    "art": "login",
+    "name": "",
+    "benutzer": "",
+    "passwort": "",
+    "urls": [
+     "https://example.org"
+    ],
+    "totp": "",
+    "notiz": "",
+    "favorit": false,
+    "geaendert": "2026-08-01T00:00:00.000Z",
+    "geloescht": true
+   }
+  ]
+ }
+}
