@@ -329,6 +329,23 @@ final class FotoAbgleichTests: XCTestCase {
         XCTAssertEqual(u.quelle.iCloudWerte.mit { $0 }, [false], "erster Durchgang: lokal, ohne iCloud-Download; die Datei war lokal, mehr braucht es nicht")
     }
 
+    func testJederUploadTraegtMesszahlenAlsKopfzeilen() async throws {
+        let assets = viele(3)
+        let u = try baue(assets: assets, gleichzeitig: 1, nurInICloud: ["x2.heic"])
+        await u.abgleich.abgleichen()
+        let anfragen = u.sender.anfragen.mit { $0 }
+        XCTAssertEqual(anfragen.count, 3)
+        for r in anfragen {
+            for name in ["X-Heim-Export-Ms", "X-Heim-Warte-Ms", "X-Heim-Aktiv", "X-Heim-Exporte"] {
+                XCTAssertNotNil(Int(r.value(forHTTPHeaderField: name) ?? ""), "\(name) ist eine Zahl")
+            }
+            XCTAssertEqual(r.value(forHTTPHeaderField: "X-Heim-Aktiv"), "1", "ein Upload zugleich, dieser eingerechnet")
+            XCTAssertEqual(r.value(forHTTPHeaderField: "X-Heim-Exporte"), "0", "der Export dieser Datei ist fertig, mit einem Platz läuft kein weiterer")
+        }
+        XCTAssertEqual(anfragen.map { $0.value(forHTTPHeaderField: "X-Heim-Durchgang") }, ["lokal", "lokal", "icloud"], "x2 kommt im zweiten Durchgang")
+        XCTAssertNil(anfragen[0].value(forHTTPHeaderField: "X-Heim-Vordergrund"), "das setzt erst der Sender")
+    }
+
     func testErstAllesLokalDannDieICloudOriginale() async throws {
         let assets = viele(3)
         let u = try baue(assets: assets, gleichzeitig: 1, nurInICloud: ["x2.heic"])

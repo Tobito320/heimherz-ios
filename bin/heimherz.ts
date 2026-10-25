@@ -7,6 +7,7 @@ import { urlAusTailscale } from './koppeln';
 import { systemdCreds } from './schluessel';
 import { eigenerTab, fuelleFeld, FuellFehler, handyHinweis, protokoll, waehle, wertVon, type Was } from './fuellen';
 import { erlaubt, modellVon, stufenText } from './stufen';
+import { fasseTempo, leseTempo } from './tempo';
 
 const HILFE = `heimherz einrichten
 heimherz koppeln [NAME]
@@ -15,6 +16,7 @@ heimherz import csv DATEI     (Apple Passwörter oder Chrome)
 heimherz export bitwarden DATEI
 heimherz liste [SUCHE]
 heimherz status
+heimherz tempo [MINUTEN]    (Foto-Abgleich: wo hängt die Zeit, Standard 10)
 heimherz geraet weg ID
 heimherz fuell TAB CSS benutzer|passwort|code [--konto K] [--rahmen IFRAME-CSS] [--enter] [--auftrag DATEI]
 heimherz erlaubt HOST [--auftrag DATEI]   (Exit 0 erlaubt, 7 verweigert)
@@ -81,6 +83,7 @@ async function main(argv: string[]) {
   if (cmd === 'export' && r[0] === 'bitwarden' && r[1]) return exportBitwarden(a, r[1]);
   if (cmd === 'liste') return liste(a, r[0]);
   if (cmd === 'status') return status(a);
+  if (cmd === 'tempo') { for (const z of fasseTempo(leseTempo(a.daten), Number(r[0]) > 0 ? Number(r[0]) : 10)) a.ausgabe(z); return; }
   if (cmd === 'geraet' && r[0] === 'weg' && r[1]) return geraetWeg(a, r[1]);
   if (cmd === 'fuell' || cmd === 'erlaubt' || cmd === 'stufen') return fuellen(a, cmd, r);
   console.error(HILFE);

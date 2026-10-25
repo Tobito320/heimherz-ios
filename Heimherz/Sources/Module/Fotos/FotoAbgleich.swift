@@ -120,6 +120,9 @@ actor FotoAbgleich {
     private var puffer: Int64 = 0
     private var zurueckgestellt: Set<String> = []
     private var inICloudPhase = false
+    /// Für die Messung (`FotoMessung`): laufende Uploads und Exporte in diesem Moment.
+    private var aktiveUploads = 0
+    private var aktiveExporte = 0
 
     private var stand = FotoStand()
     private var anzeige = FotoAnzeige()
@@ -179,6 +182,14 @@ actor FotoAbgleich {
     private func lauf(nur: [String]?, senden: Bool) async {
         stand = ablage.lade()
         sendet = senden
+        // Die Zahl für Tempo und Restzeit soll auch weiterlaufen, wenn lange nichts fertig wird (eine große Datei): alle 2 Sekunden neu rechnen.
+        let takt = Task { [self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(2))
+                if sendet, anzeige.laeuft { zeige(schritt: anzeige.schritt) }
+            }
+        }
+        defer { takt.cancel() }
         erledigt = 0; gescheitert = 0; wartetAufWLAN = 0; exportFehler = nil; abbruch = nil; wlanStop = false
         uebersprungen = []; fehlend = [:]; gesendet = [:]; imFlug = [:]
         zurueckgestellt = []; inICloudPhase = false; ladeSchranke = nil; puffer = 0
@@ -320,7 +331,7 @@ actor FotoAbgleich {
         switch a {
         case .gesendet(let r, let bytes):
             erledigt += 1
-            tempo.buche(bytes: bytes)
+            tempo.buche(bytes: bytes, jetzt: jetzt())
             stand.teil.insert(r.schluessel)
             stand.letzteUebertragung = jetzt()
             gesendet[r.kennung, default: 0] += 1
@@ -364,9 +375,11 @@ actor FotoAbgleich {
         if (stand.wlanNoetig || r.art.istVideo), !(await netz.istWLAN()) { return .wartetAufWLAN(r) }
         beginne(r, iCloud: iCloud)
         defer { ende(r) }
-        let temp: URL
+        let temp: URL, exportMs: Int
         do {
-            temp = try await exportiere(r, iCloud: iCloud)
+            let e = try await exportiere(r, iCloud: iCloud)
+            temp = e.url
+            exportMs = e.ms
         } catch is CancellationError {
             return .abgebrochen(r)
         } catch {
@@ -374,6 +387,7 @@ actor FotoAbgleich {
             if !iCloud, stand.iCloudErlaubt, (error as? FotoFehler) == .nurInICloud { return .nachICloud(r) }
             return .nichtLesbar(r, (error as? FotoFehler)?.nutzerText ?? "nicht lesbar")
         }
+        let exportFertig = ContinuousClock.now
         defer { try? FileManager.default.removeItem(at: temp) }
         if Task.isCancelled { return .abgebrochen(r) }
         let bytes = (try? FileManager.default.attributesOfItem(atPath: temp.path)[.size] as? Int64) ?? 0
@@ -387,16 +401,18 @@ actor FotoAbgleich {
             try await schranke.hole()
             puffer -= bytes
             imPuffer = false
+            aktiveUploads += 1
+            FotoMessung(exportMs: exportMs, warteMs: FotoMessung.ms(seit: exportFertig), aktiv: aktiveUploads, exporte: aktiveExporte, iCloud: iCloud).setze(in: &anfrage)
             // Ein Anhalten kann den Platz und den Abbruch gleichzeitig bringen: dann nicht mehr senden.
             if Task.isCancelled {
-                await schranke.gib()
+                await gibPlatz()
                 return .abgebrochen(r)
             }
             do { try await sender.sende(datei: temp, anfrage: anfrage) } catch {
-                await schranke.gib()
+                await gibPlatz()
                 throw error
             }
-            await schranke.gib()
+            await gibPlatz()
             return .gesendet(r, bytes)
         } catch is CancellationError {
             return .abgebrochen(r)
@@ -414,16 +430,25 @@ actor FotoAbgleich {
         }
     }
 
-    /// Export; im iCloud-Durchgang höchstens `iCloudParallel` Downloads zugleich.
-    private func exportiere(_ r: FotoRessource, iCloud: Bool) async throws -> URL {
-        guard iCloud, let platz = ladeSchranke else { return try await quelle.exportiere(r, iCloud: iCloud) }
-        try await platz.hole()
+    private func gibPlatz() async {
+        aktiveUploads -= 1
+        await schranke.gib()
+    }
+
+    /// Export; im iCloud-Durchgang höchstens `iCloudParallel` Downloads zugleich. `ms`: Dauer des Exports selbst, ohne Warten auf einen Download-Platz.
+    private func exportiere(_ r: FotoRessource, iCloud: Bool) async throws -> (url: URL, ms: Int) {
+        let platz = iCloud ? ladeSchranke : nil
+        if let platz { try await platz.hole() }
+        let t0 = ContinuousClock.now
+        aktiveExporte += 1
         do {
-            let u = try await quelle.exportiere(r, iCloud: true)
-            await platz.gib()
-            return u
+            let u = try await quelle.exportiere(r, iCloud: iCloud)
+            aktiveExporte -= 1
+            await platz?.gib()
+            return (u, FotoMessung.ms(seit: t0))
         } catch {
-            await platz.gib()
+            aktiveExporte -= 1
+            await platz?.gib()
             throw error
         }
     }

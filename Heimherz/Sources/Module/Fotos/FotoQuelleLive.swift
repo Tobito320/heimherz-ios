@@ -88,7 +88,9 @@ struct FotoQuelleLive: FotoQuelle {
     }
 
     private static func schreibe(_ objekt: PHAssetResource, in datei: FileHandle, optionen: PHAssetResourceRequestOptions) async throws {
-        let manager = PHAssetResourceManager.default()
+        // Eine eigene Instanz je Datei statt `default()`: Apple sagt nicht, ob eine Instanz Anfragen nacheinander abarbeitet; so ist es sicher nicht der Fall.
+        // Die Rückrufe laufen laut Apple auf einer seriellen Warteschlange, die Anfrage-ID gehört zu dieser Instanz.
+        let manager = PHAssetResourceManager()
         let fortsetzung = EinmalFortsetzung<Void>()
         let anfrage = Mutex<PHAssetResourceDataRequestID?>(nil)
         let zu = Mutex(false)

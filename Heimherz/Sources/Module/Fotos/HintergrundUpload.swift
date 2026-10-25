@@ -46,9 +46,13 @@ final class HintergrundUpload: NSObject, FotoSender, URLSessionTaskDelegate, Sen
     private static func appIstVorn() -> Bool { UIApplication.shared.applicationState == .active }
 
     func sende(datei: URL, anfrage: URLRequest) async throws {
-        if await Self.appIstVorn() {
+        // Der Sprung auf den Hauptthread kostet Zeit, wenn der gerade zeichnet; die Messung (`X-Heim-Warte-Ms`) rechnet sie mit.
+        let t0 = ContinuousClock.now
+        let vorn = await Self.appIstVorn()
+        let sprungMs = FotoMessung.ms(seit: t0)
+        if vorn {
             do {
-                try await sendeVorn(datei: datei, anfrage: anfrage)
+                try await sendeVorn(datei: datei, anfrage: FotoMessung.markiere(anfrage, vordergrund: true, zusatzWarteMs: sprungMs))
                 return
             } catch let fehler as HeimFehler where fehler.istNetzproblem {
                 // Die App ging schlafen und iOS hat den Transfer beendet: dieselbe Datei geht jetzt über die Hintergrund-Sitzung.
@@ -56,7 +60,7 @@ final class HintergrundUpload: NSObject, FotoSender, URLSessionTaskDelegate, Sen
                 if await Self.appIstVorn() { throw fehler }
             }
         }
-        try await sendeHintergrund(datei: datei, anfrage: anfrage)
+        try await sendeHintergrund(datei: datei, anfrage: FotoMessung.markiere(anfrage, vordergrund: false, zusatzWarteMs: sprungMs))
     }
 
     private func sendeVorn(datei: URL, anfrage: URLRequest) async throws {
