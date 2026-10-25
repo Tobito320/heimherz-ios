@@ -80,9 +80,15 @@ targets:
           NSExtensionPointIdentifier: com.apple.authentication-services-credential-provider-ui
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).CredentialProviderViewController
           NSExtensionAttributes:
+            # Quelle: developer.apple.com/documentation/authenticationservices/ascredentialproviderviewcontroller (Speichern/Erzeugen ab iOS 26.2,
+            # Erzeugen ohne eigene Oberfläche, darum ...WithUI false; ShowsConfigurationUI für prepareInterfaceForExtensionConfiguration)
             ASCredentialProviderExtensionCapabilities:
               ProvidesPasswords: true
               ProvidesOneTimeCodes: true
+              ShowsConfigurationUI: true
+              SupportsSavePasswordCredentials: true
+              SupportsGeneratePasswordCredentials: true
+              SupportsGeneratePasswordCredentialsWithUI: false
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.onlyus.heimherz.autofill

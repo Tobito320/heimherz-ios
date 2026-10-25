@@ -4,7 +4,7 @@ import XCTest
 @testable import Heimherz
 
 /// Ein Server im Speicher wie der PC-Dienst: eine rev, `If-Match`-Prüfung. `erreichbar = false` simuliert den ausgeschalteten PC.
-private final class PCAttrappe: Sendable {
+final class PCAttrappe: Sendable {
     private struct Zustand {
         var umschlag: Umschlag?
         var erreichbar = true
@@ -46,7 +46,7 @@ private final class PCAttrappe: Sendable {
 }
 
 /// Merkt, welche Tresore als Identitäten ans System gegangen wären (das echte System gibt es im Test nicht).
-private final class IdentitaetenMerker: Sendable {
+final class IdentitaetenMerker: Sendable {
     private let staende = Mutex<[Tresor]>([])
     var staende_: [Tresor] { staende.withLock { $0 } }
     func merke(_ t: Tresor) { staende.withLock { $0.append(t) } }
@@ -147,6 +147,21 @@ final class TresorStoreTests: XCTestCase {
         let amPC = try XCTUnwrap(try a.pc.umschlag?.oeffne(schluessel: k))
         XCTAssertEqual(amPC.eintraege.first?.name, "Umbenannt")
         XCTAssertEqual(amPC.eintraege.first?.unbekannt["zukunft"], .text("bleibt"))
+    }
+
+    func testEintragAusDerErweiterungGehtBeimSpeichernNichtVerloren() async throws {
+        let a = try aufbau(serverTresor: Tresor(eintraege: [testEintrag("a")]))
+        await a.store.oeffnen()
+        // Die AutoFill-Erweiterung speichert ein neues Passwort im Cache, während die App offen im Speicher liegt
+        let dienst = a.umgebung.tresorDienst()
+        let imCache = try await dienst.lokal(schluessel: k) ?? Tresor()
+        try await dienst.speichereLokal(Tresor(eintraege: imCache.eintraege + [testEintrag("aus-safari")]), schluessel: k)
+        a.pc.erreichbar(false)
+        await a.store.speichere(testEintrag("b"))
+        await a.store.warteAufAbgleich()
+        XCTAssertEqual(Set(a.store.eintraege.map(\.id)), ["a", "b", "aus-safari"])
+        let lokal = try await dienst.lokal(schluessel: k)
+        XCTAssertEqual(Set(lokal?.lebendige.map(\.id) ?? []), ["a", "b", "aus-safari"])
     }
 
     func testFavoritSetzen() async throws {

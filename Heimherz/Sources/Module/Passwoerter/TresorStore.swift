@@ -118,6 +118,7 @@ final class TresorStore {
         defer { gleichtAb = false }
         repeat {
             abgleichNoetig = false
+            await uebernehmeDatei()
             guard let k = schluessel, let stand = tresor else { return }
             let zaehler = sperrZaehler
             do {
@@ -177,7 +178,18 @@ final class TresorStore {
         await speichere(e)
     }
 
+    /// Die AutoFill-Erweiterung kann den verschlüsselten Cache geändert haben, während die App offen war (neues Passwort aus Safari):
+    /// vor jedem Schreiben und Abgleichen den Stand der Datei einmischen, sonst würde er überschrieben.
+    private func uebernehmeDatei() async {
+        guard let k = schluessel, tresor != nil else { return }
+        let zaehler = sperrZaehler
+        guard let datei = try? await umgebung.tresorDienst().lokal(schluessel: k), zaehler == sperrZaehler, let stand = tresor else { return }
+        let gemischt = Zusammenfuehren.zusammenfuehren(stand, datei, jetzt: jetzt())
+        if gemischt != stand { tresor = gemischt }
+    }
+
     private func aendere(_ aenderung: (inout Tresor) -> Void) async {
+        await uebernehmeDatei()
         guard var t = tresor, let k = schluessel else { return }
         aenderung(&t)
         tresor = t
@@ -213,6 +225,6 @@ final class TresorStore {
     }
 
     nonisolated static func text(_ fehler: Error) -> String {
-        (fehler as? LocalizedError)?.errorDescription ?? "Etwas ist schiefgegangen."
+        FehlerText.von(fehler)
     }
 }
