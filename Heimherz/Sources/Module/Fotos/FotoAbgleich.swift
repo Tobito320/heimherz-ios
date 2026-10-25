@@ -116,14 +116,16 @@ actor FotoAbgleich {
         erledigt = 0; gescheitert = 0; wartetAufWLAN = 0; exportFehler = nil; abbruch = nil; wlanStop = false
         uebersprungen = []; fehlend = [:]; gesendet = [:]; imFlug = [:]
         tempo = FotoTempo(start: jetzt())
-        anzeige = FotoAnzeige(zahlen: anzeige.zahlen)
+        // Zahlen vom letzten Mal, damit Überschrift und Balken beim Start nicht verschwinden (auch beim Einzel-Upload, der nicht neu zählt).
+        anzeige = FotoAnzeige(zahlen: stand.gesamt.map { FotoZahlen(gesamt: $0, amPC: stand.fertig.count) })
         zeige(schritt: "Frage den PC, was schon da ist …")
         do {
             stand.uebernimm(bekannt: try await client.fotosBekannt())
         } catch {
+            // Anhalten schon in dieser Phase ist kein Fehler.
+            if Task.isCancelled { abschliessen(senden: senden); return }
             stand.fehler = (error as? HeimFehler)?.nutzerText ?? HeimFehler.nichtErreichbar.nutzerText
             sichere()
-            anzeige.zahlen = stand.gesamt.map { FotoZahlen(gesamt: $0, amPC: stand.fertig.count) } ?? anzeige.zahlen
             zeige(schritt: nil, laeuft: false)
             return
         }

@@ -158,20 +158,34 @@ struct FotoLaufLeiste: View {
     let modell: FotosModell
 
     var body: some View {
-        HStack(spacing: Abstand.m) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(FotoText.stand(modell.anzeige))
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color.tinte)
-                if modell.laeuft, let t = FotoText.tempo(modell.anzeige) {
-                    Text(t).font(.caption).foregroundStyle(Color.tinte2)
-                }
+        // Bei großer Schrift ist kein Platz nebeneinander: dann steht der Knopf unter dem Text.
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: Abstand.m) {
+                stand
+                Spacer(minLength: 0)
+                FotoStartKnopf(modell: modell, kompakt: true)
             }
-            Spacer(minLength: 0)
-            FotoStartKnopf(modell: modell, kompakt: true)
+            VStack(alignment: .leading, spacing: Abstand.s) {
+                stand
+                FotoStartKnopf(modell: modell, kompakt: false)
+            }
         }
         .padding(Abstand.m)
         .background(Color.karte, in: .heimherzFeld)
+    }
+}
+
+extension FotoLaufLeiste {
+    fileprivate var stand: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(FotoText.stand(modell.anzeige))
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.tinte)
+                .fixedSize(horizontal: false, vertical: true)
+            if modell.laeuft, let t = FotoText.tempo(modell.anzeige) {
+                Text(t).font(.caption).foregroundStyle(Color.tinte2).fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 }
 

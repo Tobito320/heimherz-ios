@@ -331,5 +331,30 @@ final class FotoAbgleichTests: XCTestCase {
         XCTAssertEqual(u.sender.pfade, ["/v1/fotos/\(assets[1].kopf.kennung)/foto-0"])
         XCTAssertEqual(u.ablage.lade().fertig, [assets[1].kopf.kennung])
     }
+
+    func testAnhaltenInDerAnfangsphaseIstKeinFehler() async throws {
+        let u = try baue(assets: viele(3))
+        // Die Aufgabe bricht sich selbst ab, bevor der Abgleich anfängt: deterministisch wie ein Tipp auf "Anhalten" in den ersten Sekunden.
+        await Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            await u.abgleich.abgleichen()
+        }.value
+        XCTAssertNil(u.ablage.lade().fehler, "Anhalten ist kein Fehler, auch nicht beim Abfragen des PCs")
+        XCTAssertEqual(u.sender.pfade, [])
+        let letzte = try XCTUnwrap(u.anzeigen.mit { $0.last })
+        XCTAssertTrue(letzte.angehalten)
+        XCTAssertFalse(letzte.laeuft)
+    }
+
+    func testEinzelUploadBehaeltDieZahlenVomLetztenMal() async throws {
+        let ablage = FotoStandAblage(ordner: try tempOrdner())
+        ablage.aendere { $0.gesamt = 3 }
+        let assets = viele(3)
+        let u = try baue(assets: assets, ablage: ablage)
+        await u.abgleich.abgleichen(nur: [assets[1].kopf.assetId])
+        let alle = u.anzeigen.mit { $0 }
+        XCTAssertEqual(alle.first?.zahlen, FotoZahlen(gesamt: 3, amPC: 0), "Überschrift und Balken verschwinden beim Start nicht")
+        XCTAssertEqual(alle.last?.zahlen, FotoZahlen(gesamt: 3, amPC: 1), "das gesendete Bild zählt sofort mit")
+    }
 }
 

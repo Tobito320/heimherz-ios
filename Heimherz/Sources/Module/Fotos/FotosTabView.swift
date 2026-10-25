@@ -120,8 +120,7 @@ private struct FotosInhalt: View {
                 Text(schritt)
                     .font(.subheadline)
                     .foregroundStyle(Color.tinte2)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             if modell.laeuft, let f = modell.anzeige.fortschritt {
                 ProgressView(value: f)
@@ -199,6 +198,10 @@ private struct FotosInhalt: View {
             }
             .tint(Color.knopf)
             .frame(minHeight: Abstand.tippflaeche)
+            Text("iOS lädt dann auch bei geschlossener App hoch, wenn es ihm passt. Das hält \"Anhalten\" nicht auf: Dafür schaltest du es hier aus.")
+                .font(.footnote)
+                .foregroundStyle(Color.tinte2)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -209,7 +212,7 @@ private struct FotosInhalt: View {
             Text("Wie das Sichern läuft")
                 .font(.headline)
                 .foregroundStyle(Color.tinte)
-            Text("Mit \"Abgleich starten\" geht es in kleinen Stücken los, neueste Fotos zuerst. \"Anhalten\" stoppt sofort: Was schon am PC liegt, zählt, die Datei dazwischen wird verworfen und beim nächsten Start neu gesendet. Schließt du die App oder sperrst das Handy, macht iOS mit einer Anzeige weiter, solange es das zulässt. Wischst du Heim im App-Umschalter weg, endet der Abgleich, bis du ihn wieder startest. Nachts am Ladegerät im WLAN setzt iOS ihn fort, wenn du ihn nicht angehalten hast; wann, entscheidet iOS. Der PC muss an sein und Tailscale laufen. Am Handy wird nie etwas gelöscht oder geändert.")
+            Text("Mit \"Abgleich starten\" geht es in kleinen Stücken los, neueste Fotos zuerst. \"Anhalten\" stoppt sofort: Was schon am PC liegt, zählt, die Datei dazwischen wird verworfen und beim nächsten Start neu gesendet. Schließt du die App oder sperrst das Handy, macht iOS mit einer Anzeige weiter, solange es das zulässt. Wischst du Heim im App-Umschalter weg, endet der Abgleich, bis du ihn wieder startest. Nachts am Ladegerät im WLAN setzt iOS den Abgleich fort, wenn du ihn nicht angehalten hast; wann, entscheidet iOS. \"Anhalten\" stoppt nicht das Hochladen im Hintergrund unten, das hat einen eigenen Schalter. Der PC muss an sein und Tailscale laufen. Am Handy wird nie etwas gelöscht oder geändert.")
                 .font(.subheadline)
                 .foregroundStyle(Color.tinte2)
                 .fixedSize(horizontal: false, vertical: true)

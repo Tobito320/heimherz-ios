@@ -27,6 +27,9 @@ final class FotosModell {
     private var fortsetzung: FotoHintergrund.AufgabenBox?
     private var gespiegelt = -1
     private var nutzerLauf = false
+    /// Nach diesem Lauf darf nachts weitergemacht werden (Start per Knopf, Nachtlauf selbst); Einzel-Upload und Zählen planen nichts.
+    private var plantNachts = false
+    private var nutzerHatAngehalten = false
     /// "Abgleich starten" kam, während nur gezählt wurde: das Zählen bricht ab, danach startet der Abgleich.
     private var vorgemerkt: HeimClient?
 
@@ -120,7 +123,7 @@ final class FotosModell {
     /// Zählt, was am PC liegt, und sendet nichts (beim Öffnen des Tabs).
     func aktualisiere(client: HeimClient) {
         guard kannStarten else { return }
-        beginne(client: client, senden: false, nur: nil, vomNutzer: false)
+        beginne(client: client, senden: false, nur: nil, vomNutzer: false, nachts: false)
     }
 
     /// "Abgleich starten": sendet alles Offene, neueste zuerst, und macht dort weiter, wo der letzte Lauf aufgehört hat.
@@ -132,24 +135,26 @@ final class FotosModell {
             arbeit?.cancel()
             return
         }
-        beginne(client: client, senden: true, nur: nil, vomNutzer: true)
+        beginne(client: client, senden: true, nur: nil, vomNutzer: true, nachts: true)
     }
 
     /// "Jetzt hochladen" für genau ein Bild (nur wenn kein Lauf geht, sonst käme derselbe Schlüssel doppelt an den PC).
     func ladeEinzeln(assetId: String, client: HeimClient) {
         guard kannStarten else { return }
-        beginne(client: client, senden: true, nur: [assetId], vomNutzer: false)
+        beginne(client: client, senden: true, nur: [assetId], vomNutzer: false, nachts: false)
     }
 
     private var kannStarten: Bool { !istDemo && erlaubnis == .voll && lauf == nil }
 
-    private func beginne(client: HeimClient, senden: Bool, nur: [String]?, vomNutzer: Bool) {
+    private func beginne(client: HeimClient, senden: Bool, nur: [String]?, vomNutzer: Bool, nachts: Bool) {
         let ablage = ablage
         let (strom, weiter) = AsyncStream.makeStream(of: FotoAnzeige.self, bufferingPolicy: .bufferingNewest(1))
         let abgleich = FotoAbgleich(client: client, quelle: FotoQuelleLive(), sender: HintergrundUpload.geteilt, netz: NetzartLive.geteilt, ablage: ablage) { neu in
             weiter.yield(neu)
         }
         nutzerLauf = vomNutzer
+        plantNachts = nachts
+        nutzerHatAngehalten = false
         gespiegelt = -1
         anzeige.laeuft = senden
         anzeige.angehalten = false
@@ -172,7 +177,10 @@ final class FotosModell {
     func halteAn(nachtAbsagen: Bool = true) {
         guard !istDemo else { return }
         arbeit?.cancel()
-        if nachtAbsagen { FotoHintergrund.sageNachtAb() }
+        if nachtAbsagen {
+            nutzerHatAngehalten = true
+            FotoHintergrund.sageNachtAb()
+        }
     }
 
     private func uebernimm(_ a: FotoAnzeige) {
@@ -190,9 +198,10 @@ final class FotosModell {
             box.task.setTaskCompleted(success: !a.angehalten)
             fortsetzung = nil
         }
-        // Der Rest geht nachts weiter, es sei denn, der Nutzer hat angehalten.
-        if nutzerLauf, !a.angehalten, (a.zahlen?.offen ?? 0) > 0 { FotoHintergrund.planeNacht() }
+        // Der Rest geht nachts weiter, solange etwas offen ist und der Nutzer nicht angehalten hat (das System darf beenden).
+        if plantNachts, !nutzerHatAngehalten, (a.zahlen?.offen ?? 0) > 0 { FotoHintergrund.planeNacht() }
         nutzerLauf = false
+        plantNachts = false
         await raeumeTempAuf()
         if let c = vorgemerkt {
             vorgemerkt = nil
@@ -224,13 +233,13 @@ final class FotosModell {
 
     /// Nachts mit Strom und Netz (BGProcessingTask): macht den Rest, ohne dass die App offen ist.
     func nachtlauf(_ box: FotoHintergrund.AufgabenBox) async {
-        FotoHintergrund.planeNacht()   // gleich wieder einplanen, falls dieser Lauf nicht reicht
+        if (anzeige.zahlen?.offen ?? 1) > 0 { FotoHintergrund.planeNacht() }   // gleich wieder einplanen, falls dieser Lauf nicht reicht (Apple); nichts mehr offen: Schluss
         guard kannStarten, let client = try? AppUmgebung.geteilt.client() else {
             box.task.setTaskCompleted(success: true)
             return
         }
         box.task.expirationHandler = { Task { @MainActor in self.halteAn(nachtAbsagen: false) } }
-        beginne(client: client, senden: true, nur: nil, vomNutzer: false)
+        beginne(client: client, senden: true, nur: nil, vomNutzer: false, nachts: true)
         await lauf?.value
         box.task.setTaskCompleted(success: !anzeige.angehalten)
     }
