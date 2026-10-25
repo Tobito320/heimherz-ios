@@ -2,13 +2,14 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
-import { Meldung, einrichtenBefehl, exportBitwarden, geraetWeg, importBitwarden, koppelnBefehl, liste, status, type Abh } from './befehle';
+import { Meldung, einrichtenBefehl, exportBitwarden, geraetWeg, importBitwarden, importCsv, koppelnBefehl, liste, status, type Abh } from './befehle';
 import { urlAusTailscale } from './koppeln';
 import { systemdCreds } from './schluessel';
 
 const HILFE = `heimherz einrichten
 heimherz koppeln [NAME]
 heimherz import bitwarden
+heimherz import csv DATEI     (Apple Passwörter oder Chrome)
 heimherz export bitwarden DATEI
 heimherz liste [SUCHE]
 heimherz status
@@ -71,6 +72,7 @@ async function main(argv: string[]) {
     return;
   }
   if (cmd === 'import' && r[0] === 'bitwarden') return importBitwarden(a, bwJson);
+  if (cmd === 'import' && r[0] === 'csv' && r[1]) return importCsv(a, r[1]);
   if (cmd === 'export' && r[0] === 'bitwarden' && r[1]) return exportBitwarden(a, r[1]);
   if (cmd === 'liste') return liste(a, r[0]);
   if (cmd === 'status') return status(a);

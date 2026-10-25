@@ -1,4 +1,5 @@
 // Die Befehle des CLI (SPEC 7). Alles Äußere (Schlüssel-Ablage, bw, qrencode, Anzeige, Ausgabe) kommt als Parameter herein.
+import { ausCsv, uebernimm } from './apple';
 import { Database } from 'bun:sqlite';
 import { closeSync, existsSync, openSync, writeSync } from 'node:fs';
 import { join } from 'node:path';
@@ -40,6 +41,17 @@ export async function importBitwarden(a: Abh, bwJson: () => Promise<string>) {
   await aendereTresor(v, k, bestehend => zusammenfuehren(bestehend, eingang));
   a.ausgabe(`${quelle.logins} Logins, ${quelle.notizen} Notizen, ${quelle.uebersprungen} übersprungen`);
   if (quelle.anhaenge) a.ausgabe(`${quelle.anhaenge} Einträge haben Anhänge, die bleiben in Bitwarden`);
+}
+
+// CSV aus Apple Passwörter (Mac/Windows) oder Chrome. Die Datei enthält Klartext: nur lesen, nie ausgeben.
+export async function importCsv(a: Abh, datei: string) {
+  const { v, k } = await verbindung(a);
+  let eingang;
+  try { eingang = ausCsv(await Bun.file(datei).text()); } catch { throw new Meldung('CSV nicht lesbar oder keine Passwort-Liste (Spalten Username, Password)'); }
+  let z = { neu: 0, aktualisiert: 0, gleich: 0 };
+  await aendereTresor(v, k, bestehend => { const r = uebernimm(bestehend, eingang); z = r; return r.tresor; });
+  a.ausgabe(`${z.neu} neu, ${z.aktualisiert} aktualisiert, ${z.gleich} schon da`);
+  a.ausgabe(`Die CSV enthält deine Passwörter im Klartext: jetzt löschen (trash ${datei})`);
 }
 
 export async function exportBitwarden(a: Abh, datei: string) {
