@@ -50,7 +50,7 @@ struct AutoFillAnleitung: View {
 /// Unterseite "Wie das Sichern läuft": die Regeln von iOS in kurzen Abschnitten (stand vorher als Textblock im Fotos-Tab).
 struct SichernErklaerung: View {
     private let punkte: [(titel: String, text: String)] = [
-        ("Start", "Mit „Abgleich starten“ geht es in kleinen Stücken los, neueste Fotos zuerst."),
+        ("Start", "Mit „Abgleich starten“ geht es in kleinen Stücken los: erst alle Fotos, dann die Videos, jeweils die neuesten zuerst. Was lokal auf dem Handy liegt, kommt vor den iCloud-Originalen."),
         ("Anhalten", "Stoppt sofort. Was schon am PC liegt, zählt; die Datei dazwischen wird verworfen und beim nächsten Start neu gesendet."),
         ("App geschlossen", "Schließt du die App oder sperrst das Handy, macht iOS mit einer Anzeige weiter, solange es das zulässt. Wischst du Heim im App-Umschalter weg, endet der Abgleich, bis du ihn wieder startest."),
         ("Nachts", "Am Ladegerät im WLAN setzt iOS den Abgleich fort, wenn du ihn nicht angehalten hast. Wann, entscheidet iOS."),
