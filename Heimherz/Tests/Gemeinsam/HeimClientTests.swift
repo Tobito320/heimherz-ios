@@ -52,11 +52,12 @@ final class HeimClientTests: XCTestCase {
 
     func testTresorSchreibenSendetIfMatchAuchBeiNull() async throws {
         let json = try umschlagJSON(umschlag)
+        let erwartet = umschlag
         let c = client { r, body in
             XCTAssertEqual(r.httpMethod, "PUT")
             XCTAssertEqual(r.url?.path, "/v1/tresor")
             XCTAssertEqual(r.value(forHTTPHeaderField: "If-Match"), "0")
-            XCTAssertEqual(try? JSONDecoder().decode(Umschlag.self, from: body), self.umschlag)
+            XCTAssertEqual(try? JSONDecoder().decode(Umschlag.self, from: body), erwartet)
             return .json(json)
         }
         let e = try await c.tresorSchreiben(umschlag, ifMatch: 0)

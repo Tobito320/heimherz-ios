@@ -129,6 +129,34 @@ Gemeinsam/:
 
 Tabs: Passwörter, Fotos, Dateien, Mehr (Status, Koppeln, Build-Ablauf, Sperre).
 
+### Grundgerüst (gebaut, T4)
+
+Alle Typen sind `internal`: `Gemeinsam/` wird in App, `HeimherzAutoFill` und `HeimherzFotos` einkompiliert (je eigenes Modul), `@testable import Heimherz` in den Tests. Kein `public` nötig. Klartext (Passwörter, K) lebt nur im Speicher.
+
+| Datei in `Gemeinsam/` | Typen und Signaturen |
+|---|---|
+| `Kennungen.swift` | `enum Kennungen { appGruppe, schluesselbundDienst, urlSchema, gruppenOrdner() -> URL? }` |
+| `Tresor/JSONWert.swift` | `enum JSONWert: Codable, Sendable, Equatable` (`null, bool, zahl, text, liste, objekt`), `jsonText`, `textLiteral`, `objektText(vorn:rest:)` (eigener Schreiber, Text wie `JSON.stringify`) |
+| `Tresor/Eintrag.swift` | `struct Eintrag: Codable, Sendable, Equatable, Identifiable` mit `id, art, name, benutzer, passwort, urls, totp, notiz, favorit, geaendert, geloescht, unbekannt: [String: JSONWert]`; `init(id:art:name:benutzer:passwort:urls:totp:notiz:favorit:geaendert:geloescht:unbekannt:)`, `json()`, `alsGrabstein(geaendert:)`, `Eintrag.artLogin/artNotiz` |
+| `Tresor/Tresor.swift` | `struct Tresor: Codable, Sendable, Equatable` (`eintraege`, `unbekannt`), `Tresor.aus(daten:)`, `json()`, `jsonDaten`, `lebendige` |
+| `Tresor/Umschlag.swift` | `struct Umschlag` (`v, rev, nonce, daten`), `Umschlag.verschliesse(_:schluessel:rev:nonce:)`, `oeffne(schluessel:)`, `istGueltigeForm`, `Umschlag.aad`; `enum TresorSchluessel { aus(_ roh: Data) throws -> SymmetricKey }` |
+| `Tresor/Zusammenfuehren.swift` | `enum Zusammenfuehren { zusammenfuehren(_:_:jetzt:) -> Tresor, gewinnt(_:_:) -> Bool, grabsteinTage }` |
+| `Tresor/Zeit.swift` | `enum Zeit { millis(iso:) -> Int64?, iso(_ Date), iso(millis:) }` (UTC, Millisekunden) |
+| `Tresor/TOTP.swift` | `struct TOTPEinstellung`, `enum TOTP { einstellung(aus:) -> TOTPEinstellung?, code(_:zeit:), code(_:datum:), restsekunden(_:zeit:), base32(_:) }` |
+| `Tresor/TresorFehler.swift` | `enum TresorFehler` mit `nutzerText` |
+| `Tresor/TresorDienst.swift` | `actor TresorDienst { init(ablage:client:jetzt:), lokal(schluessel:), speichereLokal(_:schluessel:), abgleichen(lokal:schluessel:) async throws -> AbgleichErgebnis }`, `enum AbgleichErgebnis { abgeglichen(Tresor, rev:), nurLokal(Tresor, grund: HeimFehler) }` |
+| `Schluessel/Schluesselbund.swift` | `struct Schluesselbund { live, init(speicher:), speichereSchluessel(_:), ladeSchluessel(kontext:) async throws -> SymmetricKey?, speichereGeraet(_:), ladeGeraet() -> Geraet?, vergiss() }`, `struct Geraet { url, token }`, `struct EntsperrKontext`, `protocol KeychainSpeicher`, `SecItemSpeicher` |
+| `Ablage/TresorAblage.swift` | `struct TresorAblage { init(ordner:), appGruppe(), lade() -> Umschlag?, speichere(_:), loesche() }` |
+| `Netz/HeimClient.swift` | `struct HeimClient { init(basis:token:sitzung:), aus(_ bund:), anfrage(_:_:abfrage:), status(), tresorHolen(), tresorSchreiben(_:ifMatch:) -> TresorSchreiben, fotosBekannt(), fotoHochladenAnfrage(kennung:ressource:aufnahme:dateiname:) -> URLRequest, dateienListe(pfad:), dateiLaden(pfad:nach:), dateiHochladen(pfad:von:), inPapierkorb(pfad:) }`; `ServerStatus`, `BekanntesFoto`, `DateiInfo`, `TresorSchreiben { gespeichert, konflikt(aktuell:) }`, `enum HeimFehler` (`nutzerText`, `istNetzproblem`) |
+| `Koppeln/KoppelLink.swift` | `KoppelLink.lese(_:) throws -> KoppelDaten`, `Koppeln.koppeln(link:bund:sitzung:) async throws -> ServerStatus` (speichert erst nach erfolgreichem `GET /v1/status`), `KoppelFehler` |
+| `Design/` | `Palette`/`Color.*` (warmes Grün, Kontrast per Test), `Abstand`, `Rundung`, `HausherzView(stimmung:groesse:beschriftet:)` |
+
+App (`Heimherz/Sources/`): `AppUmgebung` (`@Observable`, per `@Environment(AppUmgebung.self)`: `bund`, `ablage`, `geraet`, `status`, `client() throws -> HeimClient`, `tresorDienst() -> TresorDienst`, `koppeln(link:)`, `entkoppeln()`), `AppSperre` (Face ID nach 5 min), `BuildAblauf` (`hinweis(buildDatum:jetzt:)`, Info.plist-Wert `HeimherzBuildDatum`), Bausteine `HeroKarte`, `ListenKarte`, `StatusChip`, `LeerZustand`, `FehlerKarte`, `WertZeile`.
+
+Einstieg je Modul: `ios-passwoerter` ersetzt `Heimherz/Sources/Module/Passwoerter/PasswoerterTabView.swift` (K per `bund.ladeSchluessel()`, Abgleich über `umgebung.tresorDienst()`); `ios-fotos` ersetzt `Module/Fotos/FotosTabView.swift` und `HeimherzFotos/Sources/FotosErweiterung.swift`; `ios-dateien` ersetzt `Module/Dateien/DateienTabView.swift`; `ios-autofill` ersetzt `HeimherzAutoFill/Sources/CredentialProviderViewController.swift` (Schlüssel mit `EntsperrKontext`, Tresor per `TresorAblage.appGruppe()` und `TresorDienst.lokal`).
+
+Foto-Erweiterung (iOS 26.1, aus Apples Doku "Uploading asset resources in the background"): Protokoll `PHBackgroundResourceUploadExtension` (`process()`, `notifyTermination()`), Erweiterungspunkt `com.apple.photos.background-upload` (`EXAppExtensionAttributes`), XcodeGen-Typ `extensionkit-extension`, im App-Bundle unter `Extensions/`. Info.plist-Schlüssel `BackgroundUploadURLBase` (feste Basis-URL des Dienstes, Build-Einstellung `HEIMHERZ_UPLOAD_URL_BASE`, im TestFlight-Lauf aus dem Secret gleichen Namens). Ein eigenes Entitlement nennt Apple nicht. Die App muss `PHPhotoLibrary.shared().setUploadJobExtensionEnabled(true)` nach voller Fotos-Erlaubnis rufen. Laut Doku fragt das System den Upload-Endpunkt vorab mit `OPTIONS` ab (Antwort `501` = kein Resumable Upload) und erwartet bei Resumable Uploads `104`; der PC-Dienst kennt `OPTIONS` noch nicht (T6, T9 prüfen).
+
 ## 9. Modul `ios-passwoerter`
 
 Liste mit Suche (Name, Benutzer, Host), Favoriten oben. Detail: Benutzer und Passwort kopieren (Zwischenablage `localOnly`, Ablauf 60 s), Passwort zeigen nach Face ID, TOTP-Code mit Ring. Neu und Bearbeiten, Löschen als Grabstein. Generator (Länge 8 bis 64, Ziffern, Zeichen, Wortgruppen-Modus). Abgleich: beim Öffnen, nach jeder Änderung, per Ziehen; Ablauf `GET` → entschlüsseln → zusammenführen → verschlüsseln → `PUT If-Match`; 409 = nochmal (höchstens 3). Nach jedem Abgleich Identitäten an `ASCredentialIdentityStore` geben (nur Host, Benutzer, id). App sperrt nach 5 min im Hintergrund.
