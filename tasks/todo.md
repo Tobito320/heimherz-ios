@@ -8,4 +8,4 @@
 - [x] T6 ios-fotos (App-Abgleich + Erweiterung, Server: OPTIONS für Upload-Jobs). Verify: CI grün, bun test
 - [x] T7 ios-dateien. Verify: CI grün
 - [x] T8 ios-autofill. Verify: CI grün (Lauf 40152224883, 142 Tests, Release-Bau mit Erweiterung)
-- [ ] T9 freigabe: Dienst, Tailscale HTTPS, Portal, Profile, TestFlight, Lovea-Notiz. Verify: Build in TestFlight, `curl` über Tailnet mit Token = 200, ohne = 401
+- [ ] T9 freigabe: Dienst, Tailscale HTTPS, Portal, Profile, TestFlight, Lovea-Notiz. Verify: Build in TestFlight, `curl` über Tailnet mit Token = 200, ohne = 401 — Stand 25.10.: Dienst, Tailscale HTTPS, Portal, Profile, Build 1 in TestFlight erledigt; offen nur Ahmeds Test am Gerät (SPEC 20)
