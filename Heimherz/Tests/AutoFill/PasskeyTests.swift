@@ -186,9 +186,10 @@ final class PasskeyModellTests: XCTestCase {
 
     private let clientHash = Data(repeating: 7, count: 32)
 
+    /// `geaendert` vor der Testuhr (59 s), sonst gewinnt beim Zusammenführen der alte Stand.
     private lazy var tresor = Tresor(eintraege: [
         Eintrag(id: "a", name: "WebAuthn", benutzer: "mia", passwort: "pw", urls: ["https://webauthn.io"],
-                geaendert: "2026-01-01T00:00:00.000Z", unbekannt: ["passkeys": .liste([Self.passkey(1, user: "mia"), Self.passkey(2, user: "tom")])])
+                geaendert: "1970-01-01T00:00:00.000Z", unbekannt: ["passkeys": .liste([Self.passkey(1, user: "mia"), Self.passkey(2, user: "tom")])])
     ])
 
     func testEinPasskeyAusDerLeisteMeldetSofortAn() async throws {
