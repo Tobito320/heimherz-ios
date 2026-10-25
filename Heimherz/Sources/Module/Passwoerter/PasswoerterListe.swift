@@ -208,7 +208,7 @@ struct PasswoerterListe: View {
     // MARK: Leiste
 
     private var zeigeLeiste: Bool {
-        sortierung == .name && !istBearbeiten && abschnitte.count >= 2 && suche.isEmpty
+        sortierung == .name && !istBearbeiten && abschnitte.count >= 6 && suche.isEmpty   // bei wenigen Buchstaben bringt die Leiste nichts
     }
 
     @ViewBuilder
@@ -218,6 +218,7 @@ struct PasswoerterListe: View {
             AlphabetLeiste(buchstaben: a.map(\.kennung)) { b in
                 if let id = a.first(where: { $0.kennung == b })?.eintraege.first?.id { proxy.scrollTo(id, anchor: .top) }
             }
+            .frame(maxHeight: CGFloat(a.count) * 26)   // nie mehr Abstand als nötig, sonst verstreut sie sich über den ganzen Bildschirm
             .padding(.vertical, 80)
             .padding(.trailing, 2)
         }

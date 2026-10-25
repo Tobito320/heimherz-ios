@@ -55,7 +55,7 @@ final class CredentialImportTests: XCTestCase {
     func testAnderesPasswortAktualisiertUndMerktDasAlte() {
         let da = Eintrag(id: "x", name: "GitHub", benutzer: "mia", passwort: "alt-pw", urls: ["https://github.com"], notiz: "meine Notiz", geaendert: "2026-01-01T00:00:00.000Z",
                          unbekannt: ["zukunft": .text("bleibt")])
-        let (t, z) = ImportAbbildung.einarbeiten(Tresor(eintraege: [da]), [konto("GitHub", notiz: "andere Notiz", urls: ["https://github.com/login", "https://neu.example"])], jetzt: jetzt)
+        let (t, z) = ImportAbbildung.einarbeiten(Tresor(eintraege: [da]), [konto("GitHub", urls: ["https://github.com/login", "https://neu.example"], notiz: "andere Notiz")], jetzt: jetzt)
         XCTAssertEqual(t.eintraege.count, 1)
         let e = t.eintraege[0]
         XCTAssertEqual(e.id, "x")
