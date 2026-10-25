@@ -19,9 +19,14 @@ enum EintragSuche {
         return eintrag.urls.compactMap(host(von:)).filter { gesehen.insert($0).inserted }
     }
 
-    /// Hosts der Anfrage der App oder Webseite; `.app`-Bezeichner (Bundle-IDs) haben keinen Host.
+    /// Host eines Service-Bezeichners; nur `.domain` und `.URL` haben einen (`.app` gibt es erst ab iOS 26.2 und meint eine Bundle-ID).
+    static func host(von bezeichner: ASCredentialServiceIdentifier) -> String? {
+        bezeichner.type == .domain || bezeichner.type == .URL ? host(von: bezeichner.identifier) : nil
+    }
+
+    /// Hosts der Anfrage der App oder Webseite.
     static func hosts(von bezeichner: [ASCredentialServiceIdentifier]) -> [String] {
-        bezeichner.compactMap { $0.type == .app ? nil : host(von: $0.identifier) }
+        bezeichner.compactMap { host(von: $0) }
     }
 
     /// Gleicher Host, oder einer ist Unterdomain des anderen an der Punktgrenze (`m.example.com` passt zu `example.com`,

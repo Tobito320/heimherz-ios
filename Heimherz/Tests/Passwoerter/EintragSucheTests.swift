@@ -25,12 +25,12 @@ final class EintragSucheTests: XCTestCase {
     }
 
     func testHostsAusServiceBezeichnern() {
-        let ids = [
+        var ids = [
             ASCredentialServiceIdentifier(identifier: "https://m.example.com/login", type: .URL),
-            ASCredentialServiceIdentifier(identifier: "example.com", type: .domain),
-            ASCredentialServiceIdentifier(identifier: "com.beispiel.app", type: .app)
+            ASCredentialServiceIdentifier(identifier: "example.com", type: .domain)
         ]
-        XCTAssertEqual(EintragSuche.hosts(von: ids), ["m.example.com", "example.com"])
+        if #available(iOS 26.2, *) { ids.append(ASCredentialServiceIdentifier(identifier: "com.beispiel.app", type: .app)) }
+        XCTAssertEqual(EintragSuche.hosts(von: ids), ["m.example.com", "example.com"], "Bundle-IDs haben keinen Host")
     }
 
     func testHostsEinesEintragsOhneDoppelte() {
