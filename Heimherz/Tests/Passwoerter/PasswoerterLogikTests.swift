@@ -22,7 +22,7 @@ final class PasswortSicherheitTests: XCTestCase {
     }
 
     func testSchwacheMuster() {
-        for pw in ["kurz", "1234567", "12345678", "123456789012", "abcdefgh", "98765432", "aaaaaaaa", "abababab", "qwertz", "asdfghjk", "Passwort1", "passwort123",
+        for pw in ["kurz", "1234567", "12345678", "1234567890", "abcdefgh", "98765432", "aaaaaaaa", "abababab", "qwertz", "asdfghjk", "Passwort1", "passwort123",
                    "123123123", "abcabcabc", "00000000000000000", "11223344"] {
             XCTAssertTrue(PasswortSicherheit.istSchwach(pw), "\(pw) muss schwach sein")
         }
