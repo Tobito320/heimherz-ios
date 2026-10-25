@@ -39,6 +39,7 @@ export async function importBitwarden(a: Abh, bwJson: () => Promise<string>) {
   const eingang: Tresor = { format: 1, eintraege: quelle.eintraege };
   await aendereTresor(v, k, bestehend => zusammenfuehren(bestehend, eingang));
   a.ausgabe(`${quelle.logins} Logins, ${quelle.notizen} Notizen, ${quelle.uebersprungen} übersprungen`);
+  if (quelle.anhaenge) a.ausgabe(`${quelle.anhaenge} Einträge haben Anhänge, die bleiben in Bitwarden`);
 }
 
 export async function exportBitwarden(a: Abh, datei: string) {

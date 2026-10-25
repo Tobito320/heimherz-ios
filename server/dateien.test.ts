@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, expect, test } from 'bun:test';
-import { existsSync, mkdirSync, readFileSync, readdirSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { baue } from './testhilfe';
 
@@ -145,4 +145,39 @@ test('Papierkorb-Befehl fehlt oder scheitert: 500, Datei bleibt', async () => {
     writeFileSync(join(y.dateien, 'bleibt.txt'), 'x');
     expect((await y.f('/v1/datei/papierkorb', { method: 'POST', body: JSON.stringify({ pfad: 'bleibt.txt' }) })).status).toBe(500);
   } finally { y.ende(); }
+});
+
+test('Upload ohne Content-Length (Chunked) ist 411, nichts liegt da', async () => {
+  const vorher = readdirSync(join(t.dateien, 'ordner')).sort();
+  const strom = new ReadableStream({ start(c) { c.enqueue(new Uint8Array(4)); c.close(); } });
+  const r = await t.f(`/v1/datei?pfad=${q('ordner/chunk.bin')}`, { method: 'PUT', body: strom as any, duplex: 'half' } as any);
+  expect(r.status).toBe(411);
+  expect(readdirSync(join(t.dateien, 'ordner')).sort()).toEqual(vorher);
+});
+
+test('Upload mit zu langem Namen: 400 statt 500, nichts bleibt liegen', async () => {
+  const vorher = readdirSync(join(t.dateien, 'ordner')).sort();
+  const r = await t.f(`/v1/datei?pfad=${q('ordner/' + 'a'.repeat(300))}`, { method: 'PUT', body: 'x' });
+  expect(r.status).toBe(400);
+  expect(await r.text()).toBe('');
+  expect(readdirSync(join(t.dateien, 'ordner')).sort()).toEqual(vorher);
+});
+
+test('wenig freier Platz: Datei-Upload ist 507, nichts liegt da', async () => {
+  const voll = baue({ mindestFrei: Number.MAX_SAFE_INTEGER });
+  try {
+    expect((await voll.f(`/v1/datei?pfad=${q('x.txt')}`, { method: 'PUT', body: 'x' })).status).toBe(507);
+    expect(readdirSync(voll.dateien)).toEqual([]);
+    expect((await voll.f('/v1/dateien')).status).toBe(200); // Lesen geht weiter
+  } finally { voll.ende(); }
+});
+
+test('neue Dateien 0600, neue Ordner 0700', async () => {
+  const modus = (p: string) => statSync(p).mode & 0o777;
+  const voll = baue();
+  try {
+    expect((await voll.f(`/v1/datei?pfad=${q('modus.txt')}`, { method: 'PUT', body: 'x' })).status).toBe(200);
+    expect(modus(join(voll.dateien, 'modus.txt'))).toBe(0o600);
+    expect(modus(voll.dateien)).toBe(0o700);
+  } finally { voll.ende(); }
 });

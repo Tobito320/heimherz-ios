@@ -19,8 +19,13 @@ export class Tresor {
     mkdirSync(this.verlauf, { recursive: true });
   }
 
+  // Nur "Datei fehlt" heißt leer. Alles andere (nicht lesbar, kaputt) wirft: sonst finge rev bei 0 an und überschriebe den Tresor.
   aktuell(): Umschlag | null {
-    try { return JSON.parse(readFileSync(this.aktuellPfad, 'utf8')); } catch { return null; }
+    let roh: string;
+    try { roh = readFileSync(this.aktuellPfad, 'utf8'); } catch (e: any) { if (e.code === 'ENOENT') return null; throw e; }
+    const u = JSON.parse(roh);
+    if (!istUmschlag(u)) throw new Error('aktuell.json ist kein Umschlag');
+    return u;
   }
 
   rev() { return this.aktuell()?.rev ?? 0; }

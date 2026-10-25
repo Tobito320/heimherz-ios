@@ -8,7 +8,13 @@ Restart=on-failure
 RestartSec=3
 # Dienst lauscht nur auf 127.0.0.1:8790, nach außen macht das `tailscale serve`
 Environment=HEIMHERZ_PORT=8790
+Environment=NODE_ENV=production
 NoNewPrivileges=true
+# Härtung: alles schreibgeschützt (ProtectHome auch, weil strict eine eigene /home-Partition sonst offen ließe) außer Tresor-Ordner, Fotos/Dateien und Papierkorb (trash-put)
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%h/.local/share/heimherz %h/Heimherz -%h/.local/share/Trash
+PrivateTmp=true
 
 [Install]
 WantedBy=default.target

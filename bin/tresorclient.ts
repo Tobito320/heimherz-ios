@@ -8,6 +8,13 @@ export const leererTresor = (): Tresor => ({ format: 1, eintraege: [] });
 
 export class DienstFehler extends Error {}
 
+// Ein Tresor mit anderem Format stammt von einer neueren Version: nicht lesen, nie zurückschreiben.
+const oeffneFormat1 = async (u: Umschlag, k: CryptoKey): Promise<Tresor> => {
+  const t = await oeffne<Tresor>(u, k);
+  if (t?.format !== 1) throw new DienstFehler(`Tresor hat Format ${t?.format}, dieses heimherz kennt nur 1 (bitte aktualisieren), nichts geschrieben`);
+  return t;
+};
+
 async function anfrage(v: Verbindung, pfad: string, init: RequestInit = {}): Promise<Response> {
   try {
     return await fetch(v.url + pfad, { ...init, headers: { authorization: `Bearer ${v.token}`, ...(init.headers as object) } });
@@ -29,7 +36,7 @@ async function holeUmschlag(v: Verbindung): Promise<Umschlag | null> {
 
 export async function ladeTresor(v: Verbindung, k: Uint8Array): Promise<{ tresor: Tresor; rev: number }> {
   const u = await holeUmschlag(v);
-  return u ? { tresor: await oeffne<Tresor>(u, await schluessel(k)), rev: u.rev } : { tresor: leererTresor(), rev: 0 };
+  return u ? { tresor: await oeffneFormat1(u, await schluessel(k)), rev: u.rev } : { tresor: leererTresor(), rev: 0 };
 }
 
 // aendere bekommt den aktuellen Tresor und liefert den neuen (oder null = nichts zu tun). Bei 409 neu holen, höchstens `versuche` Mal.
@@ -37,7 +44,7 @@ export async function aendereTresor(v: Verbindung, k: Uint8Array, aendere: (t: T
   const key = await schluessel(k);
   let aktuell = await holeUmschlag(v);
   for (let i = 0; i < versuche; i++) {
-    const alt = aktuell ? await oeffne<Tresor>(aktuell, key) : leererTresor();
+    const alt = aktuell ? await oeffneFormat1(aktuell, key) : leererTresor();
     const neu = await aendere(alt);
     if (!neu || JSON.stringify(neu) === JSON.stringify(alt)) return { rev: aktuell?.rev ?? 0, geschrieben: false };
     const r = await anfrage(v, '/v1/tresor', { method: 'PUT', headers: { 'if-match': String(aktuell?.rev ?? 0) }, body: JSON.stringify(await verschliesse(neu, key)) });

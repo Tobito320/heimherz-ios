@@ -95,3 +95,30 @@ test('ohne absolutes Laufzeit-Verzeichnis wird nichts geschrieben und kein Gerä
   expect(leseGeraete(s.daten).map(g => g.name)).toEqual(['pc']);
   expect(existsSync('heimherz/koppeln.png')).toBe(false);
 });
+
+test('Betrachter wird geschlossen: Zeit um, Strg-C, Erfolg; ein Fehler beim Schließen stört nicht', async () => {
+  const zeit = aufbau(), abbruch = aufbau(), erfolg = aufbau();
+  const zu = { zeit: 0, abbruch: 0, erfolg: 0 };
+  const c = new AbortController();
+  setTimeout(() => c.abort(), 30);
+  expect(await koppeln({ ...zeit.abh, timeoutMs: 40, zeige: () => () => { zu.zeit++; throw new Error('schon zu'); } })).toBe(false);
+  expect(await koppeln({ ...abbruch.abh, timeoutMs: 60_000, abbruch: c.signal, zeige: () => () => { zu.abbruch++; } })).toBe(false);
+  setTimeout(() => schreibeGeraete(erfolg.daten, leseGeraete(erfolg.daten).map(g => ({ ...g, zuletzt: g.id === 'pc' ? null : 'jetzt' }))), 30);
+  expect(await koppeln({ ...erfolg.abh, timeoutMs: 5000, zeige: () => () => { zu.erfolg++; } })).toBe(true);
+  expect(zu).toEqual({ zeit: 1, abbruch: 1, erfolg: 1 });
+});
+
+test('Betrachter lässt sich nicht öffnen: Gerät weg, nichts zu schließen', async () => {
+  const s = aufbau();
+  await expect(koppeln({ ...s.abh, zeige: () => { throw new Error('imv fehlt'); } })).rejects.toThrow('imv fehlt');
+  expect(leseGeraete(s.daten).map(g => g.id)).toEqual(['pc']);
+});
+
+test('Start räumt verwaiste Geräte ab (nie gemeldet, über 10 Minuten alt); pc und benutzte bleiben', async () => {
+  const s = aufbau();
+  const vor = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
+  const g = (id: string, angelegt: string, zuletzt: string | null) => ({ id, name: id, hash: hashe(id), angelegt, zuletzt });
+  schreibeGeraete(s.daten, [g('pc', vor(999), null), g('alt', vor(20), null), g('frisch', vor(2), null), g('benutzt', vor(999), vor(1))]);
+  await koppeln({ ...s.abh, timeoutMs: 30 });
+  expect(leseGeraete(s.daten).map(x => x.id)).toEqual(['pc', 'frisch', 'benutzt']);
+});

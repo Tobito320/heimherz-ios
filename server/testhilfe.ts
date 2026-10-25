@@ -21,7 +21,7 @@ export function baue(extra: Partial<Optionen> = {}) {
   writeFileSync(skript, `#!/bin/sh\nmkdir -p "${korb}" && mv "$1" "${korb}/"\n`);
   chmodSync(skript, 0o755);
 
-  const server = starte({ port: 0, ...o, papierkorb: [skript], ...extra });
+  const server = starte({ port: 0, ...o, papierkorb: [skript], mindestFrei: 0, ...extra });
   const url = `http://127.0.0.1:${server.port}`;
   const auth = { authorization: `Bearer ${token}` };
   const f = (pfad: string, init: RequestInit = {}) => fetch(url + pfad, { ...init, headers: { ...auth, ...(init.headers as object) } });

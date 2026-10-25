@@ -50,19 +50,19 @@ test('einrichten auf leerem Ordner: Schlüssel 32 Byte, Token, Gerät pc, Ausgab
 
 test('Import: Zahlen, Server hat nur Chiffretext, Test-Schlüssel öffnet ihn', async () => {
   await importBitwarden(c.a, holeBw);
-  expect(c.leere()).toEqual(['3 Logins, 1 Notizen, 3 übersprungen']);
+  expect(c.leere()).toEqual(['3 Logins, 4 Notizen, 1 übersprungen', '1 Einträge haben Anhänge, die bleiben in Bitwarden']);
   expect(await rev()).toBe(1);
   const roh = readFileSync(join(c.daten, 'tresor/aktuell.json'), 'utf8');
   for (const p of PASSWOERTER) expect(roh).not.toContain(p);
   const { tresor } = await ladeTresor(v, key);
-  expect(tresor.eintraege.map(e => e.name).sort()).toEqual(['Beispiel Shop', 'Ohne Adresse', 'Passkey-Seite', 'WLAN-Zettel']);
+  expect(tresor.eintraege.map(e => e.name).sort()).toEqual(['Beispiel Shop', 'Erfundene Identität', 'Erfundene Karte', 'Erfundener SSH-Schlüssel', 'Ohne Adresse', 'Passkey-Seite', 'WLAN-Zettel']);
   expect(tresor.eintraege.find(e => e.name === 'Passkey-Seite')!.bitwardenFido2).toBeDefined();
 });
 
 test('erneuter Import ohne Dubletten und ohne neue Fassung', async () => {
   await importBitwarden(c.a, holeBw);
   c.leere();
-  expect((await ladeTresor(v, key)).tresor.eintraege).toHaveLength(4);
+  expect((await ladeTresor(v, key)).tresor.eintraege).toHaveLength(7);
   expect(await rev()).toBe(1);
 });
 
@@ -71,7 +71,7 @@ test('am Handy geänderter Eintrag (neuer) überlebt einen erneuten Import; geä
   const geaendert = { ...fx, items: fx.items.map(i => (i.name === 'Ohne Adresse' ? { ...i, name: 'Jetzt mit Name', revisionDate: '2026-10-21T00:00:00.000Z' } : i)) };
   await importBitwarden(c.a, async () => JSON.stringify(geaendert));
   const { tresor } = await ladeTresor(v, key);
-  expect(tresor.eintraege).toHaveLength(4);
+  expect(tresor.eintraege).toHaveLength(7);
   expect(tresor.eintraege.find(e => e.id === 'b0000000-0000-4000-8000-000000000001')!.passwort).toBe('Handy-Neu-444');
   expect(tresor.eintraege.find(e => e.id === 'b0000000-0000-4000-8000-000000000003')!.name).toBe('Jetzt mit Name');
 });
@@ -81,11 +81,11 @@ test('liste: Kopf, Zeilen, Suche; nie Passwort, TOTP-Geheimnis oder Notiztext', 
   await liste(c.a);
   const alles = c.text();
   expect(c.zeilen[0]).toBe('id\tname\tbenutzer\thosts\ttotp');
-  expect(c.zeilen).toHaveLength(5);
+  expect(c.zeilen).toHaveLength(8);
   expect(alles).toContain('shop.example.org,www.shop.example.org');
   expect(c.zeilen.find(z => z.includes('Beispiel Shop'))!.endsWith('\tja')).toBe(true);
   expect(c.zeilen.find(z => z.includes('Passkey-Seite'))!.endsWith('\tnein')).toBe(true);
-  for (const geheim of [...PASSWOERTER, 'Handy-Neu-444', 'GEZDGNBVGY3TQOJQ', 'nicht-echt-123', 'Erfundene Notiz', 'otpauth']) expect(alles).not.toContain(geheim);
+  for (const geheim of [...PASSWOERTER, 'Handy-Neu-444', 'GEZDGNBVGY3TQOJQ', 'nicht-echt-123', 'Erfundene Notiz', 'otpauth', '4111111111111111', 'Erfunden-Antwort-555', 'Erfunden-Alt-Passwort']) expect(alles).not.toContain(geheim);
   c.leere();
   await liste(c.a, 'PASSKEY');
   expect(c.zeilen).toHaveLength(2);

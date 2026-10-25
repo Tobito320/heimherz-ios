@@ -1,5 +1,5 @@
 import { afterAll, expect, test } from 'bun:test';
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import fx from '../fixtures/tresor/umschlag-1.json';
 import { baue, testUmschlag } from './testhilfe';
@@ -82,4 +82,21 @@ test('Umschlag bleibt über den Server hinweg entschlüsselbar', async () => {
   const k = await schluessel(b64(fx.schluessel));
   const g = await (await t.f('/v1/tresor')).json() as any;
   expect((await oeffne(g, k) as any).format).toBe(1);
+});
+
+test('aktuell.json kaputt oder keine Hülle: 500 auf allen Wegen, nichts wird überschrieben, rev fällt nie auf 0', async () => {
+  const d = baue();
+  try {
+    expect((await d.f('/v1/tresor', { method: 'PUT', headers: { 'if-match': '0' }, body: JSON.stringify(await testUmschlag('a')) })).status).toBe(200);
+    const pfad = join(d.daten, 'tresor/aktuell.json');
+    for (const kaputt of ['{"v":1,"rev":1,"nonce":"abc', 'null', '{"v":1,"rev":1}', '']) {
+      writeFileSync(pfad, kaputt);
+      for (const [methode, route, kopf] of [['GET', '/v1/tresor', {}], ['GET', '/v1/status', {}], ['PUT', '/v1/tresor', { 'if-match': '0' }], ['PUT', '/v1/tresor', { 'if-match': '1' }]] as const) {
+        const r = await d.f(route, { method: methode, headers: kopf, body: methode === 'PUT' ? JSON.stringify(await testUmschlag('b')) : undefined });
+        expect([kaputt, methode, route, r.status, await r.text()]).toEqual([kaputt, methode, route, 500, '']);
+      }
+      expect(readFileSync(pfad, 'utf8')).toBe(kaputt);
+      expect(readdirSync(join(d.daten, 'tresor/verlauf'))).toEqual([]);
+    }
+  } finally { d.ende(); }
 });
