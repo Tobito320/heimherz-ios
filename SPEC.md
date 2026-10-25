@@ -317,3 +317,47 @@ export async function oeffne(umschlag: Umschlag, schluessel: CryptoKey): Promise
 
 - Bleibt Bitwarden nach 4 Wochen als Ersatz liegen oder wird gekündigt? Entscheidet Ahmed.
 - Offsite-Kopie kaufen? Entscheidet Ahmed.
+
+## 23. Modul `agenten-fuellen` (W-006, 25.10.2026)
+
+Ahmed 25.10.: "wir wollen anhand von stärke des models und Auftrag bestimmte erlaubnis kategorien für heim herz auf pc. Agenten sollen sehr schnell seamless fill in machen können und confirmation code auch rein fillen." Und: "Sparkasse ist das sensibelste was wir haben. Da drunter kommt kündigen. Dann an amt schicken." "Wenn dann mein Auftrag Datei explizit sagt geh in sparkasse melde dich an und mach was bitte ich bin nicht zuhause und mach alles alleine. Dann darf er. Sonst dürfen die mein sparkasse nicht anfassen."
+
+### Bekannte Probleme, die das löst
+- Kein Agent-Weg: Agenten füllen weiter mit `claude-bw fuell` (5,7 s je Aufruf, `bw` startet jedes Mal; Heimherz 1,2 s).
+- Doppelte und falsche Einträge (Kausar: zwei Arbeitsagentur-Einträge, TOTP nur in einem; Apple dreimal): Agent nimmt den falschen. Auswahl: passender Host, dann `--konto`, dann der Eintrag, der den gesuchten Wert hat (Code = mit TOTP).
+- Keine Stufen: jeder Agent konnte jeden Login füllen, auch die Sparkasse.
+- Neue Logins der Bitwarden-Wache kommen nur per `heimherz import bitwarden` an (Phase 2).
+
+### Befehle
+- `heimherz fuell TAB CSS benutzer|passwort|code [--konto K] [--rahmen IFRAME-CSS] [--enter] [--auftrag DATEI]`: gleicher Vertrag wie `claude-bw fuell`. TAB muss in den eigenen `claude-chrome`-Fenstern liegen (`claude-chrome tabs`) und https sein; nur Einträge, deren Host zur Seite passt (gleicher Host oder Unterdomain derselben Seite). Wert geht nur per CDP `Input.insertText` (`127.0.0.1:9333`) ins Feld, nie in stdout, argv, Log. Ausgabe: `ok: passwort (benutzer) N Zeichen in HOST`. `code` = TOTP (RFC 6238, SHA1/256/512, 6 oder 8 Stellen, Periode aus otpauth), lokal berechnet; ist der Code in weniger als 3 s ungültig, auf den nächsten warten.
+- `heimherz erlaubt HOST [--auftrag DATEI]`: prüft nur die Stufe (ohne Tresor), Exit 0 erlaubt, 7 verweigert mit Grund. `claude-bw fuell` ruft es vor jedem Füllen, damit Bitwarden dieselben Stufen hat.
+- `heimherz stufen`: zeigt die Tabelle unten und das erkannte Modell.
+
+### Stufen (höchste zuerst)
+| Stufe | Seiten | Wer darf füllen |
+|---|---|---|
+| 1 Bank | Sparkasse (`spkvr.de`, `sparkasse.de`), `tink.com` | nur Opus, und nur mit Auftrag-Datei, die ausdrücklich Sparkasse + anmelden + allein/nicht zuhause sagt; jedes Füllen meldet Ahmed eine Mitteilung |
+| 2 Kündigen und Verträge, Versicherung, Gesundheit, Steuer | Mobilfunk, Strom, Fitness, Streaming, Versand, Krankenkasse, Versicherung, ELSTER | nur Opus |
+| 3 Amt | Arbeitsagentur, Jobcenter, Familienkasse, Stadt, Land | Opus oder Sonnet |
+| 4 Konten | Google, Apple, GitHub, Cloudflare, Microsoft | Opus oder Sonnet |
+| 5 Rest | alles andere | Opus, Sonnet, unbekanntes Modell |
+Haiku: nichts. Die Liste steht in `bin/stufen.ts`; unbekannte Seite = Stufe 5.
+
+Was der Agent danach auf der Seite tun darf (senden, kündigen, zahlen), regeln weiter die globalen Regeln; die Stufe regelt nur, wer sich einloggen darf.
+
+### Modell erkennen
+`CLAUDE_PID` → `/proc/<pid>/cmdline` → `--model`. Fehlt es: `ANTHROPIC_MODEL`, sonst unbekannt. Ehrliche Grenze: Unteragenten haben dieselbe Umgebung wie die Hauptsitzung (geprüft 25.10.), ein Sonnet-Unteragent einer Opus-Sitzung zählt darum als Opus. Die Regel "Bank nie an Unteragenten" bleibt Regel, die Mitteilung an Ahmed ist die Kontrolle.
+
+### Auftrag-Datei (Stufe 1)
+`--auftrag DATEI` oder Umgebung `HEIMHERZ_AUFTRAG`. Gültig nur, wenn die Datei unter `~/.claude/buero-stand/`, `~/Documents/Obsidian/Personal/` oder `~/projects/` liegt, höchstens 24 Stunden alt ist und eine Zeile enthält, die Sparkasse, anmelden oder einloggen und allein oder "nicht zuhause" nennt. Ehrliche Grenze: auch ein Agent kann so eine Datei schreiben (alles läuft als `tobi`); darum die Mitteilung bei jedem Bank-Füllen und das Protokoll.
+
+### Protokoll
+`~/.local/state/heimherz/fuell.log` (0600): Zeit, Host, Eintrag-id, Feldart, Stufe, Modell, erlaubt/verweigert, Auftrag-Pfad. Nie Werte.
+
+### Phase 2 (nicht in diesem Schritt)
+- Bestätigungscode aus der Mail (`mailcode --von ABSENDER`): Code aus dem eigenen Gmail-Tab direkt ins Feld, ohne dass der Agent ihn sieht.
+- Bitwarden-Wache schreibt neue Logins auch nach Heimherz.
+- `claude-bw fuell` füllt aus Heimherz statt aus `bw` (nach Ahmeds Entscheidung zu Bitwarden, etwa 22.11.).
+
+### Prüfung
+`bun test` grün: Stufen je Seite und Modell, Auftrag-Datei (gültig, zu alt, falscher Ort, ohne "allein"), TOTP gegen `fixtures/totp/rfc6238.json`, Eintragswahl (Host, Unterdomain, fremde Seite, Doppelte, Code nur mit TOTP), CDP-Füllen gegen einen Wegwerf-Chrome mit Testseite (kein echter Tresor). Echt: Füllen der Arbeitsagentur-Anmeldung aus Heimherz in der Opus-Sitzung; Sparkasse ohne Auftrag-Datei wird verweigert.
