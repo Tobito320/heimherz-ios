@@ -13,6 +13,11 @@ enum AutoFillErgebnis: Equatable, Sendable {
     case fehlgeschlagen
     /// Nur ohne Blatt: das Konto lässt sich nicht ohne Face ID oder Rückfrage liefern (Fenster zu, Host passt nicht), also soll iOS das Blatt zeigen.
     case abfrageNoetig
+    /// Passkey (SPEC 24): Anmeldung signiert oder neuer Passkey angelegt und gespeichert.
+    case passkeyAnmeldung(PasskeyAntwort)
+    case passkeyAngelegt(PasskeyAntwort)
+    /// Die Seite kennt einen Passkey aus dem Tresor schon (`excludedCredentials`).
+    case passkeySchonDa
 }
 
 /// Was das System von der Erweiterung will.
@@ -23,6 +28,10 @@ enum AutoFillAuftrag: Equatable, Sendable {
     case anfrage(id: String, codes: Bool, host: String? = nil)
     case speichern(SpeicherAnfrage)
     case konfiguration
+    /// Mit einem Passkey anmelden (Vorschlagsleiste oder Liste).
+    case passkey(PasskeyAnfrage)
+    /// Neuen Passkey anlegen.
+    case passkeyNeu(PasskeyRegistrierung)
 }
 
 /// Die Angaben aus `ASSavePasswordRequest`. `sofort`: der Nutzer hat ausdrücklich "Sichern" gewählt, dann entfällt die zweite Bestätigung.
@@ -46,6 +55,8 @@ final class AutoFillModell {
         case konfiguration
         /// Das gewählte Konto gehört nicht zur Seite (Phishing-Schutz): erst nach Bestätigung ausfüllen.
         case fremdesKonto(Eintrag, seite: String)
+        /// Mehrere Passkeys passen zur Seite: Auswahl.
+        case passkeyWahl([Passkey])
     }
 
     /// Passt ein Konto zur Seite, die ausgefüllt werden soll?
@@ -67,6 +78,15 @@ final class AutoFillModell {
     let auftrag: AutoFillAuftrag
     private(set) var phase: Phase = .start
     var suche = ""
+
+    /// Hosts und Art der Kontenliste: bei `.liste`, und bei einer Passkey-Anmeldung ohne passenden Passkey die Passwörter der rpId.
+    var listenArt: (hosts: [String], codes: Bool)? {
+        switch auftrag {
+        case .liste(let hosts, let codes): return (hosts, codes)
+        case .passkey(let a): return ([a.rpId.lowercased()], false)
+        default: return nil
+        }
+    }
 
     /// Host der Seite, von der das Passwort zum Speichern kommt (für den Hinweis im Aktualisieren-Dialog).
     var anfrageHost: String? {
@@ -114,7 +134,13 @@ final class AutoFillModell {
 
     /// Fürs Ausfüllen aus der Vorschlagsleiste ohne Blatt: nur mit offenem Entsperr-Fenster und passendem Host, sonst `abfrageNoetig`.
     func starteOhneAbfrage() async {
-        guard !gestartet, case .anfrage = auftrag, let sitzung, await sitzung.entsperrenOhneAbfrage() else { return beende(.abfrageNoetig) }
+        let erlaubt: Bool
+        switch auftrag {
+        case .anfrage: erlaubt = true
+        case .passkey(let a): erlaubt = a.credentialID != nil
+        default: erlaubt = false
+        }
+        guard !gestartet, erlaubt, let sitzung, await sitzung.entsperrenOhneAbfrage() else { return beende(.abfrageNoetig) }
         gestartet = true
         ohneAbfrage = true
         await nachDemEntsperren()
@@ -178,6 +204,45 @@ final class AutoFillModell {
             }
         case .konfiguration:
             phase = .konfiguration
+        case .passkey(let a):
+            let kandidaten = Passkeys.kandidaten(a, in: tresor)
+            if kandidaten.count == 1 { return melde(kandidaten[0], a) }
+            if ohneAbfrage { return beende(kandidaten.isEmpty ? .nichtGefunden : .abfrageNoetig) }
+            if kandidaten.isEmpty {
+                if a.credentialID == nil { phase = .liste } else { beende(.nichtGefunden) }
+                return
+            }
+            phase = .passkeyWahl(kandidaten)
+        case .passkeyNeu(let r):
+            if Passkeys.alle(in: tresor).contains(where: { r.ausgeschlossen.contains($0.credentialID) }) { return beende(.passkeySchonDa) }
+            let neu = Passkeys.anlegen(r, jetzt: jetzt())
+            let aktion = Passkeys.ablegen(neu.wert, rpId: neu.antwort.rpId, userName: r.userName, in: tresor, jetzt: jetzt())
+            guard let sitzung else { return beende(.fehlgeschlagen) }
+            phase = .arbeitet
+            do {
+                try await sitzung.speichere(aktion)
+                beende(.passkeyAngelegt(neu.antwort))
+            } catch {
+                beende(.fehlgeschlagen)
+            }
+        }
+    }
+
+    /// Ein Passkey aus der Auswahl wurde gewählt.
+    func waehlePasskey(_ p: Passkey) {
+        guard case .passkey(let a) = auftrag else { return }
+        melde(p, a)
+    }
+
+    /// Signiert die Anmeldung und merkt die Nutzung (W-020).
+    private func melde(_ p: Passkey, _ a: PasskeyAnfrage) {
+        guard !beendet else { return }
+        do {
+            let antwort = try Passkeys.anmelden(p, clientDataHash: a.clientDataHash)
+            nutzung.merke(id: p.eintragId, jetzt: jetzt())
+            beende(.passkeyAnmeldung(antwort))
+        } catch {
+            beende(.fehlgeschlagen)
         }
     }
 
@@ -201,8 +266,8 @@ final class AutoFillModell {
 
     /// Eine Zeile der Liste wurde gewählt.
     func waehle(_ eintrag: Eintrag) {
-        guard case .liste(let hosts, let codes) = auftrag else { return }
-        pruefeUndFuelle(eintrag, codes: codes, hosts: hosts)
+        guard let art = listenArt else { return }
+        pruefeUndFuelle(eintrag, codes: art.codes, hosts: art.hosts)
     }
 
     /// Phishing-Schutz: Passt kein Host des Kontos zur Seite, füllt Heim nie von selbst. Mit Blatt fragt es erst nach, ohne Blatt verlangt es das Blatt.
@@ -228,13 +293,14 @@ final class AutoFillModell {
         guard case .fremdesKonto(let e, _) = phase else { return }
         switch auftrag {
         case .liste(_, let codes), .anfrage(_, let codes, _): fuelle(e, codes: codes, passend: false)
+        case .passkey: fuelle(e, codes: false, passend: false)
         default: break
         }
     }
 
     /// "Abbrechen" auf der Rückfrage: zurück zur Liste, sonst ganz abbrechen.
     func lehneFremdesAb() {
-        if case .liste = auftrag { phase = .liste } else { abbrechen() }
+        if listenArt != nil { phase = .liste } else { abbrechen() }
     }
 
     func abbrechen() {
@@ -255,10 +321,10 @@ final class AutoFillModell {
 
     /// Konten für die Liste: zuerst die zur Domain passenden, dann alle übrigen; bei Einmalcodes nur Konten mit lesbarem TOTP. Mit Suchbegriff gefiltert.
     var gruppen: (passend: [Eintrag], uebrige: [Eintrag]) {
-        guard case .liste(let hosts, let codes) = auftrag, let tresor = sitzung?.tresor else { return ([], []) }
-        let teile = EintragSuche.aufteilen(tresor.eintraege, anfrageHosts: hosts)
+        guard let art = listenArt, let tresor = sitzung?.tresor else { return ([], []) }
+        let teile = EintragSuche.aufteilen(tresor.eintraege, anfrageHosts: art.hosts)
         func auswahl(_ l: [Eintrag]) -> [Eintrag] {
-            let mitCode = codes ? l.filter { TOTP.einstellung(aus: $0.totp) != nil } : l
+            let mitCode = art.codes ? l.filter { TOTP.einstellung(aus: $0.totp) != nil } : l
             return EintragSuche.filtern(mitCode, begriff: suche)
         }
         return (auswahl(teile.passend), auswahl(teile.uebrige))

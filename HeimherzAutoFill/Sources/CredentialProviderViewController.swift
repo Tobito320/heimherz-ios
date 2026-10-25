@@ -4,7 +4,8 @@ import UIKit
 
 /// Die AutoFill-Erweiterung (SPEC 10). Dieser Controller übersetzt nur zwischen dem System und `AutoFillModell`; der Ablauf liegt in `Gemeinsam/AutoFill`.
 /// Quellen (Apple-Doku, Stand 25.10.2026): ASCredentialProviderViewController, ASCredentialProviderExtensionContext, ASSavePasswordRequest,
-/// ASGeneratePasswordsRequest, ASGeneratedPassword (alles AuthenticationServices; Speichern und Erzeugen ab iOS 26.2).
+/// ASGeneratePasswordsRequest, ASGeneratedPassword (alles AuthenticationServices; Speichern und Erzeugen ab iOS 26.2),
+/// ASPasskeyCredentialRequest, ASPasskeyCredentialRequestParameters, ASPasskeyAssertionCredential, ASPasskeyRegistrationCredential (Passkeys, SPEC 24).
 final class CredentialProviderViewController: ASCredentialProviderViewController {
     private var modell: AutoFillModell?
     private var hosting: UIHostingController<AutoFillWurzel>?
@@ -31,18 +32,30 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
     /// Aus der Vorschlagsleiste ohne Blatt, nur bei offenem Entsperr-Fenster (SPEC 10) und wenn der Host der Identität zum Konto passt.
     /// Sonst `userInteractionRequired`: iOS zeigt dann das Blatt mit Face ID. Der Schlüssel K selbst bleibt hinter Face ID (`.userPresence`).
     override func provideCredentialWithoutUserInteraction(for credentialRequest: any ASCredentialRequest) {
+        if let p = credentialRequest as? ASPasskeyCredentialRequest {
+            guard let anfrage = Self.anfrage(p), let sitzung = try? AutoFillSitzung.live() else { return meldeFehler(.userInteractionRequired) }
+            return starteStill(.passkey(anfrage), sitzung: sitzung)
+        }
         let identitaet = credentialRequest.credentialIdentity
         let codes = credentialRequest is ASOneTimeCodeCredentialRequest
         guard let id = identitaet.recordIdentifier, codes || credentialRequest is ASPasswordCredentialRequest,
               let host = EintragSuche.host(von: identitaet.serviceIdentifier),   // `.app` ohne Host: Blatt
               let sitzung = try? AutoFillSitzung.live() else { return meldeFehler(.userInteractionRequired) }
-        let still = AutoFillModell(auftrag: .anfrage(id: id, codes: codes, host: host), sitzung: sitzung)
+        starteStill(.anfrage(id: id, codes: codes, host: host), sitzung: sitzung)
+    }
+
+    private func starteStill(_ auftrag: AutoFillAuftrag, sitzung: AutoFillSitzung) {
+        let still = AutoFillModell(auftrag: auftrag, sitzung: sitzung)
         still.abschluss = { [weak self] ergebnis in self?.beenden(ergebnis) }
         Task { await still.starteOhneAbfrage() }
     }
 
     /// Ein Konto aus der Vorschlagsleiste: einmal Face ID, dann das Passwort oder den Einmalcode liefern.
     override func prepareInterfaceToProvideCredential(for credentialRequest: any ASCredentialRequest) {
+        if let p = credentialRequest as? ASPasskeyCredentialRequest {
+            guard let anfrage = Self.anfrage(p) else { return meldeFehler(.credentialIdentityNotFound) }
+            return zeige(.passkey(anfrage))
+        }
         guard let id = credentialRequest.credentialIdentity.recordIdentifier else { return meldeFehler(.credentialIdentityNotFound) }
         let host = EintragSuche.host(von: credentialRequest.credentialIdentity.serviceIdentifier)
         if credentialRequest is ASOneTimeCodeCredentialRequest {
@@ -50,8 +63,30 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
         } else if credentialRequest is ASPasswordCredentialRequest {
             zeige(.anfrage(id: id, codes: false, host: host))
         } else {
-            meldeFehler(.failed)   // Passkeys gibt es erst in Phase 2
+            meldeFehler(.failed)
         }
+    }
+
+    // MARK: Passkeys (SPEC 24)
+
+    /// Liste für eine Passkey-Anmeldung ("Andere Optionen"): ein Passkey = sofort nach Face ID, mehrere = Auswahl, keiner = Passwörter der Seite.
+    override func prepareCredentialList(for serviceIdentifiers: [ASCredentialServiceIdentifier], requestParameters: ASPasskeyCredentialRequestParameters) {
+        zeige(.passkey(PasskeyAnfrage(rpId: requestParameters.relyingPartyIdentifier, clientDataHash: requestParameters.clientDataHash,
+                                      erlaubt: requestParameters.allowedCredentials)))
+    }
+
+    /// Die Seite will einen neuen Passkey; iOS hat schon gefragt, ob er in Heim gesichert werden soll. Nur ES256 (P-256).
+    override func prepareInterface(forPasskeyRegistration registrationRequest: any ASCredentialRequest) {
+        guard let p = registrationRequest as? ASPasskeyCredentialRequest, let i = p.credentialIdentity as? ASPasskeyCredentialIdentity,
+              p.supportedAlgorithms.isEmpty || p.supportedAlgorithms.contains(.ES256) else { return meldeFehler(.failed) }
+        zeige(.passkeyNeu(PasskeyRegistrierung(rpId: i.relyingPartyIdentifier, userName: i.userName, userHandle: i.userHandle,
+                                               clientDataHash: p.clientDataHash, ausgeschlossen: (p.excludedCredentials ?? []).map(\.credentialID))))
+    }
+
+    /// Anmelden mit genau dem Passkey der gewählten Identität.
+    private static func anfrage(_ p: ASPasskeyCredentialRequest) -> PasskeyAnfrage? {
+        guard let i = p.credentialIdentity as? ASPasskeyCredentialIdentity else { return nil }
+        return PasskeyAnfrage(rpId: i.relyingPartyIdentifier, clientDataHash: p.clientDataHash, credentialID: i.credentialID)
     }
 
     // MARK: Speichern und Erzeugen (iOS 26.2)
@@ -162,6 +197,16 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
             meldeFehler(.failed)
         case .abfrageNoetig:
             meldeFehler(.userInteractionRequired)
+        case .passkeyAnmeldung(let a):
+            let antwort = ASPasskeyAssertionCredential(userHandle: a.userHandle, relyingParty: a.rpId, signature: a.signatur,
+                                                       clientDataHash: a.clientDataHash, authenticatorData: a.authenticatorData, credentialID: a.credentialID)
+            extensionContext.completeAssertionRequest(using: antwort, completionHandler: nil)
+        case .passkeyAngelegt(let a):
+            let antwort = ASPasskeyRegistrationCredential(relyingParty: a.rpId, clientDataHash: a.clientDataHash, credentialID: a.credentialID,
+                                                          attestationObject: a.attestation)
+            extensionContext.completeRegistrationRequest(using: antwort, completionHandler: nil)
+        case .passkeySchonDa:
+            meldeFehler(.matchedExcludedCredential)
         }
     }
 

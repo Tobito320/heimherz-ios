@@ -28,3 +28,11 @@ Quelle: `SPEC.md`. Module und Reihenfolge: SPEC Abschnitt 3.
 2. `bin/totp.ts` + Test gegen RFC-Fixture.
 3. `bin/fuellen.ts`: Eintragswahl + Test; CDP-Teil gegen Wegwerf-Chrome (Port 9556, Testseite per `data:`/lokalem http geht nicht, da https Pflicht: Prüfschalter nur in Tests).
 4. CLI verdrahten, `claude-bw` Wächter, echte Prüfung, Doku (Übersicht, Skill `claude-bw`, Wunschliste W-006 Stand).
+
+## T16 passkeys (W-025, SPEC 24)
+1. SPEC 24, Plan, Todo. Prüfung: Abschnitt steht.
+2. `Gemeinsam/AutoFill/Passkeys.swift`: Lesen (beide Formate), authenticatorData, Signatur, Anlegen mit CBOR, Ablage im Tresor; Tests mit festen Vektoren zuerst. Prüfung: Syntax lokal, CI.
+3. Identitäten (`AutoFillIdentitaeten`) + Test. Prüfung: CI.
+4. Modell (`AutoFillModell`: Aufträge `.passkey`, `.passkeyNeu`, Phase `.passkeyWahl`) + Tests mit Attrappen. Prüfung: CI.
+5. Erweiterung (Controller, Ansicht Auswahl, Info.plist `ProvidesPasskeys`). Prüfung: CI grün inkl. Release-Bau.
+6. Merge nach main, TestFlight, Wunschliste/Übersicht, Bericht. Prüfung: Build in TestFlight; Gerät = Ahmed.

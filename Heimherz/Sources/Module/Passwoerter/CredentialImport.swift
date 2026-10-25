@@ -3,7 +3,7 @@ import Foundation
 /// Import aus Apple Passwörter (Credential Exchange, iOS 26): hier nur die reine Abbildung auf Tresor-Einträge, ohne Apple-Typen und ohne Oberfläche.
 /// `CredentialImportAdapter` übersetzt die Apple-Typen in diese Werte; `ImportAbbildung.einarbeiten` mischt sie in den Tresor.
 
-/// Ein Passkey aus dem Import. Der private Schlüssel bleibt im verschlüsselten Tresor; benutzbar ist er erst in einem späteren Build.
+/// Ein Passkey aus dem Import. Der private Schlüssel bleibt im verschlüsselten Tresor; die Erweiterung meldet damit an (`Passkeys`, SPEC 24).
 struct ImportPasskey: Equatable, Sendable {
     var credentialId: String      // Base64url
     var rpId: String

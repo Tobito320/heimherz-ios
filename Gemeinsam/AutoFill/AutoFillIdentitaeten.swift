@@ -5,7 +5,7 @@ import Foundation
 /// Das Passwort holt die Erweiterung erst beim Antippen aus dem verschlüsselten Cache.
 enum AutoFillIdentitaeten {
     /// Pro lebendigem Login mit Benutzer und je Host der URLs eine Passwort-Identität; zusätzlich je Host eine Einmalcode-Identität,
-    /// wenn der Eintrag ein lesbares TOTP hat. Notizen, Grabsteine und Einträge ohne Host kommen nicht vor.
+    /// wenn der Eintrag ein lesbares TOTP hat, und je lesbarem Passkey eine Passkey-Identität. Notizen und Grabsteine kommen nicht vor.
     static func baue(aus tresor: Tresor) -> [any ASCredentialIdentity] {
         var liste: [any ASCredentialIdentity] = []
         for eintrag in tresor.lebendige where eintrag.art == Eintrag.artLogin {
@@ -23,6 +23,11 @@ enum AutoFillIdentitaeten {
                     let label = eintrag.benutzer.isEmpty ? name : "\(name) (\(eintrag.benutzer))"
                     liste.append(ASOneTimeCodeCredentialIdentity(serviceIdentifier: dienst, label: label, recordIdentifier: eintrag.id))
                 }
+            }
+            // Passkeys (SPEC 24): Kennung und Benutzer, nie der Schlüssel.
+            for p in Passkeys.von(eintrag) {
+                liste.append(ASPasskeyCredentialIdentity(relyingPartyIdentifier: p.rpId, userName: p.userName, credentialID: p.credentialID,
+                                                         userHandle: p.userHandle, recordIdentifier: eintrag.id))
             }
         }
         return liste

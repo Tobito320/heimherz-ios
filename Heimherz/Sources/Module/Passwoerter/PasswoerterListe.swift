@@ -264,7 +264,7 @@ struct PasswoerterListe: View {
                          : "Heim prüft auf diesem Handy, ob Passwörter mehrfach vorkommen oder leicht zu erraten sind. Die Prüfung auf Datenlecks ist ausgeschaltet.",
                          symbol: "lock.shield")
         case .passkeys:
-            HinweisKarte(text: "Passkeys aus Bitwarden sind gespeichert. Anmelden damit kommt in einem späteren Build.", symbol: "info.circle")
+            HinweisKarte(text: "Anmelden mit Passkey: auf der Seite \"Mit Passkey anmelden\" wählen, dann Heim. Neue Passkeys landen auch hier.", symbol: "info.circle")
         case .codes:
             Button { Task { if await GeraeteAbfrage.pruefe(grund: "Einmalcodes anzeigen") { store.gebeCodesFrei() } } } label: {
                 Label("Codes mit Face ID anzeigen", systemImage: "faceid")
