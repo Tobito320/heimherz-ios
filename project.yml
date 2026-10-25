@@ -1,0 +1,154 @@
+name: Heimherz
+options:
+  bundleIdPrefix: com.onlyus
+  developmentLanguage: de
+  deploymentTarget:
+    iOS: "26.1"
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    DEVELOPMENT_TEAM: ""
+    TARGETED_DEVICE_FAMILY: "1"
+    MARKETING_VERSION: 0.1.0
+    CURRENT_PROJECT_VERSION: 1
+    # Pro Build gesetzt (testflight.yml): Datum JJJJ-MM-TT für "Build läuft in N Tagen ab". Leer = keine Anzeige.
+    HEIMHERZ_BUILD_DATUM: ""
+    # Basis-URL des Dienstes für die Foto-Erweiterung: Apple verlangt sie fest im Info.plist der Erweiterung (BackgroundUploadURLBase).
+    # Der Platzhalter ist nur für CI; der echte Tailnet-Name kommt im TestFlight-Lauf aus dem Secret HEIMHERZ_UPLOAD_URL_BASE.
+    HEIMHERZ_UPLOAD_URL_BASE: https://heimherz.example.ts.net
+targets:
+  Heimherz:
+    type: application
+    platform: iOS
+    sources:
+      - Heimherz/Sources
+      - Heimherz/Resources
+      - Gemeinsam
+    dependencies:
+      - target: HeimherzAutoFill
+        embed: true
+        codeSign: true
+      - target: HeimherzFotos
+        embed: true
+        codeSign: true
+    info:
+      path: Heimherz/Info.plist
+      properties:
+        CFBundleDevelopmentRegion: de
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        CFBundleURLTypes:
+          - CFBundleURLName: com.onlyus.heimherz
+            CFBundleURLSchemes:
+              - heimherz
+        HeimherzBuildDatum: $(HEIMHERZ_BUILD_DATUM)
+        BackgroundUploadURLBase: $(HEIMHERZ_UPLOAD_URL_BASE)
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.onlyus.heimherz
+        PRODUCT_NAME: Heimherz
+        SWIFT_OPTIMIZATION_LEVEL: "-O"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Heimherz
+        INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_NSPhotoLibraryUsageDescription: "Heimherz sichert deine Fotos und Videos auf deinen PC. Am Handy wird nie etwas gelöscht oder geändert."
+        INFOPLIST_KEY_NSCameraUsageDescription: "Heimherz scannt damit den QR-Code vom PC, um das Handy zu koppeln."
+        INFOPLIST_KEY_NSFaceIDUsageDescription: "Heimherz entsperrt deinen Tresor mit Face ID."
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"   # wie Lovea und Bahnherz, sonst lehnt der Upload ab (90474)
+        CODE_SIGN_ENTITLEMENTS: Heimherz/Heimherz.entitlements
+      configs:
+        Release:
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: "Apple Distribution"
+          PROVISIONING_PROFILE_SPECIFIER: $(HEIMHERZ_APP_PROFILE)
+  HeimherzAutoFill:
+    type: app-extension
+    platform: iOS
+    sources:
+      - HeimherzAutoFill/Sources
+      - Gemeinsam
+    info:
+      path: HeimherzAutoFill/Info.plist
+      properties:
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.authentication-services-credential-provider-ui
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).CredentialProviderViewController
+          NSExtensionAttributes:
+            ASCredentialProviderExtensionCapabilities:
+              ProvidesPasswords: true
+              ProvidesOneTimeCodes: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.onlyus.heimherz.autofill
+        PRODUCT_NAME: HeimherzAutoFill
+        SWIFT_OPTIMIZATION_LEVEL: "-O"
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Heimherz
+        INFOPLIST_KEY_NSFaceIDUsageDescription: "Heimherz entsperrt deinen Tresor mit Face ID."
+        SKIP_INSTALL: YES
+        CODE_SIGN_ENTITLEMENTS: HeimherzAutoFill/HeimherzAutoFill.entitlements
+      configs:
+        Release:
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: "Apple Distribution"
+          PROVISIONING_PROFILE_SPECIFIER: $(HEIMHERZ_AUTOFILL_PROFILE)
+  # Photos Background Upload Extension (iOS 26.1, ExtensionKit). Quelle: developer.apple.com/documentation/photokit/uploading-asset-resources-in-the-background
+  HeimherzFotos:
+    type: extensionkit-extension
+    platform: iOS
+    sources:
+      - HeimherzFotos/Sources
+      - Gemeinsam
+    info:
+      path: HeimherzFotos/Info.plist
+      properties:
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        EXAppExtensionAttributes:
+          EXExtensionPointIdentifier: com.apple.photos.background-upload
+        BackgroundUploadURLBase: $(HEIMHERZ_UPLOAD_URL_BASE)
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.onlyus.heimherz.fotos
+        PRODUCT_NAME: HeimherzFotos
+        SWIFT_OPTIMIZATION_LEVEL: "-O"
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Heimherz Fotos
+        INFOPLIST_KEY_NSPhotoLibraryUsageDescription: "Heimherz sichert deine Fotos und Videos auf deinen PC. Am Handy wird nie etwas gelöscht oder geändert."
+        SKIP_INSTALL: YES
+        CODE_SIGN_ENTITLEMENTS: HeimherzFotos/HeimherzFotos.entitlements
+      configs:
+        Release:
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: "Apple Distribution"
+          PROVISIONING_PROFILE_SPECIFIER: $(HEIMHERZ_FOTOS_PROFILE)
+  HeimherzTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Heimherz/Tests
+      # Ordnerreferenz: bleibt als fixtures/<ordner>/<datei> im Bundle, dieselben Dateien lesen die Bun-Tests
+      - path: fixtures
+        type: folder
+    dependencies:
+      - target: Heimherz
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.onlyus.heimherz.tests
+schemes:
+  Heimherz:
+    build:
+      targets:
+        Heimherz: all
+        HeimherzAutoFill: all
+        HeimherzFotos: all
+        HeimherzTests: [test]
+    test:
+      targets:
+        - HeimherzTests

@@ -1,0 +1,179 @@
+name: TestFlight
+
+# Nur von Hand (scripts/testflight-fenster.sh oder gh workflow run). Läuft erst, wenn die Freigabe (T9) die Secrets gesetzt hat.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  testflight:
+    runs-on: macos-26
+    timeout-minutes: 45
+    # Jedes Secret steht nur an dem Schritt, der es braucht (kein Job-env): brew, xcodegen und xcodebuild sehen keins.
+    steps:
+      - name: Secrets prüfen
+        # Prüft nur, ob sie da sind (leer oder nicht), und gibt nie einen Wert aus.
+        env:
+          APPLE_CERT_P12_BASE64: ${{ secrets.APPLE_CERT_P12_BASE64 }}
+          APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
+          APPSTORE_PROFILE_BASE64: ${{ secrets.APPSTORE_PROFILE_BASE64 }}
+          APPSTORE_AUTOFILL_PROFILE_BASE64: ${{ secrets.APPSTORE_AUTOFILL_PROFILE_BASE64 }}
+          APPSTORE_FOTOS_PROFILE_BASE64: ${{ secrets.APPSTORE_FOTOS_PROFILE_BASE64 }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+          DEVELOPMENT_TEAM: ${{ secrets.DEVELOPMENT_TEAM }}
+          HEIMHERZ_UPLOAD_URL_BASE: ${{ secrets.HEIMHERZ_UPLOAD_URL_BASE }}
+        run: |
+          missing=""
+          for name in APPLE_CERT_P12_BASE64 APPLE_CERT_PASSWORD APPSTORE_PROFILE_BASE64 APPSTORE_AUTOFILL_PROFILE_BASE64 APPSTORE_FOTOS_PROFILE_BASE64 ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8_BASE64 DEVELOPMENT_TEAM HEIMHERZ_UPLOAD_URL_BASE; do
+            if [ -z "${!name}" ]; then
+              missing="$missing $name"
+            fi
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Secrets fehlen:$missing"
+            exit 1
+          fi
+          case "$HEIMHERZ_UPLOAD_URL_BASE" in
+            https://*) ;;
+            *) echo "::error::HEIMHERZ_UPLOAD_URL_BASE muss mit https:// beginnen"; exit 1 ;;
+          esac
+
+      - uses: actions/checkout@v5
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate project
+        run: xcodegen generate
+
+      - name: Zertifikat und Profile installieren
+        env:
+          APPLE_CERT_P12_BASE64: ${{ secrets.APPLE_CERT_P12_BASE64 }}
+          APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
+          APPSTORE_PROFILE_BASE64: ${{ secrets.APPSTORE_PROFILE_BASE64 }}
+          APPSTORE_AUTOFILL_PROFILE_BASE64: ${{ secrets.APPSTORE_AUTOFILL_PROFILE_BASE64 }}
+          APPSTORE_FOTOS_PROFILE_BASE64: ${{ secrets.APPSTORE_FOTOS_PROFILE_BASE64 }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN="$RUNNER_TEMP/heimherz.keychain-db"
+          KEYCHAIN_PASSWORD="$(uuidgen)"
+          printf '%s' "$APPLE_CERT_P12_BASE64" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/cert.p12" -P "$APPLE_CERT_PASSWORD" -f pkcs12 -k "$KEYCHAIN" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security list-keychains -d user -s "$KEYCHAIN"
+          rm "$RUNNER_TEMP/cert.p12"
+
+          # Profil dekodieren, in beide Ordner kopieren (neuere Xcode-Versionen lesen nur UserData), Namen als Umgebungsvariable ablegen.
+          # Fehlt die App Group im Profil, bricht der Lauf hier ab: alle drei Entitlements verlangen sie.
+          installiere_profil() {
+            local base64_inhalt="$1"
+            local ziel="$2"
+            local env_name="$3"
+            local uuid name
+            printf '%s' "$base64_inhalt" | base64 --decode > "$ziel"
+            security cms -D -i "$ziel" > "$ziel.plist"
+            uuid="$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$ziel.plist")"
+            name="$(/usr/libexec/PlistBuddy -c 'Print :Name' "$ziel.plist")"
+            for dir in "$HOME/Library/MobileDevice/Provisioning Profiles" "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"; do
+              mkdir -p "$dir"
+              cp "$ziel" "$dir/$uuid.mobileprovision"
+            done
+            if ! grep -q 'group.com.onlyus.heimherz' "$ziel.plist"; then
+              echo "::error::Das Profil '$name' enthält die App Group group.com.onlyus.heimherz nicht. Im Apple-Portal die Gruppe allen drei App-IDs zuweisen, die Profile neu erzeugen und die Secrets neu setzen."
+              exit 1
+            fi
+            echo "Profil '$name': App Group da"
+            echo "$env_name=$name" >> "$GITHUB_ENV"
+          }
+
+          installiere_profil "$APPSTORE_PROFILE_BASE64" "$RUNNER_TEMP/profile-app.mobileprovision" HEIMHERZ_APP_PROFILE
+          installiere_profil "$APPSTORE_AUTOFILL_PROFILE_BASE64" "$RUNNER_TEMP/profile-autofill.mobileprovision" HEIMHERZ_AUTOFILL_PROFILE
+          installiere_profil "$APPSTORE_FOTOS_PROFILE_BASE64" "$RUNNER_TEMP/profile-fotos.mobileprovision" HEIMHERZ_FOTOS_PROFILE
+
+      - name: API-Schlüssel ablegen
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+        run: |
+          mkdir -p "$HOME/private_keys"
+          printf '%s' "$ASC_KEY_P8_BASE64" | base64 --decode > "$HOME/private_keys/AuthKey_$ASC_KEY_ID.p8"
+
+      - name: Archivieren
+        env:
+          DEVELOPMENT_TEAM: ${{ secrets.DEVELOPMENT_TEAM }}
+          HEIMHERZ_UPLOAD_URL_BASE: ${{ secrets.HEIMHERZ_UPLOAD_URL_BASE }}
+        run: |
+          set -euo pipefail
+          # Build-Datum für "Build läuft in N Tagen ab" (TestFlight-Builds laufen nach 90 Tagen ab)
+          xcodebuild archive \
+            -project Heimherz.xcodeproj \
+            -scheme Heimherz \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/Heimherz.xcarchive" \
+            DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
+            HEIMHERZ_APP_PROFILE="$HEIMHERZ_APP_PROFILE" \
+            HEIMHERZ_AUTOFILL_PROFILE="$HEIMHERZ_AUTOFILL_PROFILE" \
+            HEIMHERZ_FOTOS_PROFILE="$HEIMHERZ_FOTOS_PROFILE" \
+            HEIMHERZ_UPLOAD_URL_BASE="$HEIMHERZ_UPLOAD_URL_BASE" \
+            HEIMHERZ_BUILD_DATUM="$(date -u +%Y-%m-%d)" \
+            CURRENT_PROJECT_VERSION=${{ github.run_number }}
+
+      - name: IPA exportieren
+        env:
+          DEVELOPMENT_TEAM: ${{ secrets.DEVELOPMENT_TEAM }}
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store-connect</string>
+            <key>teamID</key>
+            <string>$DEVELOPMENT_TEAM</string>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>com.onlyus.heimherz</key>
+              <string>$HEIMHERZ_APP_PROFILE</string>
+              <key>com.onlyus.heimherz.autofill</key>
+              <string>$HEIMHERZ_AUTOFILL_PROFILE</string>
+              <key>com.onlyus.heimherz.fotos</key>
+              <string>$HEIMHERZ_FOTOS_PROFILE</string>
+            </dict>
+          </dict>
+          </plist>
+          EOF
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/Heimherz.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/export"
+
+      - name: Zu TestFlight hochladen
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          IPA=""
+          for datei in "$RUNNER_TEMP"/export/*.ipa; do IPA="$datei"; break; done
+          [ -f "$IPA" ] || { echo "Keine IPA im Export"; exit 1; }
+          xcrun altool --upload-app \
+            -f "$IPA" \
+            -t ios \
+            --apiKey "$ASC_KEY_ID" \
+            --apiIssuer "$ASC_ISSUER_ID"
+
+      - name: Keychain löschen
+        if: always()
+        run: security delete-keychain "$RUNNER_TEMP/heimherz.keychain-db" || true

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Schnellcheck vor jedem Commit: Syntax geänderter Swift-Dateien, JSON, Shell, Privat-Check.
+# Schnellcheck vor jedem Commit: Syntax geänderter Swift-Dateien, JSON, Shell, Workflows, Privat-Check, Bun-Tests.
 # Mit --alle werden alle Swift-Dateien geprüft. Kein Compiler: fängt Tippfehler, keine Typen.
 set -u
 cd "$(git rev-parse --show-toplevel)" || exit 2
@@ -16,11 +16,17 @@ else
   echo "Keine Swift-Dateien zu prüfen"
 fi
 
-jq -e . Bahnherz/Resources/BekannteOrte.beispiel.json >/dev/null || { echo "JSON kaputt: BekannteOrte.beispiel.json"; fehler=1; }
+while IFS= read -r j; do
+  jq -e . "$j" >/dev/null || { echo "JSON kaputt: $j"; fehler=1; }
+done < <(git ls-files --cached --others --exclude-standard -- '*.json')
 for s in scripts/*.sh; do bash -n "$s" || { echo "Shell-Syntax: $s"; fehler=1; }; done
+if command -v shellcheck >/dev/null 2>&1; then shellcheck -S warning scripts/*.sh || fehler=1; fi
 # Workflows wie in ios-ci (actionlint plus shellcheck). Der lokale actionlint kennt das Label macos-26 noch nicht, der in CI schon.
 if command -v actionlint >/dev/null 2>&1; then
   actionlint -ignore 'label "macos-26" is unknown' || fehler=1
 fi
 bash scripts/pruefe-privat.sh || fehler=1
+# Tresor-Format (TS): dieselben Fixtures wie die Swift-Tests
+BUN="${BUN:-$HOME/.bun/bin/bun}"
+if [ -x "$BUN" ]; then "$BUN" test lib || fehler=1; else echo "Hinweis: bun fehlt, lib-Tests übersprungen"; fi
 exit "$fehler"
