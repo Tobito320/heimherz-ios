@@ -1,0 +1,11 @@
+{
+ "hinweis": "Nur Test: erfundener Code (Bytes 0x50, 0x53, ...), Salt 0xc0.., Nonce 0xd0.., Test-Schluessel aus umschlag-1.json",
+ "code": "KBJV-MWK4-L5RG-K2DL-NZYX-I532-PWAI-HBUJ",
+ "schluessel": "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA=",
+ "blatt": {
+  "v": 1,
+  "salt": "wMHCw8TFxsfIycrLzM3Ozw==",
+  "nonce": "0NHS09TV1tfY2drb",
+  "daten": "+d/tYj2wdCXPna/+tApHEHOVx2SbyPCGvCMcvN5pRODkLag0aa9QWObjUwMEl53Y"
+ }
+}

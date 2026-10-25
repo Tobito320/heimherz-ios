@@ -1,0 +1,10 @@
+[Unit]
+Description=Heimherz-Sicherung (verschlüsselter Tresor nach ~/Heimherz/Dateien/Sicherung und Google Drive)
+After=network-online.target heimherz.service
+
+[Service]
+Type=oneshot
+# Bun-Pfad und Repo-Pfad wie in heimherz.service; liest den Tresor nur verschlüsselt, K wird nicht gebraucht (nur das Gerät-Token aus systemd-creds)
+ExecStart=/home/tobi/.bun/bin/bun /home/tobi/projects/heimherz-ios/bin/heimherz.ts sicherung
+NoNewPrivileges=true
+# Kein enges Sandboxing: rclone erneuert sein Token in ~/.config/rclone

@@ -1,0 +1,11 @@
+[Unit]
+Description=Heimherz-Sicherung stündlich
+
+[Timer]
+# Persistent wirkt nur mit OnCalendar: war der PC aus, läuft die Sicherung nach dem Start nach
+OnCalendar=hourly
+Persistent=true
+RandomizedDelaySec=120
+
+[Install]
+WantedBy=timers.target

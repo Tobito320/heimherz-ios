@@ -7,6 +7,7 @@ import { json, leer } from './http';
 import { Symbole, type SymbolOptionen } from './symbol';
 import type { VorschauOptionen } from './vorschau';
 import { Tresor } from './tresor';
+import { Wiederherstellung } from './wiederherstellung';
 
 export const VERSION = '0.1.0';
 
@@ -24,6 +25,7 @@ export const istLoopback = (adresse: string | undefined) => !!adresse && ['127.0
 export function starte(o: Optionen) {
   const geraete = new Geraete(o.daten);
   const tresor = new Tresor(o.daten, o.verlaufMax);
+  const wiederherstellung = new Wiederherstellung(o.daten);
   const fotos = new Fotos(o.fotos, o.daten, o.mindestFrei);
   const symbole = new Symbole(o.daten, o.symbole);
   const dateien = new Dateien(o.dateien, o.papierkorb ?? ['trash-put'], o.mindestFrei, join(o.daten, 'vorschau'), o.vorschau);
@@ -37,6 +39,10 @@ export function starte(o: Optionen) {
     if (p === '/v1/tresor') {
       if (m === 'GET') return tresor.holen();
       if (m === 'PUT') return tresor.speichern(req);
+    }
+    if (p === '/v1/wiederherstellung') {
+      if (m === 'GET') return wiederherstellung.holen();
+      if (m === 'PUT') return wiederherstellung.speichern(req);
     }
     if (p === '/v1/fotos/bekannt' && m === 'GET') return fotos.bekannt();
     const f = /^\/v1\/fotos\/([^/]+)\/([^/]+)$/.exec(p);

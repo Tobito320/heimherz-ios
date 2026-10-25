@@ -1,5 +1,6 @@
 // Das CLI ist ein Gerät: holt den Umschlag, öffnet ihn mit K, ändert, verschließt, PUT mit If-Match (SPEC 7).
 import { oeffne, schluessel, verschliesse, type Umschlag } from '../lib/umschlag';
+import { istBlatt, type Blatt } from '../lib/sicherung';
 import type { Tresor } from '../lib/zusammenfuehren';
 
 export type Verbindung = { url: string; token: string };
@@ -27,7 +28,7 @@ export async function holeStatus(v: Verbindung) {
   return await r.json() as { version: string; rev: number; fotos: number; belegt: number; frei: number };
 }
 
-async function holeUmschlag(v: Verbindung): Promise<Umschlag | null> {
+export async function holeUmschlag(v: Verbindung): Promise<Umschlag | null> {
   const r = await anfrage(v, '/v1/tresor');
   if (r.status === 404) return null;
   if (!r.ok) throw new DienstFehler(`Tresor holen: ${r.status}`);
@@ -53,4 +54,13 @@ export async function aendereTresor(v: Verbindung, k: Uint8Array, aendere: (t: T
     aktuell = await holeUmschlag(v); // die 409-Antwort hätte ihn auch, so ist es für 404 und Rennen gleich
   }
   throw new DienstFehler('Tresor wurde zu oft gleichzeitig geändert, bitte nochmal');
+}
+
+// Das umwickelte K-Blatt vom Handy (W-036); fehlt es, ist null richtig (noch kein Code erzeugt).
+export async function holeBlatt(v: Verbindung): Promise<Blatt | null> {
+  const r = await anfrage(v, '/v1/wiederherstellung');
+  if (r.status === 404) return null;
+  if (!r.ok) throw new DienstFehler(`Wiederherstellungsblatt holen: ${r.status}`);
+  const b = await r.json();
+  return istBlatt(b) ? b : null;
 }

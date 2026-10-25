@@ -8,6 +8,7 @@ import { systemdCreds } from './schluessel';
 import { eigenerTab, fuelleFeld, FuellFehler, handyHinweis, leseSchluessel, protokoll, waehle, wertVon, type Was } from './fuellen';
 import { erlaubt, modellVon, stufenText } from './stufen';
 import { fasseTempo, leseTempo } from './tempo';
+import { sicherung, wiederherstellen } from './sicherung';
 
 const HILFE = `heimherz einrichten
 heimherz koppeln [NAME]
@@ -18,6 +19,8 @@ heimherz liste [SUCHE]
 heimherz status
 heimherz tempo [MINUTEN]    (Foto-Abgleich: wo hängt die Zeit, Standard 10)
 heimherz geraet weg ID
+heimherz sicherung    (verschlüsselte Tresor-Sicherung nach ~/Heimherz/Dateien/Sicherung und nach Drive; Timer: server/heimherz-sicherung.timer)
+heimherz wiederherstellen DATEI   (Sicherung zusammenführen; auf neuem PC fragt es den Wiederherstellungscode von stdin)
 heimherz fuell TAB CSS benutzer|passwort|code [--konto K] [--rahmen IFRAME-CSS] [--enter] [--auftrag DATEI]
 heimherz totp-setzen TAB --konto K [--feld CSS]   (Einrichtungsschlüssel der Seite in den Eintrag)
 heimherz erlaubt HOST [--auftrag DATEI]   (Exit 0 erlaubt, 7 verweigert)
@@ -56,6 +59,23 @@ async function anzeigen(datei: string): Promise<() => void> {
   };
 }
 
+// Eine Zeile von stdin; am Terminal ohne Echo. Der Code geht nie über argv oder Umgebung.
+async function liesCode(): Promise<string> {
+  const tty = process.stdin.isTTY;
+  if (tty) { process.stderr.write('Wiederherstellungscode (Eingabe bleibt unsichtbar): '); Bun.spawnSync(['stty', '-echo'], { stdin: 'inherit' }); }
+  try {
+    let text = '';
+    for await (const teil of Bun.stdin.stream()) { text += Buffer.from(teil).toString(); if (text.includes('\n')) break; }
+    return text.split('\n')[0].trim();
+  } finally { if (tty) { Bun.spawnSync(['stty', 'echo'], { stdin: 'inherit' }); process.stderr.write('\n'); } }
+}
+
+async function lauf(argv: string[]): Promise<void> {
+  const p = Bun.spawn(argv, { stdin: 'ignore', stdout: 'ignore', stderr: 'pipe' });
+  const [fehler, rc] = await Promise.all([new Response(p.stderr).text(), p.exited]);
+  if (rc !== 0) throw new Error(`${argv[0]} Exit ${rc}${fehler ? `: ${fehler.trim().split('\n').pop()?.slice(0, 200)}` : ''}`);
+}
+
 async function main(argv: string[]) {
   const e = process.env;
   const a: Abh = {
@@ -85,6 +105,16 @@ async function main(argv: string[]) {
   if (cmd === 'liste') return liste(a, r[0]);
   if (cmd === 'status') return status(a);
   if (cmd === 'tempo') { for (const z of fasseTempo(leseTempo(a.daten), Number(r[0]) > 0 ? Number(r[0]) : 10)) a.ausgabe(z); return; }
+  if (cmd === 'sicherung') {
+    const ok = await sicherung(a, {
+      // nur .heimsicherung geht mit und wird auf Drive angefasst; --max-delete bremst, falls die Quelle je falsch wäre
+      rclone: Bun.which('rclone') ? (q, z) => lauf(['rclone', 'sync', q, z, '--include', '*.heimsicherung', '--max-delete', '20']) : null,
+      papierkorb: p => lauf(['trash-put', p]),
+    });
+    if (!ok) process.exitCode = 1;
+    return;
+  }
+  if (cmd === 'wiederherstellen' && r[0]) return wiederherstellen(a, r[0], liesCode);
   if (cmd === 'geraet' && r[0] === 'weg' && r[1]) return geraetWeg(a, r[1]);
   if (cmd === 'fuell' || cmd === 'totp-setzen' || cmd === 'erlaubt' || cmd === 'stufen') return fuellen(a, cmd, r);
   console.error(HILFE);

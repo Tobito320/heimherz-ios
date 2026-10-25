@@ -36,3 +36,12 @@ Quelle: `SPEC.md`. Module und Reihenfolge: SPEC Abschnitt 3.
 4. Modell (`AutoFillModell`: Aufträge `.passkey`, `.passkeyNeu`, Phase `.passkeyWahl`) + Tests mit Attrappen. Prüfung: CI.
 5. Erweiterung (Controller, Ansicht Auswahl, Info.plist `ProvidesPasskeys`). Prüfung: CI grün inkl. Release-Bau.
 6. Merge nach main, TestFlight, Wunschliste/Übersicht, Bericht. Prüfung: Build in TestFlight; Gerät = Ahmed.
+
+## T21 sicherung (W-035 bis W-037, SPEC 25)
+1. SPEC 25, Plan, Todo.
+2. `lib/sicherung.ts` (Format, Aufbewahrung, Wiederherstellungsblatt) + Test mit Testvektor `fixtures/sicherung/wiederherstellung-1.json`.
+3. Dienst: `GET/PUT /v1/wiederherstellung` + Test.
+4. CLI `heimherz sicherung` (+ rclone) und `heimherz wiederherstellen` + Tests; Units `server/heimherz-sicherung.*`.
+5. iOS W-037 `PasswortGesundheit` + Ansicht + XCTest.
+6. iOS W-036 `Wiederherstellung.swift` + Einstellungen (Code, Sicherung-Stand) + `HeimClient` + XCTest.
+7. `check-schnell.sh`, Push, PR (nicht mergen).
