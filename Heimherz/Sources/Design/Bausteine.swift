@@ -169,7 +169,7 @@ enum KachelTon {
 }
 
 /// Die kleine farbige Kachel vor einer Einstellungszeile.
-struct SymbolKachel: View {
+struct EinstellungsKachel: View {
     let symbol: String
     var ton: KachelTon = .gruen
 
@@ -191,7 +191,7 @@ struct KachelTitel: View {
 
     var body: some View {
         HStack(spacing: Abstand.m) {
-            SymbolKachel(symbol: symbol, ton: ton)
+            EinstellungsKachel(symbol: symbol, ton: ton)
             Text(titel).foregroundStyle(Color.tinte)
         }
     }

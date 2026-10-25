@@ -242,7 +242,7 @@ Runde 3 (W-007): Der Zwischenspeicher der Vorschauen (`VorschauCache`, `Caches/H
 
 ## Einstellungen (W-008, Runde 3)
 
-Tab "Einstellungen" (Symbol `gearshape.fill`, Typ `HeimherzTab.einstellungen`, Debug `-heimherzTab einstellungen`), `Module/Einstellungen/`. Gruppierte Liste (`insetGrouped`) wie die iOS-Einstellungen, Zeilen mit farbigen Symbolkacheln (`SymbolKachel`, `KachelTitel`, `heimherzEinstellungenListe` in `Design/Bausteine.swift`).
+Tab "Einstellungen" (Symbol `gearshape.fill`, Typ `HeimherzTab.einstellungen`, Debug `-heimherzTab einstellungen`), `Module/Einstellungen/`. Gruppierte Liste (`insetGrouped`) wie die iOS-Einstellungen, Zeilen mit farbigen Symbolkacheln (`EinstellungsKachel`, `KachelTitel`, `heimherzEinstellungenListe` in `Design/Bausteine.swift`).
 
 | Gruppe | Zeilen | Wirkung |
 |---|---|---|

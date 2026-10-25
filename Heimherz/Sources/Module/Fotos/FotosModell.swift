@@ -223,7 +223,7 @@ final class FotosModell {
         plantNachts = false
         // Läuft noch im Lauf selbst: Der Nachtlauf wartet auf ihn, die Mitteilung geht raus, bevor iOS die Aufgabe schließt.
         if meldeLauf, !istDemo {
-            await FotoMitteilung.meldeNachLauf(gesichert: a.gesichert, vomNutzerAngehalten: angehalten, einstellungen: einstellungen, dienst: mitteilung)
+            await FotoMitteilung.meldeNachLauf(gesichert: a.gesichert, vomNutzerAngehalten: angehalten, schalterAn: einstellungen.fotoMitteilung, dienst: mitteilung)
         }
         await raeumeTempAuf()
         if let c = vorgemerkt {

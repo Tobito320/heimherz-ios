@@ -48,8 +48,8 @@ enum FotoMitteilung {
 
     /// Ruft der Lauf am Ende auf. true, wenn eine Mitteilung ging.
     @discardableResult
-    static func meldeNachLauf(gesichert: Int, vomNutzerAngehalten: Bool, einstellungen: GeteilteEinstellungen, dienst: any MitteilungsDienst) async -> Bool {
-        guard sollMelden(gesichert: gesichert, vomNutzerAngehalten: vomNutzerAngehalten, schalterAn: einstellungen.fotoMitteilung) else { return false }
+    static func meldeNachLauf(gesichert: Int, vomNutzerAngehalten: Bool, schalterAn: Bool, dienst: any MitteilungsDienst) async -> Bool {
+        guard sollMelden(gesichert: gesichert, vomNutzerAngehalten: vomNutzerAngehalten, schalterAn: schalterAn) else { return false }
         await dienst.zeige(text: text(gesichert: gesichert))
         return true
     }

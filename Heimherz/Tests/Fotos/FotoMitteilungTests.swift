@@ -33,14 +33,16 @@ final class FotoMitteilungTests: XCTestCase {
 
     func testStandardIstAn() async throws {
         let dienst = FakeMitteilungen()
-        let gemeldet = await FotoMitteilung.meldeNachLauf(gesichert: 5, vomNutzerAngehalten: false, einstellungen: try einstellungen(), dienst: dienst)
+        let an = try einstellungen().fotoMitteilung
+        let gemeldet = await FotoMitteilung.meldeNachLauf(gesichert: 5, vomNutzerAngehalten: false, schalterAn: an, dienst: dienst)
         XCTAssertTrue(gemeldet)
         XCTAssertEqual(dienst.texte.mit { $0 }, ["5 Fotos gesichert"])
     }
 
     func testSchalterAusSendetNichts() async throws {
         let dienst = FakeMitteilungen()
-        let gemeldet = await FotoMitteilung.meldeNachLauf(gesichert: 5, vomNutzerAngehalten: false, einstellungen: try einstellungen(an: false), dienst: dienst)
+        let an = try einstellungen(an: false).fotoMitteilung
+        let gemeldet = await FotoMitteilung.meldeNachLauf(gesichert: 5, vomNutzerAngehalten: false, schalterAn: an, dienst: dienst)
         XCTAssertFalse(gemeldet)
         XCTAssertEqual(dienst.texte.mit { $0 }, [])
     }
@@ -48,8 +50,8 @@ final class FotoMitteilungTests: XCTestCase {
     func testAnhaltenUndNullSendenNichts() async throws {
         let dienst = FakeMitteilungen()
         let e = try einstellungen(an: true)
-        let a = await FotoMitteilung.meldeNachLauf(gesichert: 5, vomNutzerAngehalten: true, einstellungen: e, dienst: dienst)
-        let b = await FotoMitteilung.meldeNachLauf(gesichert: 0, vomNutzerAngehalten: false, einstellungen: e, dienst: dienst)
+        let a = await FotoMitteilung.meldeNachLauf(gesichert: 5, vomNutzerAngehalten: true, schalterAn: e.fotoMitteilung, dienst: dienst)
+        let b = await FotoMitteilung.meldeNachLauf(gesichert: 0, vomNutzerAngehalten: false, schalterAn: e.fotoMitteilung, dienst: dienst)
         XCTAssertFalse(a || b)
         XCTAssertEqual(dienst.texte.mit { $0 }, [])
     }

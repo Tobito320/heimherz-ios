@@ -40,7 +40,7 @@ struct PCEinstellungenSeite: View {
                 .heimherzZeile()
                 Button(role: .destructive) { starteEntkoppeln() } label: {
                     HStack(spacing: Abstand.m) {
-                        SymbolKachel(symbol: "link.badge.minus", ton: .rot)
+                        EinstellungsKachel(symbol: "link.badge.minus", ton: .rot)
                         Text(pruefeEntkoppeln ? "Prüfe …" : "Entkoppeln")
                     }
                 }
