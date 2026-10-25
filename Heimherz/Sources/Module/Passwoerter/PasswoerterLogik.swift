@@ -28,9 +28,15 @@ enum PasswoerterKategorie: String, CaseIterable, Hashable, Sendable {
 }
 
 enum Sortierung: String, CaseIterable, Hashable, Sendable {
-    case name, geaendert
+    case name, geaendert, zuletztBenutzt
 
-    var titel: String { self == .name ? "Name" : "Zuletzt geändert" }
+    var titel: String {
+        switch self {
+        case .name: return "Name"
+        case .geaendert: return "Zuletzt geändert"
+        case .zuletztBenutzt: return "Zuletzt benutzt"
+        }
+    }
 }
 
 /// Ein Abschnitt der Liste: ein Buchstabe (A bis Z oder `#`) oder bei "Zuletzt geändert" ein einziger ohne Titel.
@@ -53,22 +59,23 @@ enum PasswoerterLogik {
     // MARK: Kategorien
 
     /// Die Einträge einer Kategorie. `Gelöscht` zeigt nur Grabsteine mit Inhalt und höchstens `geloeschtTage` alt; alles andere nur lebendige.
-    static func eintraege(_ kategorie: PasswoerterKategorie, in tresor: Tresor, jetzt: Date = Date()) -> [Eintrag] {
+    /// `lecks`: ids mit Treffer in einem Datenleck (`LeckPruefung.lecks`); sie gehören zu "Sicherheit".
+    static func eintraege(_ kategorie: PasswoerterKategorie, in tresor: Tresor, jetzt: Date = Date(), lecks: Set<String> = []) -> [Eintrag] {
         switch kategorie {
         case .alle: return tresor.lebendige
         case .favoriten: return tresor.lebendige.filter(\.favorit)
         case .passkeys: return tresor.lebendige.filter { !passkeys(von: $0).isEmpty }
         case .codes: return tresor.lebendige.filter(hatCode)
         case .sicherheit:
-            let ids = Set(PasswortSicherheit.pruefe(tresor.lebendige).map(\.eintragId))
+            let ids = Set(PasswortSicherheit.pruefe(tresor.lebendige, lecks: lecks).map(\.eintragId))
             return tresor.lebendige.filter { ids.contains($0.id) }
         case .geloescht: return tresor.eintraege.filter { istWiederherstellbar($0, jetzt: jetzt) }
         }
     }
 
     /// Die Zahlen der Kacheln: genau so viele Zeilen hat die Liste dahinter.
-    static func zaehler(in tresor: Tresor, jetzt: Date = Date()) -> [PasswoerterKategorie: Int] {
-        Dictionary(uniqueKeysWithValues: PasswoerterKategorie.allCases.map { ($0, eintraege($0, in: tresor, jetzt: jetzt).count) })
+    static func zaehler(in tresor: Tresor, jetzt: Date = Date(), lecks: Set<String> = []) -> [PasswoerterKategorie: Int] {
+        Dictionary(uniqueKeysWithValues: PasswoerterKategorie.allCases.map { ($0, eintraege($0, in: tresor, jetzt: jetzt, lecks: lecks).count) })
     }
 
     static func hatCode(_ e: Eintrag) -> Bool {
@@ -129,8 +136,17 @@ enum PasswoerterLogik {
     }
 
     /// Nach Name: je Buchstabe ein Abschnitt, `#` zuletzt. Nach "Zuletzt geändert": ein einziger Abschnitt, neueste zuerst.
-    static func abschnitte(_ eintraege: [Eintrag], sortierung: Sortierung) -> [Abschnitt] {
+    /// Nach "Zuletzt benutzt": ein Abschnitt, zuletzt ausgefüllte oder kopierte zuerst (`benutzt`: id → Zeitpunkt), nie benutzte danach nach Name.
+    static func abschnitte(_ eintraege: [Eintrag], sortierung: Sortierung, benutzt: [String: Date] = [:]) -> [Abschnitt] {
         switch sortierung {
+        case .zuletztBenutzt:
+            guard !eintraege.isEmpty else { return [] }
+            let mit = eintraege.filter { benutzt[$0.id] != nil }.sorted { a, b in
+                let ta = benutzt[a.id] ?? .distantPast, tb = benutzt[b.id] ?? .distantPast
+                return ta == tb ? a.id < b.id : ta > tb
+            }
+            let ohne = EintragSuche.sortiert(eintraege.filter { benutzt[$0.id] == nil })
+            return [Abschnitt(kennung: "", eintraege: mit + ohne)]
         case .geaendert:
             guard !eintraege.isEmpty else { return [] }
             let sortiert = eintraege.sorted { a, b in
@@ -147,5 +163,68 @@ enum PasswoerterLogik {
             }
             return schluessel.map { Abschnitt(kennung: $0, eintraege: gruppen[$0] ?? []) }
         }
+    }
+
+    // MARK: Codes
+
+    /// Die letzten Sekunden eines Codes, in denen schon der nächste klein daneben steht.
+    static let vorschauSekunden = 5
+
+    /// Der Code, der beim Antippen in die Zwischenablage geht: der laufende, in den letzten `vorschauSekunden` der nächste.
+    /// nil ohne lesbares Geheimnis. Perioden bis `vorschauSekunden` zeigen nie einen nächsten (sonst wäre er immer dran).
+    static func codeZumKopieren(_ totp: String, datum: Date) -> (code: String, istNaechster: Bool)? {
+        guard let z = TOTPAnzeige.zustand(totp, datum: datum) else { return nil }
+        guard let n = naechsterCode(totp, datum: datum) else { return (z.code, false) }
+        return (n, true)
+    }
+
+    /// Der Code der nächsten Periode, aber nur in den letzten `vorschauSekunden` des laufenden. Sonst nil.
+    static func naechsterCode(_ totp: String, datum: Date) -> String? {
+        guard let e = TOTP.einstellung(aus: totp), e.periode > vorschauSekunden else { return nil }
+        let zeit = Int(datum.timeIntervalSince1970)
+        let rest = TOTP.restsekunden(e, zeit: zeit)
+        guard rest <= vorschauSekunden else { return nil }
+        return TOTP.code(e, zeit: zeit + rest)
+    }
+
+    // MARK: Passwort ändern
+
+    /// `https://<host>/.well-known/change-password` (Apple/W3C: Seiten leiten dort auf ihre Seite zum Ändern). nil ohne Host oder bei Notizen und Gelöschtem.
+    static func passwortAendernURL(von e: Eintrag) -> URL? {
+        guard !e.geloescht, e.art == Eintrag.artLogin, let host = EintragSuche.hosts(von: e).first else { return nil }
+        var teile = URLComponents()
+        teile.scheme = "https"
+        teile.host = host
+        teile.path = "/.well-known/change-password"
+        return teile.url
+    }
+
+    // MARK: Frühere Passwörter
+
+    /// Ein früheres Passwort: der Text und (ISO) bis wann es galt, leer wenn unbekannt.
+    struct FruehereZeile: Equatable, Sendable {
+        let passwort: String
+        let bis: String
+    }
+
+    /// Alle früheren Passwörter eines Eintrags: `passwortVerlauf` (Heim, `{passwort, bis}`) und `bitwardenVerlauf` (Bitwarden, `{password, lastUsedDate}`),
+    /// ohne Doppelte (gleiches Passwort zur gleichen Zeit), das aktuelle Passwort nicht, neueste zuerst.
+    static func fruehere(von e: Eintrag) -> [FruehereZeile] {
+        var zeilen: [FruehereZeile] = []
+        for w in e.unbekannt["passwortVerlauf"]?.alsListe ?? [] {
+            guard case .objekt(let d) = w, let p = d["passwort"]?.alsText, !p.isEmpty else { continue }
+            zeilen.append(FruehereZeile(passwort: p, bis: d["bis"]?.alsText ?? ""))
+        }
+        for w in e.unbekannt["bitwardenVerlauf"]?.alsListe ?? [] {
+            guard case .objekt(let d) = w, let p = d["password"]?.alsText, !p.isEmpty else { continue }
+            zeilen.append(FruehereZeile(passwort: p, bis: d["lastUsedDate"]?.alsText ?? ""))
+        }
+        var gesehen = Set<String>()
+        let ohneDoppelte = zeilen.filter { $0.passwort != e.passwort }.filter { gesehen.insert($0.passwort + "\u{0}" + $0.bis).inserted }
+        // sortiert ist stabil genug: gleiche Zeit bleibt in der Reihenfolge der Quelle (Heim vor Bitwarden)
+        return ohneDoppelte.enumerated().sorted { a, b in
+            let ma = Zeit.millis(iso: a.element.bis) ?? Int64.min, mb = Zeit.millis(iso: b.element.bis) ?? Int64.min
+            return ma == mb ? a.offset < b.offset : ma > mb
+        }.map(\.element)
     }
 }

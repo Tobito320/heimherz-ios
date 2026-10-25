@@ -52,13 +52,16 @@ struct EintragZeile: View {
 }
 
 /// Eine Zeile der Liste "Codes": Symbol, Name, Benutzer und der laufende Code groß mit Ring und Restzeit. Der Code ist bis zur Face ID verdeckt.
+/// In den letzten Sekunden eines Codes steht der nächste klein darunter; Tippen kopiert dann gleich den nächsten (`PasswoerterLogik.codeZumKopieren`).
 struct CodeZeile: View {
     let eintrag: Eintrag
     let freigegeben: Bool
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { zeit in
-            let z = freigegeben ? TOTPAnzeige.zustand(eintrag.totp, datum: zeit.date) : nil
+            let datum = Self.anzeigeZeit(zeit.date)
+            let z = freigegeben ? TOTPAnzeige.zustand(eintrag.totp, datum: datum) : nil
+            let naechster = z == nil ? nil : PasswoerterLogik.naechsterCode(eintrag.totp, datum: datum)
             HStack(spacing: Abstand.m) {
                 SymbolKachel(eintrag: eintrag)
                 VStack(alignment: .leading, spacing: 2) {
@@ -75,11 +78,19 @@ struct CodeZeile: View {
                 }
                 Spacer(minLength: Abstand.s)
                 if let z {
-                    Text(z.gruppiert)
-                        .font(.system(size: 26, weight: .semibold, design: .rounded).monospacedDigit())
-                        .foregroundStyle(Color.tinte)
-                        .minimumScaleFactor(0.6)
-                        .lineLimit(1)
+                    VStack(alignment: .trailing, spacing: 0) {
+                        Text(z.gruppiert)
+                            .font(.system(size: 26, weight: .semibold, design: .rounded).monospacedDigit())
+                            .foregroundStyle(Color.tinte)
+                            .minimumScaleFactor(0.6)
+                            .lineLimit(1)
+                        // Die Zeile bleibt gleich hoch, auch wenn der nächste Code gerade nicht dasteht.
+                        Text(naechster.map { "Danach " + TOTPZustand(code: $0, rest: 0, periode: z.periode).gruppiert } ?? " ")
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(Color.tinte2)
+                            .lineLimit(1)
+                            .accessibilityHidden(true)
+                    }
                     TOTPRing(anteil: z.anteil, rest: z.rest, groesse: 32)
                 } else {
                     Text("••• •••")
@@ -91,15 +102,29 @@ struct CodeZeile: View {
             .padding(.vertical, Abstand.xs)
             .frame(minHeight: Abstand.tippflaeche)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(beschriftung(z))
-            .accessibilityHint(z == nil ? "" : "Tippen kopiert den Code")
+            .accessibilityLabel(beschriftung(z, naechster))
+            .accessibilityHint(z == nil ? "" : (naechster == nil ? "Tippen kopiert den Code" : "Tippen kopiert den nächsten Code"))
         }
     }
 
-    private func beschriftung(_ z: TOTPZustand?) -> String {
+    /// Nur Debug (`-heimherzCodeVorschau YES`, Screenshot in CI): friert die Anzeige 3 Sekunden vor Ende der 30-Sekunden-Periode ein,
+    /// damit der Screenshot den nächsten Code zeigt.
+    private static func anzeigeZeit(_ datum: Date) -> Date {
+        #if DEBUG
+        if UserDefaults.standard.bool(forKey: "heimherzCodeVorschau") {
+            let t = datum.timeIntervalSince1970
+            return Date(timeIntervalSince1970: t - t.truncatingRemainder(dividingBy: 30) + 27)
+        }
+        #endif
+        return datum
+    }
+
+    private func beschriftung(_ z: TOTPZustand?, _ naechster: String?) -> String {
         let kopf = [eintrag.name.isEmpty ? "Ohne Namen" : eintrag.name, eintrag.benutzer].filter { !$0.isEmpty }.joined(separator: ", ")
         guard let z else { return kopf + ", Code verdeckt" }
-        return kopf + ", Code " + z.code.map { String($0) }.joined(separator: " ") + ", noch \(z.rest) Sekunden"
+        var text = kopf + ", Code " + z.code.map { String($0) }.joined(separator: " ") + ", noch \(z.rest) Sekunden"
+        if let naechster { text += ", danach " + naechster.map { String($0) }.joined(separator: " ") }
+        return text
     }
 }
 

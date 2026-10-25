@@ -24,14 +24,25 @@ final class TresorStore {
     private(set) var abgleichFehler: String?
     private(set) var gleichtAb = false
 
+    /// Ids, deren Passwort laut Leck-Prüfung in einem Datenleck steckt (nur Einträge mit passendem Stand, nur bei eingeschalteter Einstellung).
+    /// Gespeichert statt berechnet, damit die Kachel "Sicherheit" sich ändert, sobald ein Ergebnis kommt.
+    private(set) var leckIds: Set<String> = []
+
     private let umgebung: AppUmgebung
     private let identitaetenSetzen: @Sendable (Tresor) async -> Void
+    private let spotlightSetzen: @Sendable (Tresor) async -> Void
+    private let einstellungen: GeteilteEinstellungen
+    private let leckSpeicher: LeckSpeicher
+    /// nil = keine Netzabfrage (Tests ohne eigene Attrappe, Demo).
+    private let leckAbfrage: LeckAbfrage?
     private let jetzt: @Sendable () -> Date
     private let merker: UserDefaults
     private var schluessel: SymmetricKey?
     private var abgleichNoetig = false
     private var abgleichTask: Task<Void, Never>?
     private var identitaetenTask: Task<Void, Never>?
+    private var spotlightTask: Task<Void, Never>?
+    private var leckTask: Task<Void, Never>?
     /// Zählt Sperren hoch: Ergebnisse von Aufgaben, die vor einer Sperre starteten, werden verworfen (kein Klartext nach dem Sperren).
     private var sperrZaehler = 0
 
@@ -39,10 +50,18 @@ final class TresorStore {
 
     init(umgebung: AppUmgebung,
          identitaeten: (@Sendable (Tresor) async -> Void)? = nil,
+         spotlight: (@Sendable (Tresor) async -> Void)? = nil,
+         einstellungen: GeteilteEinstellungen = GeteilteEinstellungen(),
+         leckSpeicher: LeckSpeicher = LeckSpeicher(),
+         leckAbfrage: LeckAbfrage? = AppUmgebung.istTestHost ? nil : LeckAbfrage(),
          jetzt: @escaping @Sendable () -> Date = { Date() },
          merker: UserDefaults = .standard) {
         self.umgebung = umgebung
         self.identitaetenSetzen = identitaeten ?? Self.setzeImSystem
+        self.spotlightSetzen = spotlight ?? Self.setzeSpotlight
+        self.einstellungen = einstellungen
+        self.leckSpeicher = leckSpeicher
+        self.leckAbfrage = leckAbfrage
         self.jetzt = jetzt
         self.merker = merker
         let sekunden = merker.double(forKey: Self.merkerSchluessel)
@@ -70,7 +89,7 @@ final class TresorStore {
     /// Die Zahlen der Kacheln der Startseite.
     var zaehler: [PasswoerterKategorie: Int] {
         guard let t = tresor else { return [:] }
-        return PasswoerterLogik.zaehler(in: t, jetzt: jetzt())
+        return PasswoerterLogik.zaehler(in: t, jetzt: jetzt(), lecks: leckIds)
     }
 
     /// Einmalcodes sind erst nach Face ID oder Code sichtbar, einmal je Öffnen der App (`sperren()` setzt es zurück).
@@ -88,6 +107,7 @@ final class TresorStore {
             tresor = Self.demoTresor
             zuletzt = jetzt()
             codesFreigegeben = true   // Demo: nie Face ID, die Screenshots sollen Codes zeigen
+            leckIds = Self.demoLecks   // Demo: nie Netz, ein erfundener Treffer für den Screenshot
             zustand = .bereit
             return
         }
@@ -106,7 +126,7 @@ final class TresorStore {
                 schluessel = k
                 tresor = lokal
                 zustand = .bereit
-                aktualisiereIdentitaeten(lokal)
+                tresorStandGeaendert(lokal)
             } catch {
                 if zaehler == sperrZaehler { zustand = .fehler(Self.text(error)) }
                 return
@@ -130,6 +150,9 @@ final class TresorStore {
         tresor = nil
         schluessel = nil
         codesFreigegeben = false
+        leckTask?.cancel()
+        leckTask = nil
+        leckIds = []
         zustand = .leer
         offlineText = nil
         abgleichFehler = nil
@@ -166,7 +189,7 @@ final class TresorStore {
                     offlineText = "Der PC ist gerade nicht erreichbar. Alles geht weiter, Änderungen warten bis zum nächsten Abgleich."
                 }
                 abgleichFehler = nil
-                if let neu = tresor { aktualisiereIdentitaeten(neu) }
+                if let neu = tresor { tresorStandGeaendert(neu) }
             } catch {
                 guard zaehler == sperrZaehler else { return }
                 abgleichFehler = Self.text(error)
@@ -263,11 +286,12 @@ final class TresorStore {
             abgleichFehler = "Speichern auf dem Handy ist fehlgeschlagen: \(Self.text(error))"
             return
         }
-        aktualisiereIdentitaeten(t)
+        tresorStandGeaendert(t)
         starteAbgleich()
     }
 
-    private func aktualisiereIdentitaeten(_ t: Tresor) {
+    /// Nach jedem neuen Stand (Öffnen, Abgleich, Änderung): Identitäten für AutoFill, Spotlight-Index und Leck-Prüfung nachziehen.
+    private func tresorStandGeaendert(_ t: Tresor) {
         guard !umgebung.istDemo else { return }
         let setzen = identitaetenSetzen
         let vorher = identitaetenTask
@@ -276,6 +300,13 @@ final class TresorStore {
             await vorher?.value
             await setzen(t)
         }
+        let spotlight = spotlightSetzen
+        let vorherSpotlight = spotlightTask
+        spotlightTask = Task {
+            await vorherSpotlight?.value
+            await spotlight(t)
+        }
+        starteLeckPruefung(t)
     }
 
     /// Wartet, bis die Identitäten im System gesetzt sind (Tests).
@@ -283,8 +314,60 @@ final class TresorStore {
         await identitaetenTask?.value
     }
 
+    /// Wartet, bis der Spotlight-Index gesetzt ist (Tests).
+    func warteAufSpotlight() async {
+        await spotlightTask?.value
+    }
+
     private nonisolated static func setzeImSystem(_ tresor: Tresor) async {
         _ = await AutoFillIdentitaeten.setze(tresor)
+    }
+
+    private nonisolated static func setzeSpotlight(_ tresor: Tresor) async {
+        await SpotlightIndex.setze(SpotlightIndex.eintraege(aus: tresor))
+    }
+
+    // MARK: Datenlecks
+
+    /// Prüft Passwörter gegen Pwned Passwords, aber nur mit eingeschalteter Einstellung, höchstens einmal am Tag alle und sonst nur neue oder
+    /// geänderte Einträge (`LeckPruefung.faellig`). Gespeichert wird nur "gefunden ja/nein" je Eintrag. Ohne Netz ändert sich nichts.
+    private func starteLeckPruefung(_ t: Tresor) {
+        guard einstellungen.leckPruefung else {
+            leckIds = []   // aus: keine Abfrage, kein Abschnitt, keine Zählung
+            return
+        }
+        let staende = leckSpeicher.staende
+        leckIds = LeckPruefung.lecks(t.lebendige, staende: staende)
+        guard let abfrage = leckAbfrage, leckTask == nil else { return }
+        let stand = jetzt()
+        let faellig = LeckPruefung.faellig(t.lebendige, staende: staende, letzterLauf: leckSpeicher.letzterLauf, jetzt: stand)
+        guard !faellig.eintraege.isEmpty else { return }
+        let kandidaten = faellig.eintraege.map { (id: $0.id, passwort: $0.passwort) }
+        let stempel = Dictionary(faellig.eintraege.map { ($0.id, $0.geaendert) }, uniquingKeysWith: { a, _ in a })
+        let zaehler = sperrZaehler
+        leckTask = Task { [weak self] in
+            let lauf = await LeckPruefung.pruefe(kandidaten, abfrage: abfrage)
+            guard let self, zaehler == self.sperrZaehler, !Task.isCancelled else { return }
+            self.leckTask = nil
+            guard !lauf.ergebnisse.isEmpty || lauf.vollstaendig else { return }
+            var neu = staende
+            for (id, gefunden) in lauf.ergebnisse {
+                if let geaendert = stempel[id] { neu[id] = LeckStand(geaendert: geaendert, gefunden: gefunden) }
+            }
+            // Einträge, die es nicht mehr gibt, fliegen raus (klein halten, nichts Altes aufheben).
+            let lebendig = Set(self.eintraege.map(\.id))
+            neu = neu.filter { lebendig.contains($0.key) }
+            self.leckSpeicher.staende = neu
+            if lauf.vollstaendig, faellig.alle { self.leckSpeicher.letzterLauf = stand }
+            self.leckIds = LeckPruefung.lecks(self.eintraege, staende: neu)
+            // Währenddessen geänderte Einträge sofort nachholen; nur nach einem sauberen Lauf, sonst hämmert ein fehlendes Netz im Kreis.
+            if lauf.vollstaendig, let aktuell = self.tresor { self.starteLeckPruefung(aktuell) }
+        }
+    }
+
+    /// Wartet auf eine laufende Leck-Prüfung (Tests).
+    func warteAufLeckPruefung() async {
+        await leckTask?.value
     }
 
     nonisolated static func text(_ fehler: Error) -> String {

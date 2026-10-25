@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Der Eintrag im Detail im Stil der Passwörter-App von Apple: Kopf mit Symbol und Name, Benutzer und Passwort kopieren (Zwischenablage 60 s, nur dieses Gerät),
-/// Passwort erst nach Face ID zeigen, Einmalcode mit Ring und Restzeit (ebenfalls erst nach Face ID), Verlauf geänderter Passwörter, Passkeys.
+/// Passwort erst nach Face ID zeigen, Einmalcode mit Ring und Restzeit (ebenfalls erst nach Face ID), "Frühere Passwörter (N)" als Unterseite, Passkeys.
 /// Der Eintrag wird bei jeder Änderung neu aus dem Store gelesen. Ein gelöschter Eintrag ist nur lesbar und lässt sich wiederherstellen.
 struct EintragDetailView: View {
     let store: TresorStore
@@ -13,6 +13,8 @@ struct EintragDetailView: View {
     @State private var frageLoeschen = false
     @State private var frageEndgueltig = false
     @State private var kopiert: String?
+    @State private var zeigeFruehere = false
+    @Environment(\.openURL) private var oeffneURL
 
     var body: some View {
         Group {
@@ -31,11 +33,11 @@ struct EintragDetailView: View {
             VStack(alignment: .leading, spacing: Abstand.l) {
                 kopf(e)
                 if e.geloescht { geloeschtHinweis }
-                if let hinweis = sicherheit(e) { StatusChip(text: hinweis, symbol: "exclamationmark.triangle.fill", ton: .warn) }
+                if let hinweis = sicherheit(e) { hinweisZeile(e, hinweis) }
                 if e.art == Eintrag.artLogin { zugang(e) }
                 if !e.notiz.isEmpty { notiz(e) }
                 if !PasswoerterLogik.passkeys(von: e).isEmpty { passkeyKarte(e) }
-                if !passwortVerlauf(e).isEmpty { verlaufKarte(e) }
+                fruehereZeile(e)
                 Text("Geändert: \(Self.datum(e.geaendert))")
                     .font(.footnote)
                     .foregroundStyle(Color.tinte2)
@@ -73,6 +75,9 @@ struct EintragDetailView: View {
                     .accessibilityLabel(e.favorit ? "Favorit entfernen" : "Als Favorit markieren")
                     Menu {
                         Button { bearbeiten(e) } label: { Label("Bearbeiten", systemImage: "pencil") }
+                        if let url = PasswoerterLogik.passwortAendernURL(von: e) {
+                            Button { oeffneURL(url) } label: { Label("Passwort ändern …", systemImage: "key.horizontal") }
+                        }
                         Button(role: .destructive) { frageLoeschen = true } label: { Label("Löschen", systemImage: "trash") }
                     } label: {
                         Image(systemName: "ellipsis.circle")
@@ -82,6 +87,10 @@ struct EintragDetailView: View {
                 }
             }
         }
+        .navigationDestination(isPresented: $zeigeFruehere) { FruehereSeite(store: store, id: e.id) }
+        #if DEBUG
+        .onAppear { if UserDefaults.standard.string(forKey: "heimherzPwOffen") == "frueher" { zeigeFruehere = true } }   // nur Screenshots in CI
+        #endif
         .confirmationDialog("Diesen Eintrag löschen?", isPresented: $frageLoeschen, titleVisibility: .visible) {
             Button("Löschen", role: .destructive) {
                 Task {
@@ -143,10 +152,23 @@ struct EintragDetailView: View {
         HinweisKarte(text: "Dieser Eintrag ist gelöscht. Er bleibt 30 Tage hier, dann werden seine Inhalte gelöscht. Oben rechts kannst du ihn wiederherstellen.", symbol: "trash")
     }
 
-    /// Der Sicherheitshinweis zu diesem Eintrag (gleiches Passwort in mehreren Konten, leicht zu erraten), lokal berechnet.
-    private func sicherheit(_ e: Eintrag) -> String? {
+    /// Der Sicherheitshinweis zu diesem Eintrag (Datenleck, gleiches Passwort in mehreren Konten, leicht zu erraten), lokal berechnet.
+    private func sicherheit(_ e: Eintrag) -> SicherheitsHinweis? {
         guard !e.geloescht else { return nil }
-        return PasswortSicherheit.pruefe(store.eintraege).first { $0.eintragId == e.id }?.text
+        return PasswortSicherheit.pruefe(store.eintraege, lecks: store.leckIds).first { $0.eintragId == e.id }
+    }
+
+    /// Hinweis mit dem Knopf dazu: wer ein schwaches oder geleaktes Passwort sieht, will es gleich ändern.
+    private func hinweisZeile(_ e: Eintrag, _ h: SicherheitsHinweis) -> some View {
+        VStack(alignment: .leading, spacing: Abstand.xs) {
+            StatusChip(text: h.text, symbol: "exclamationmark.triangle.fill", ton: h.gruende.first == .datenleck ? .schlecht : .warn)
+            if let url = PasswoerterLogik.passwortAendernURL(von: e) {
+                Button("Passwort ändern …") { oeffneURL(url) }
+                    .font(.subheadline)
+                    .foregroundStyle(Color.gruen)
+                    .frame(minHeight: Abstand.tippflaeche, alignment: .leading)
+            }
+        }
     }
 
     private func passkeyKarte(_ e: Eintrag) -> some View {
@@ -164,30 +186,22 @@ struct EintragDetailView: View {
         }
     }
 
-    /// Frühere Passwörter aus `passwortVerlauf` (neueste zuerst): Datum sichtbar, das Passwort selbst erst mit dem Auge (Face ID) wie das aktuelle.
-    private func passwortVerlauf(_ e: Eintrag) -> [(passwort: String, bis: String)] {
-        (e.unbekannt["passwortVerlauf"]?.alsListe ?? []).compactMap { w in
-            guard case .objekt(let d) = w, let p = d["passwort"]?.alsText, !p.isEmpty else { return nil }
-            return (p, d["bis"]?.alsText ?? "")
-        }
-    }
-
-    private func verlaufKarte(_ e: Eintrag) -> some View {
-        ListenKarte {
-            Text("Frühere Passwörter").font(.footnote).foregroundStyle(Color.tinte2)
-            ForEach(Array(passwortVerlauf(e).enumerated()), id: \.offset) { _, v in
-                HStack(spacing: Abstand.s) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(zeigePasswort ? v.passwort : String(repeating: "•", count: 10))
-                            .font(zeigePasswort ? .system(.body, design: .monospaced) : .body)
-                            .foregroundStyle(Color.tinte)
-                            .textSelection(.disabled)
-                        if !v.bis.isEmpty { Text("Bis \(Self.datum(v.bis))").font(.footnote).foregroundStyle(Color.tinte2) }
+    /// Eine Zeile "Frühere Passwörter (N)" mit Unterseite, nur wenn es welche gibt. Anzeigen und Kopieren dort erst nach Face ID.
+    @ViewBuilder
+    private func fruehereZeile(_ e: Eintrag) -> some View {
+        let n = PasswoerterLogik.fruehere(von: e).count
+        if n > 0 {
+            Button { zeigeFruehere = true } label: {
+                ListenKarte {
+                    HStack {
+                        Text("Frühere Passwörter (\(n))").font(.body).foregroundStyle(Color.tinte)
+                        Spacer(minLength: Abstand.s)
+                        Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(Color.tinte3).accessibilityHidden(true)
                     }
-                    Spacer(minLength: Abstand.s)
-                    knopf("doc.on.doc", "Früheres Passwort kopieren") { kopiere(v.passwort, "Passwort") }
+                    .frame(minHeight: Abstand.tippflaeche)
                 }
             }
+            .buttonStyle(.plain)
         }
     }
 
@@ -321,6 +335,7 @@ struct EintragDetailView: View {
 
     private func kopiere(_ text: String, _ was: String) {
         Zwischenablage.kopiere(text)
+        Nutzung().merke(id: id)
         Haptik.erfolg()
         kopiert = was
         Task {
@@ -347,7 +362,7 @@ struct EintragDetailView: View {
         return url
     }
 
-    private static func datum(_ iso: String) -> String {
+    static func datum(_ iso: String) -> String {
         guard let ms = Zeit.millis(iso: iso) else { return "unbekannt" }
         return Date(timeIntervalSince1970: Double(ms) / 1000).formatted(date: .abbreviated, time: .shortened)
     }

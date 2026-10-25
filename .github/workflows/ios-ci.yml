@@ -103,6 +103,16 @@ jobs:
               sleep 5
               xcrun simctl io "$IPHONE_ID" screenshot "screenshots/${modus}-passwoerter-${seite}.png"
             done
+            # Passwörter Runde 3 (W-014, W-016, W-017, W-021): Vergleich doppelter Konten, Frühere Passwörter, Codes kurz vor Ablauf (Zeit eingefroren)
+            xcrun simctl launch --terminate-running-process "$IPHONE_ID" com.onlyus.heimherz -heimherzDemo YES -heimherzTab passwoerter -heimherzPwSeite sicherheit -heimherzPwOffen vergleich
+            sleep 5
+            xcrun simctl io "$IPHONE_ID" screenshot "screenshots/${modus}-passwoerter-vergleich.png"
+            xcrun simctl launch --terminate-running-process "$IPHONE_ID" com.onlyus.heimherz -heimherzDemo YES -heimherzTab passwoerter -heimherzPwSeite detail -heimherzPwOffen frueher
+            sleep 5
+            xcrun simctl io "$IPHONE_ID" screenshot "screenshots/${modus}-passwoerter-frueher.png"
+            xcrun simctl launch --terminate-running-process "$IPHONE_ID" com.onlyus.heimherz -heimherzDemo YES -heimherzTab passwoerter -heimherzPwSeite codes -heimherzCodeVorschau YES
+            sleep 5
+            xcrun simctl io "$IPHONE_ID" screenshot "screenshots/${modus}-passwoerter-codes-danach.png"
             xcrun simctl launch --terminate-running-process "$IPHONE_ID" com.onlyus.heimherz -heimherzDemo YES -heimherzTab fotos -heimherzFotosRaster YES
             sleep 5
             xcrun simctl io "$IPHONE_ID" screenshot "screenshots/${modus}-fotos-raster.png"
