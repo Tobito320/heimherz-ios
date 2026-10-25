@@ -198,9 +198,13 @@ Liste mit Suche (Name, Benutzer, Host), Favoriten oben. Detail: Benutzer und Pas
 - Anzeige: Fotos gesamt, am PC, offen, letzte Übertragung, Fehler in Klartext. Nur WLAN als Schalter (Standard an, Videos immer nur WLAN).
 - Nie etwas in der Mediathek löschen oder ändern.
 
+Gebaut (25.10.): Server antwortet auf `OPTIONS /v1/fotos/…` ohne Token mit 501 (kein Resumable Upload, Apple-Weg) und nimmt POST wie PUT; Teil-Uploads 400. Ressourcen `foto-N`, `video-N`, `live-N`, `alternative-N`, `ton-N`; bearbeitete Fassungen gehen nicht mit (später). `Gemeinsam/Fotos/` teilt Kennung, Plan und Stand (`fotos-stand.json` in der App Group) zwischen App und Erweiterung; die Erweiterung hat kein Netz zum Abfragen und liest `bekannt` aus dem Stand. Vor iOS 26.5 merkt sie eingereichte Jobs selbst (3 Tage), vor 26.4 kein `job.error`. Ohne WLAN wartet die App statt iCloud-Originale mobil zu laden. Kein `handleEventsForBackgroundURLSession`: alte Transfers werden beim nächsten Öffnen des Tabs eingesammelt.
+
 ## 12. Modul `ios-dateien`
 
 Ordnerliste, Vorschau mit QuickLook (Download in Cache, Range wird nicht gebraucht), Teilen (`ShareLink`), Hochladen aus Dateien-App (`fileImporter`) und Fotos, in den Papierkorb legen mit Rückfrage. Kein Offline-Spiegel.
+
+Gebaut (25.10.): Datei antippen öffnet ein Blatt mit Ansehen, Teilen, Papierkorb; Papierkorb auch per Langdruck. Fotos-Auswahl lädt Dateien (nicht Data), Name `Foto JJJJ-MM-TT HH-MM-SS.ext`, bis 20 auf einmal.
 
 ## 13. Modul `freigabe`
 
