@@ -48,12 +48,13 @@ final class FotosModell {
         }
     }
 
-    /// Erfundener Zwischenstand für Screenshots und Vorschau: ein Abgleich läuft, die neuesten 40 Bilder liegen schon am PC.
+    /// Erfundener Zwischenstand für Screenshots und Vorschau: ein Abgleich läuft; fast alle der ersten 40 Bilder liegen am PC, eines läuft, eines hat einen Fehler.
     static var demoAnzeige: FotoAnzeige {
         let koepfe = FotoMediathek.demoKoepfe
         return FotoAnzeige(
             zahlen: FotoZahlen(gesamt: 8_312, amPC: 1_234), schritt: "Sende IMG_4821.HEIC …", fortschritt: 1_234.0 / 8_312.0, laeuft: true,
-            fertig: Set(koepfe.prefix(40).map(\.kennung)), laufend: [koepfe[40].kennung], fehler: [koepfe[41].kennung: "vom PC abgelehnt, Code 400"],
+            fertig: Set(koepfe.prefix(40).enumerated().filter { $0.offset != 5 && $0.offset != 6 }.map(\.element.kennung)),
+            laufend: [koepfe[5].kennung], fehler: [koepfe[6].kennung: "vom PC abgelehnt, Code 400"],
             datei: "IMG_4821.HEIC", bytesProSekunde: 4_200_000, restSekunden: 5_400)
     }
 

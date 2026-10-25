@@ -299,7 +299,7 @@ final class FotoAbgleichTests: XCTestCase {
 
     func testEinstellungenAusDemLaufBleibenErhalten() async throws {
         let ablage = FotoStandAblage(ordner: try tempOrdner())
-        let u = try baue(assets: viele(2), gleichzeitig: 1, ablage: ablage) { _ in
+        let u = try baue(assets: viele(2), gleichzeitig: 1, stueck: 1, ablage: ablage) { _ in
             ablage.aendere { $0.nurWLAN = false; $0.iCloudLaden = false }   // der Nutzer legt mitten im Lauf Schalter um
         }
         await u.abgleich.abgleichen()
