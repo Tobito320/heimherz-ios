@@ -12,7 +12,7 @@ final class FotoMitteilungTests: XCTestCase {
     private func einstellungen(an: Bool? = nil) throws -> GeteilteEinstellungen {
         let name = "heimherz-test-\(UUID().uuidString)"
         let d = try XCTUnwrap(UserDefaults(suiteName: name))
-        addTeardownBlock { d.removePersistentDomain(forName: name) }
+        addTeardownBlock { UserDefaults(suiteName: name)?.removePersistentDomain(forName: name) }
         let e = GeteilteEinstellungen(speicher: d)
         if let an { e.fotoMitteilung = an }
         return e
