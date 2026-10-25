@@ -1,4 +1,3 @@
-import Synchronization
 import XCTest
 @testable import Heimherz
 
@@ -23,15 +22,15 @@ private struct FakeQuelle: FotoQuelle {
 }
 
 private final class FakeSender: FotoSender, Sendable {
-    let anfragen = Mutex<[URLRequest]>([])
+    let anfragen = Kasten<[URLRequest]>([])
     let verhalten: @Sendable (URLRequest) -> HeimFehler?
     init(_ v: @escaping @Sendable (URLRequest) -> HeimFehler? = { _ in nil }) { verhalten = v }
     func sende(datei: URL, anfrage: URLRequest) async throws {
         XCTAssertTrue(FileManager.default.fileExists(atPath: datei.path), "die Datei muss beim Senden da sein")
-        anfragen.withLock { $0.append(anfrage) }
+        anfragen.mit { $0.append(anfrage) }
         if let f = verhalten(anfrage) { throw f }
     }
-    var pfade: [String] { anfragen.withLock { $0.compactMap { $0.url?.path } } }
+    var pfade: [String] { anfragen.mit { $0.compactMap { $0.url?.path } } }
 }
 
 private struct FakeNetzart: Netzart {
@@ -49,7 +48,7 @@ final class FotoAbgleichTests: XCTestCase {
         let sender: FakeSender
         let ablage: FotoStandAblage
         let temp: URL
-        let anzeigen: Mutex<[FotoAnzeige]>
+        let anzeigen: Kasten<[FotoAnzeige]>
     }
 
     private func baue(assets: [(kopf: FotoKopf, teile: [(art: FotoArt, dateiname: String)])], bekannt: String = "[]", bekanntStatus: Int = 200,
@@ -62,9 +61,9 @@ final class FotoAbgleichTests: XCTestCase {
             return .json(bekannt, status: bekanntStatus)
         }
         let client = HeimClient(basis: basis, token: TestSchluessel.token, sitzung: sitzung)
-        let anzeigen = Mutex<[FotoAnzeige]>([])
+        let anzeigen = Kasten<[FotoAnzeige]>([])
         let a = FotoAbgleich(client: client, quelle: FakeQuelle(assets: assets, ordner: temp), sender: sender, netz: FakeNetzart(wlan: wlan), ablage: ablage,
-                             jetzt: { Date(timeIntervalSince1970: 1_800_000_000) }) { neu in anzeigen.withLock { $0.append(neu) } }
+                             jetzt: { Date(timeIntervalSince1970: 1_800_000_000) }) { neu in anzeigen.mit { $0.append(neu) } }
         return Umgebung(abgleich: a, sender: sender, ablage: ablage, temp: temp, anzeigen: anzeigen)
     }
 
@@ -77,7 +76,7 @@ final class FotoAbgleichTests: XCTestCase {
         await u.abgleich.abgleichen()
 
         XCTAssertEqual(Set(u.sender.pfade), ["/v1/fotos/\(b.kopf.kennung)/live-0", "/v1/fotos/\(c.kopf.kennung)/video-0"])
-        let anfragen = u.sender.anfragen.withLock { $0 }
+        let anfragen = u.sender.anfragen.mit { $0 }
         let live = try XCTUnwrap(anfragen.first { $0.url?.path.hasSuffix("/live-0") == true })
         XCTAssertEqual(live.value(forHTTPHeaderField: "X-Dateiname"), "IMG_2.MOV")
         XCTAssertEqual(live.value(forHTTPHeaderField: "X-Aufnahme"), Zeit.iso(Date(timeIntervalSince1970: 1_790_000_000)))
@@ -89,7 +88,7 @@ final class FotoAbgleichTests: XCTestCase {
         XCTAssertNil(s.fehler)
         XCTAssertEqual(s.letzteUebertragung, Date(timeIntervalSince1970: 1_800_000_000))
         XCTAssertEqual(dateienIn(u.temp), [], "Temp-Dateien sind weg")
-        let letzte = try XCTUnwrap(u.anzeigen.withLock { $0.last })
+        let letzte = try XCTUnwrap(u.anzeigen.mit { $0.last })
         XCTAssertEqual(letzte.zahlen, FotoZahlen(gesamt: 3, amPC: 3))
         XCTAssertFalse(letzte.laeuft)
     }
@@ -101,7 +100,7 @@ final class FotoAbgleichTests: XCTestCase {
         await u.abgleich.abgleichen()
         await u.abgleich.abgleichen()
         XCTAssertEqual(u.sender.pfade, [])
-        XCTAssertEqual(u.anzeigen.withLock { $0.last }?.zahlen, FotoZahlen(gesamt: 1, amPC: 1))
+        XCTAssertEqual(u.anzeigen.mit { $0.last }?.zahlen, FotoZahlen(gesamt: 1, amPC: 1))
     }
 
     func testNurWLAN_OhneWLANWartenAlleDateien_VideosImmer() async throws {
@@ -115,7 +114,7 @@ final class FotoAbgleichTests: XCTestCase {
         // Handy darf ins Mobilnetz: Fotos gehen, das Video wartet trotzdem.
         let v = try baue(assets: [a, c], wlan: false, nurWLAN: false)
         await v.abgleich.abgleichen()
-        let anfragen = v.sender.anfragen.withLock { $0 }
+        let anfragen = v.sender.anfragen.mit { $0 }
         XCTAssertEqual(anfragen.map { $0.url?.path }, ["/v1/fotos/\(a.kopf.kennung)/foto-0"])
         XCTAssertTrue(anfragen[0].allowsCellularAccess)
         XCTAssertEqual(v.ablage.lade().fehler, "1 Datei wartet auf WLAN.")
@@ -125,7 +124,7 @@ final class FotoAbgleichTests: XCTestCase {
         let a = asset("a", [(.foto, "IMG_1.HEIC")])
         let u = try baue(assets: [a])
         await u.abgleich.abgleichen()
-        XCTAssertEqual(u.sender.anfragen.withLock { $0.first?.allowsCellularAccess }, false)
+        XCTAssertEqual(u.sender.anfragen.mit { $0.first?.allowsCellularAccess }, false)
     }
 
     func testPCNichtErreichbarBeimAbfragen() async throws {
@@ -133,7 +132,7 @@ final class FotoAbgleichTests: XCTestCase {
         await u.abgleich.abgleichen()
         XCTAssertEqual(u.sender.pfade, [])
         XCTAssertEqual(u.ablage.lade().fehler, HeimFehler.nichtBerechtigt.nutzerText)
-        XCTAssertFalse(try XCTUnwrap(u.anzeigen.withLock { $0.last }).laeuft)
+        XCTAssertFalse(try XCTUnwrap(u.anzeigen.mit { $0.last }).laeuft)
     }
 
     func testNetzFehlerBeimSendenStopptDenLauf() async throws {
@@ -152,6 +151,6 @@ final class FotoAbgleichTests: XCTestCase {
         await u.abgleich.abgleichen()
         XCTAssertEqual(sender.pfade.count, 3)
         XCTAssertEqual(u.ablage.lade().fehler, "1 Datei konnte nicht übertragen werden.")
-        XCTAssertEqual(u.anzeigen.withLock { $0.last }?.zahlen, FotoZahlen(gesamt: 3, amPC: 2))
+        XCTAssertEqual(u.anzeigen.mit { $0.last }?.zahlen, FotoZahlen(gesamt: 3, amPC: 2))
     }
 }
