@@ -46,8 +46,8 @@ export async function ladeToken(daten: string, creds: Creds): Promise<string> {
 export async function einrichten(o: { daten: string; fotos: string; dateien: string; creds: Creds }): Promise<string[]> {
   mkdirSync(o.daten, { recursive: true, mode: 0o700 });
   chmodSync(o.daten, 0o700);
-  mkdirSync(o.fotos, { recursive: true });
-  mkdirSync(o.dateien, { recursive: true });
+  mkdirSync(o.fotos, { recursive: true, mode: 0o700 });
+  mkdirSync(o.dateien, { recursive: true, mode: 0o700 });
   const meldungen: string[] = [];
 
   const keyDatei = join(o.daten, KEY_CRED);

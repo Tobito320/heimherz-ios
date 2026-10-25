@@ -1,5 +1,5 @@
 import { afterAll, expect, test } from 'bun:test';
-import { existsSync, readFileSync } from 'node:fs';
+import { chmodSync, existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { hashe, leseGeraete, schreibeGeraete } from './geraete';
 import { istLoopback } from './dienst';
@@ -68,4 +68,16 @@ test('OPTIONS auf einen Foto-Pfad legt nichts an', async () => {
   await t.ohne('/v1/fotos/OPT/foto-0', { method: 'OPTIONS' });
   await t.f('/v1/fotos/OPT/foto-0', { method: 'OPTIONS' });
   expect(await (await t.f('/v1/fotos/bekannt')).json()).toEqual(vorher);
+});
+
+test('geworfene Ausnahme außerhalb der Routen: leer 500, kein Stacktrace, keine Pfade', async () => {
+  const d = baue();
+  try {
+    // Die Anmeldung muss "zuletzt" schreiben; ist der Datenordner schreibgeschützt, wirft sie außerhalb des Routen-try.
+    chmodSync(d.daten, 0o500);
+    const r = await d.f('/v1/status');
+    expect(r.status).toBe(500);
+    expect(await r.text()).toBe('');
+    expect(r.headers.get('content-type') ?? '').not.toContain('html');
+  } finally { chmodSync(d.daten, 0o700); d.ende(); }
 });

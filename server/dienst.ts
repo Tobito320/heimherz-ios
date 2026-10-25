@@ -9,7 +9,7 @@ export const VERSION = '0.1.0';
 
 export type Optionen = {
   port: number; daten: string; fotos: string; dateien: string;
-  papierkorb?: string[]; verlaufMax?: number;
+  papierkorb?: string[]; verlaufMax?: number; mindestFrei?: number;
 };
 
 const FOTO_OPTIONS = /^\/v1\/fotos\/([A-Za-z0-9_-]{1,128})\/([A-Za-z0-9_-]{1,128})$/;
@@ -19,8 +19,8 @@ export const istLoopback = (adresse: string | undefined) => !!adresse && ['127.0
 export function starte(o: Optionen) {
   const geraete = new Geraete(o.daten);
   const tresor = new Tresor(o.daten, o.verlaufMax);
-  const fotos = new Fotos(o.fotos, o.daten);
-  const dateien = new Dateien(o.dateien, o.papierkorb ?? ['trash-put']);
+  const fotos = new Fotos(o.fotos, o.daten, o.mindestFrei);
+  const dateien = new Dateien(o.dateien, o.papierkorb ?? ['trash-put'], o.mindestFrei);
 
   async function route(req: Request): Promise<Response> {
     const url = new URL(req.url);
@@ -51,6 +51,8 @@ export function starte(o: Optionen) {
   const server = Bun.serve({
     hostname: '127.0.0.1',
     port: o.port,
+    development: false, // sonst zeigt Bun bei einer Ausnahme eine Fehlerseite mit Stacktrace und Pfaden
+    error(e) { console.error('Fehler:', e?.message); return leer(500); },
     maxRequestBodySize: Number.MAX_SAFE_INTEGER, // Videos: Grenzen setzen wir selbst (Tresor 20 MB), alles andere läuft gestreamt
     idleTimeout: 120,
     async fetch(req, srv) {

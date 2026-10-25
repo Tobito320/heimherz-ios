@@ -2,6 +2,7 @@ import { afterAll, expect, test } from 'bun:test';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { bereinigeName, zeitName } from './fotos';
+import { ablegeFehler, MINDEST_FREI } from './dateiio';
 import { baue } from './testhilfe';
 
 const t = baue();
@@ -37,11 +38,11 @@ test('doppelt: gleiche Kennung und Größe = 200 ohne Schreiben', async () => {
   expect(await bekannt()).toHaveLength(1);
 });
 
-test('doppelt ohne Content-Length (Chunked) schreibt ebenfalls nichts', async () => {
+test('ohne Content-Length (Chunked) ist 411, nichts wird geschrieben oder gemerkt', async () => {
   const strom = new ReadableStream({ start(c) { c.enqueue(new Uint8Array(4)); c.close(); } });
   const vorher = alleDateien(t.fotos);
   const r = await t.f('/v1/fotos/K1/foto', { method: 'PUT', body: strom as any, duplex: 'half' } as any);
-  expect(r.status).toBe(200);
+  expect(r.status).toBe(411);
   expect(alleDateien(t.fotos)).toEqual(vorher);
 });
 
@@ -99,7 +100,7 @@ test('abgebrochener Upload hinterlässt nichts Halbes und gilt nicht als bekannt
   expect((await foto('ABBRUCH', 'foto', new Uint8Array(3), { 'x-dateiname': 'ganz.jpg' })).status).toBe(200);
 });
 
-test('abgebrochener Chunked-Upload (ohne Content-Length) ohne Endblock hinterlässt ebenfalls nichts', async () => {
+test('Chunked-Upload (ohne Content-Length), abgebrochen oder vollständig: 411, nichts liegt da', async () => {
   const vorher = alleDateien(t.fotos);
   const n = (await bekannt()).length;
   let zu!: () => void;
@@ -114,7 +115,7 @@ test('abgebrochener Chunked-Upload (ohne Content-Length) ohne Endblock hinterlä
   s.end();
   expect(alleDateien(t.fotos)).toEqual(vorher);
   expect((await bekannt()).length).toBe(n);
-  // Gegenprobe: derselbe rohe Weg mit Endblock wird gespeichert (der Test oben beweist also etwas)
+  // auch der vollständige rohe Chunked-Upload mit Endblock wird abgelehnt
   let ok!: () => void;
   const antwort = new Promise<string>(r => (ok = () => r('')));
   let text = '';
@@ -123,8 +124,9 @@ test('abgebrochener Chunked-Upload (ohne Content-Length) ohne Endblock hinterlä
   } } });
   await antwort;
   s2.end();
-  expect(text.startsWith('HTTP/1.1 200')).toBe(true);
-  expect((await bekannt()).some(x => x.kennung === 'CHUNK2' && x.groesse === 5)).toBe(true);
+  expect(text.startsWith('HTTP/1.1 411')).toBe(true);
+  expect((await bekannt()).some(x => x.kennung === 'CHUNK2')).toBe(false);
+  expect(alleDateien(t.fotos)).toEqual(vorher);
 });
 
 test('Content-Length passt nicht zum Body: abgelehnt, nichts liegt da', async () => {
@@ -165,4 +167,50 @@ test('POST: Ausbruch-Kennungen abgelehnt, Teil-Upload (Resumable) abgelehnt', as
     expect((await t.f('/v1/fotos/TEIL/foto-0', { method: 'POST', headers: kopf, body: new Uint8Array(1) })).status).toBe(400);
   expect((await t.f('/v1/fotos/TEIL/foto-0', { method: 'POST', headers: { 'upload-complete': '?1' }, body: new Uint8Array(1) })).status).toBe(200);
   expect(alleDateien(t.fotos).length).toBe(vorher.length + 1);
+});
+
+test('Dateiname: höchstens 200 UTF-8-Bytes, geschnitten an einer Zeichengrenze, Endung bleibt', async () => {
+  const bytes = (x: string) => Buffer.byteLength(x);
+  for (const stamm of ['ä', '日', '😀', 'a']) {
+    const n = bereinigeName(stamm.repeat(300) + '.jpg');
+    expect(bytes(n)).toBeLessThanOrEqual(200);
+    expect(bytes(n)).toBeGreaterThan(200 - bytes(stamm));
+    expect(n.endsWith('.jpg')).toBe(true);
+    expect(n).not.toContain('\uFFFD');
+    expect(new TextDecoder('utf-8', { fatal: true }).decode(Buffer.from(n))).toBe(n);
+  }
+  expect(bytes(bereinigeName('😀'.repeat(300)))).toBe(200);
+  expect(bereinigeName('ä'.repeat(100))).toBe('ä'.repeat(100)); // genau 200 Bytes bleiben ganz
+  // bis zur Platte: ein Name aus 300 Emoji (1200 Bytes) wird gespeichert statt 500
+  const r = await foto('LANG', 'foto', new Uint8Array(2), { 'x-aufnahme': '2026-05-06T07:08:09', 'x-dateiname': encodeURIComponent('😀'.repeat(300) + '.heic') });
+  expect(r.status).toBe(200);
+  expect(alleDateien(t.fotos).filter(x => x.startsWith('2026/05/')).every(x => bytes(x.split('/').pop()!) <= 255)).toBe(true);
+});
+
+test('Fehler beim Ablegen: Platte voll 507, unmöglicher Name 400, anderes bleibt unbekannt (null)', () => {
+  expect(ablegeFehler(Object.assign(new Error('x'), { code: 'ENOSPC' }))?.status).toBe(507);
+  expect(ablegeFehler(Object.assign(new Error('x'), { code: 'EDQUOT' }))?.status).toBe(507);
+  expect(ablegeFehler(Object.assign(new Error('x'), { code: 'ENAMETOOLONG' }))?.status).toBe(400);
+  expect(ablegeFehler(Object.assign(new Error('x'), { code: 'EACCES' }))).toBeNull();
+  expect(ablegeFehler(new Error('x'))).toBeNull();
+});
+
+test('wenig freier Platz: Foto-Upload ist 507, nichts liegt da; Standard sind 5 GB', async () => {
+  expect(MINDEST_FREI).toBe(5 * 1024 ** 3);
+  const voll = baue({ mindestFrei: Number.MAX_SAFE_INTEGER });
+  try {
+    const r = await voll.f('/v1/fotos/VOLL/foto', { method: 'PUT', body: new Uint8Array(3) });
+    expect(r.status).toBe(507);
+    expect(alleDateien(voll.fotos)).toEqual([]);
+    expect((await voll.f('/v1/status')).status).toBe(200);
+    expect(await (await voll.f('/v1/fotos/bekannt')).json()).toEqual([]);
+  } finally { voll.ende(); }
+});
+
+test('neue Foto-Dateien 0600, neue Ordner 0700', async () => {
+  const r = await foto('MODUS', 'foto', new Uint8Array(2), { 'x-aufnahme': '2031-02-03T04:05:06', 'x-dateiname': 'm.jpg' });
+  expect(r.status).toBe(200);
+  const modus = (p: string) => statSync(p).mode & 0o777;
+  expect(modus(join(t.fotos, '2031/02/2031-02-03_04-05-06_m.jpg'))).toBe(0o600);
+  for (const d of [t.fotos, join(t.fotos, '2031'), join(t.fotos, '2031/02'), join(t.fotos, '.teil')]) expect([d, modus(d)]).toEqual([d, 0o700]);
 });

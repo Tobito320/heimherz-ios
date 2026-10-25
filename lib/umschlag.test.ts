@@ -34,3 +34,16 @@ test('istUmschlag prüft nur die Form', () => {
   for (const x of [null, {}, { ...fx.umschlag, v: 2 }, { ...fx.umschlag, rev: -1 }, { ...fx.umschlag, rev: 1.5 }, { ...fx.umschlag, nonce: 'AAAA' }, { ...fx.umschlag, daten: '' }])
     expect(istUmschlag(x)).toBe(false);
 });
+
+test('istUmschlag verlangt strenges Base64: Alphabet, Auffüllung, Länge durch 4', () => {
+  const n = fx.umschlag.nonce, d = fx.umschlag.daten;
+  expect(n.length % 4).toBe(0);
+  const schlecht = [
+    n.slice(0, 4) + ' ' + n.slice(5), n + '\n', ' ' + n, n.replace(/./, '-'), n.replace(/./, '_'), n.slice(1), n + '=', n + '====', 'A=AA' + n.slice(4),
+  ];
+  for (const nonce of schlecht) expect([nonce, istUmschlag({ ...fx.umschlag, nonce })]).toEqual([nonce, false]);
+  const url = d.replace(/./, '*'), ohneFuell = d.replace(/=+$/, '');
+  for (const daten of [url, d + '\n', d.slice(0, 3) + ' ' + d.slice(4), d.slice(1), ...(ohneFuell !== d ? [ohneFuell] : []), d + '=='])
+    expect([daten, istUmschlag({ ...fx.umschlag, daten })]).toEqual([daten, false]);
+  expect(istUmschlag({ ...fx.umschlag, nonce: 5 })).toBe(false);
+});

@@ -22,9 +22,12 @@ export async function oeffne<T = unknown>(u: Umschlag, k: CryptoKey): Promise<T>
   return JSON.parse(new TextDecoder().decode(klar));
 }
 
+// Strenges Base64 (Standard-Alphabet, Auffüllung am Ende, Länge durch 4): Buffer.from liest sonst stillschweigend Müll mit.
+const strengB64 = (s: unknown): s is string => typeof s === 'string' && s.length % 4 === 0 && /^[A-Za-z0-9+/]+={0,2}$/.test(s);
+
 // Nur die Form, nie der Inhalt: das prüft der Server (er hat keinen Schlüssel).
 export function istUmschlag(x: any): x is Umschlag {
   return !!x && x.v === 1 && Number.isInteger(x.rev) && x.rev >= 0
-    && typeof x.nonce === 'string' && b64(x.nonce).length === 12
-    && typeof x.daten === 'string' && b64(x.daten).length >= 16;
+    && strengB64(x.nonce) && b64(x.nonce).length === 12
+    && strengB64(x.daten) && b64(x.daten).length >= 16;
 }

@@ -2,7 +2,7 @@
 import { lstatSync, mkdirSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { basename, join, sep } from 'node:path';
 import { json, leer, liesBegrenzt } from './http';
-import { legeOhneUeberschreibenAb, loescheLeise, streameInDatei } from './dateiio';
+import { ablegeFehler, legeOhneUeberschreibenAb, loescheLeise, MINDEST_FREI, pruefeUpload, streameInDatei } from './dateiio';
 
 class Verboten extends Error {}
 class NichtDa extends Error {}
@@ -10,8 +10,8 @@ class NichtDa extends Error {}
 export class Dateien {
   private wurzel: string;
 
-  constructor(ordner: string, private papierkorb: string[]) {
-    mkdirSync(ordner, { recursive: true });
+  constructor(ordner: string, private papierkorb: string[], private mindestFrei = MINDEST_FREI) {
+    mkdirSync(ordner, { recursive: true, mode: 0o700 });
     this.wurzel = realpathSync(ordner);
   }
 
@@ -90,11 +90,16 @@ export class Dateien {
     let ziel: { ordner: string; name: string };
     try { ziel = this.neuesZiel(pfad); } catch (e) { return this.fehler(e); }
     if (ziel.name.startsWith('.heimherz-')) return leer(400);
+    const abgelehnt = pruefeUpload(req, this.wurzel, this.mindestFrei);
+    if (abgelehnt) return abgelehnt;
     const temp = join(ziel.ordner, `.heimherz-${crypto.randomUUID()}.teil`);
     try {
-      try { await streameInDatei(req, temp); } catch { return leer(400); }
-      const fertig = legeOhneUeberschreibenAb(temp, ziel.ordner, ziel.name);
-      return json({ name: basename(fertig) });
+      try { await streameInDatei(req, temp); } catch (e) { return ablegeFehler(e) ?? leer(400); }
+      try { return json({ name: basename(legeOhneUeberschreibenAb(temp, ziel.ordner, ziel.name)) }); } catch (e) {
+        const r = ablegeFehler(e);
+        if (r) return r;
+        throw e;
+      }
     } finally { loescheLeise(temp); }
   }
 
