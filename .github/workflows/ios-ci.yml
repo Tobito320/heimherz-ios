@@ -103,6 +103,18 @@ jobs:
               sleep 5
               xcrun simctl io "$IPHONE_ID" screenshot "screenshots/${modus}-passwoerter-${seite}.png"
             done
+            xcrun simctl launch --terminate-running-process "$IPHONE_ID" com.onlyus.heimherz -heimherzDemo YES -heimherzTab fotos -heimherzFotosRaster YES
+            sleep 5
+            xcrun simctl io "$IPHONE_ID" screenshot "screenshots/${modus}-fotos-raster.png"
+            # Dynamic Type XXL (CONSTRAINTS): nichts darf abgeschnitten sein
+            xcrun simctl ui "$IPHONE_ID" content_size extra-extra-large
+            xcrun simctl launch --terminate-running-process "$IPHONE_ID" com.onlyus.heimherz -heimherzDemo YES -heimherzTab fotos -heimherzFotosRaster YES
+            sleep 5
+            xcrun simctl io "$IPHONE_ID" screenshot "screenshots/${modus}-fotos-raster-xxl.png"
+            xcrun simctl launch --terminate-running-process "$IPHONE_ID" com.onlyus.heimherz -heimherzDemo YES -heimherzTab fotos
+            sleep 5
+            xcrun simctl io "$IPHONE_ID" screenshot "screenshots/${modus}-fotos-xxl.png"
+            xcrun simctl ui "$IPHONE_ID" content_size large
             xcrun simctl launch --terminate-running-process "$IPHONE_ID" com.onlyus.heimherz -heimherzDemo YES -heimherzTab mehr -heimherzKoppeln YES
             sleep 5
             xcrun simctl io "$IPHONE_ID" screenshot "screenshots/${modus}-koppeln.png"

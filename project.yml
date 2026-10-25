@@ -42,6 +42,12 @@ targets:
         # Import aus Apple Passwörter (Credential Exchange, iOS 26): das System startet die App mit dieser Aktivität. Apples Seite nennt den Typ
         # "ASCredentialExchangeActivityType", die Konstante im SDK heißt `ASCredentialExchangeActivity`; beide stehen drin, damit eines davon greift.
         NSUserActivityTypes: [ASCredentialExchangeActivity, ASCredentialExchangeActivityType]
+        # Foto-Abgleich im Hintergrund: Kennungen siehe FotoHintergrund.swift (Fortsetzung iOS 26, Nachtlauf mit Strom)
+        BGTaskSchedulerPermittedIdentifiers:
+          - com.onlyus.heimherz.fotos-abgleich
+          - com.onlyus.heimherz.fotos-nacht
+        UIBackgroundModes:
+          - processing
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.onlyus.heimherz

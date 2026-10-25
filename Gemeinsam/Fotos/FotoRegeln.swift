@@ -54,6 +54,8 @@ enum FotoRegeln {
 
     static func schluessel(kennung: String, name: String) -> String { "\(kennung)/\(name)" }
 
+    static func kennung(vonSchluessel schluessel: String) -> String { String(schluessel.prefix { $0 != "/" }) }
+
     /// Schlüssel aus dem Pfad einer Upload-Anfrage (`/v1/fotos/<kennung>/<name>`), damit die Erweiterung einen Job seiner Datei zuordnet.
     static func schluessel(pfad: String) -> String? {
         let teile = pfad.split(separator: "/").map(String.init)
