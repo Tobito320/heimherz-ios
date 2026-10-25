@@ -52,3 +52,20 @@ test('nur Loopback', () => {
   expect(istLoopback('::1')).toBe(true);
   for (const x of ['100.64.0.5', '192.168.1.2', '0.0.0.0', '', undefined]) expect(istLoopback(x)).toBe(false);
 });
+
+// Apples Vorabfrage der System-Uploads (PHAssetResourceUploadJob): OPTIONS ohne Token, genau eine Auskunft, sonst nichts.
+test('OPTIONS auf einen Foto-Upload-Pfad: 501 ohne Token, ohne Text; sonst bleibt alles 401', async () => {
+  const r = await t.ohne('/v1/fotos/abc/foto-0', { method: 'OPTIONS' });
+  expect([r.status, await r.text(), r.headers.get('upload-limit')]).toEqual([501, '', null]);
+  for (const p of ['/v1/status', '/v1/tresor', '/v1/fotos/bekannt/x/y', '/v1/fotos/a.b/foto', '/v1/fotos/abc', '/v1/fotos/abc/def/ghi', '/v1/datei?pfad=a', '/v1/fotos/%2e%2e/x', `/v1/fotos/${'x'.repeat(129)}/r`]) {
+    const o = await t.ohne(p, { method: 'OPTIONS' });
+    expect([p, o.status, await o.text()]).toEqual([p, 401, '']);
+  }
+});
+
+test('OPTIONS auf einen Foto-Pfad legt nichts an', async () => {
+  const vorher = (await (await t.f('/v1/fotos/bekannt')).json()) as unknown[];
+  await t.ohne('/v1/fotos/OPT/foto-0', { method: 'OPTIONS' });
+  await t.f('/v1/fotos/OPT/foto-0', { method: 'OPTIONS' });
+  expect(await (await t.f('/v1/fotos/bekannt')).json()).toEqual(vorher);
+});

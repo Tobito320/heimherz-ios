@@ -143,3 +143,26 @@ test('große Videos: über 128 MB (Bun-Standardgrenze) kommen vollständig an', 
   expect(r.status).toBe(200);
   expect(statSync(join(t.fotos, '2026/10/2026-10-25_10-00-00_film.mov')).size).toBe(gross.length);
 });
+
+test('POST (so legt Apples Upload-Job an) speichert wie PUT; ohne Token 401; doppelt = 200 ohne Schreiben', async () => {
+  const h = { 'x-aufnahme': '2026-10-26T08:00:00', 'x-dateiname': 'IMG_0100.MOV', 'upload-incomplete': '?0', 'content-type': 'application/octet-stream' };
+  const post = (k: string, r: string, body: BodyInit | null, kopf: Record<string, string> = h) =>
+    t.f(`/v1/fotos/${k}/${r}`, { method: 'POST', headers: kopf, body });
+  expect((await t.ohne('/v1/fotos/POST1/video-0', { method: 'POST', body: new Uint8Array(3) })).status).toBe(401);
+  expect((await post('POST1', 'video-0', new Uint8Array([5, 6, 7]))).status).toBe(200);
+  expect([...readFileSync(join(t.fotos, '2026/10/2026-10-26_08-00-00_IMG_0100.MOV'))]).toEqual([5, 6, 7]);
+  const vorher = alleDateien(t.fotos);
+  expect((await post('POST1', 'video-0', new Uint8Array([9, 9, 9]))).status).toBe(200);
+  expect(alleDateien(t.fotos)).toEqual(vorher);
+  expect((await bekannt()).filter(x => x.kennung === 'POST1')).toEqual([{ kennung: 'POST1', ressource: 'video-0', groesse: 3 }]);
+});
+
+test('POST: Ausbruch-Kennungen abgelehnt, Teil-Upload (Resumable) abgelehnt', async () => {
+  const vorher = alleDateien(t.fotos);
+  for (const [k, r] of [['a.b', 'x'], ['k', 'a b'], ['x'.repeat(129), 'r'], ['k%2Fx', 'r']])
+    expect((await t.f(`/v1/fotos/${k}/${r}`, { method: 'POST', body: new Uint8Array(1) })).status).toBe(400);
+  for (const kopf of [{ 'upload-complete': '?0' }, { 'upload-incomplete': '?1' }])
+    expect((await t.f('/v1/fotos/TEIL/foto-0', { method: 'POST', headers: kopf, body: new Uint8Array(1) })).status).toBe(400);
+  expect((await t.f('/v1/fotos/TEIL/foto-0', { method: 'POST', headers: { 'upload-complete': '?1' }, body: new Uint8Array(1) })).status).toBe(200);
+  expect(alleDateien(t.fotos).length).toBe(vorher.length + 1);
+});
