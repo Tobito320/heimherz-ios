@@ -1,0 +1,54 @@
+import { afterAll, expect, test } from 'bun:test';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { hashe, leseGeraete, schreibeGeraete } from './geraete';
+import { istLoopback } from './dienst';
+import { baue } from './testhilfe';
+
+const t = baue();
+afterAll(t.ende);
+
+const ROUTEN: [string, string][] = [
+  ['GET', '/v1/status'], ['GET', '/v1/tresor'], ['PUT', '/v1/tresor'], ['GET', '/v1/fotos/bekannt'], ['PUT', '/v1/fotos/abc/def'],
+  ['GET', '/v1/dateien'], ['GET', '/v1/datei?pfad=a'], ['PUT', '/v1/datei?pfad=a'], ['POST', '/v1/datei/papierkorb'], ['GET', '/v1/gibtsnicht'],
+];
+
+test('jede Route ohne oder mit falschem Token: 401 ohne Text', async () => {
+  for (const [m, p] of ROUTEN) {
+    for (const h of [{}, { authorization: 'Bearer falsch' }, { authorization: 'Basic abc' }, { authorization: 'Bearer ' }]) {
+      const r = await t.ohne(p, { method: m, headers: h, body: m === 'GET' ? undefined : 'x' });
+      expect([m, p, r.status]).toEqual([m, p, 401]);
+      expect(await r.text()).toBe('');
+    }
+  }
+});
+
+test('mit Token ist der Dienst erreichbar', async () => {
+  expect((await t.f('/v1/status')).status).toBe(200);
+});
+
+test('zuletzt wird gesetzt, aber höchstens einmal pro Minute geschrieben', async () => {
+  await t.f('/v1/status');
+  const a = leseGeraete(t.daten)[0].zuletzt;
+  expect(a).not.toBeNull();
+  await t.f('/v1/status');
+  expect(leseGeraete(t.daten)[0].zuletzt).toBe(a);
+  expect(existsSync(join(t.daten, 'geraete.json'))).toBe(true);
+  expect(readFileSync(join(t.daten, 'geraete.json'), 'utf8')).not.toContain(t.token); // nur der Hash
+});
+
+test('Geräte, die das CLI nachträglich einträgt, gelten sofort; ausgetragene nicht mehr', async () => {
+  const neu = 'neues-token-123';
+  const liste = leseGeraete(t.daten);
+  schreibeGeraete(t.daten, [...liste, { id: 'g2', name: 'handy', hash: hashe(neu), angelegt: '2026-10-25T00:00:00.000Z', zuletzt: null }]);
+  expect((await t.ohne('/v1/status', { headers: { authorization: `Bearer ${neu}` } })).status).toBe(200);
+  schreibeGeraete(t.daten, liste);
+  expect((await t.ohne('/v1/status', { headers: { authorization: `Bearer ${neu}` } })).status).toBe(401);
+  expect((await t.f('/v1/status')).status).toBe(200);
+});
+
+test('nur Loopback', () => {
+  expect(istLoopback('127.0.0.1')).toBe(true);
+  expect(istLoopback('::1')).toBe(true);
+  for (const x of ['100.64.0.5', '192.168.1.2', '0.0.0.0', '', undefined]) expect(istLoopback(x)).toBe(false);
+});
