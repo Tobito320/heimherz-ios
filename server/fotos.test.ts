@@ -99,6 +99,34 @@ test('abgebrochener Upload hinterlässt nichts Halbes und gilt nicht als bekannt
   expect((await foto('ABBRUCH', 'foto', new Uint8Array(3), { 'x-dateiname': 'ganz.jpg' })).status).toBe(200);
 });
 
+test('abgebrochener Chunked-Upload (ohne Content-Length) ohne Endblock hinterlässt ebenfalls nichts', async () => {
+  const vorher = alleDateien(t.fotos);
+  const n = (await bekannt()).length;
+  let zu!: () => void;
+  const fertig = new Promise<void>(r => (zu = r));
+  const s = await Bun.connect({ hostname: '127.0.0.1', port: t.server.port!, socket: { data() {}, close() { zu(); }, open(sock) {
+    sock.write(`PUT /v1/fotos/CHUNK/foto HTTP/1.1\r\nHost: x\r\nAuthorization: Bearer ${t.token}\r\nTransfer-Encoding: chunked\r\n\r\n`);
+    sock.write(`1388\r\n`); sock.write(new Uint8Array(0x1388)); sock.write('\r\n'); // ein Chunk, dann ohne "0\r\n\r\n" weg
+    setTimeout(() => sock.end(), 100);
+  } } });
+  await fertig;
+  await Bun.sleep(300);
+  s.end();
+  expect(alleDateien(t.fotos)).toEqual(vorher);
+  expect((await bekannt()).length).toBe(n);
+  // Gegenprobe: derselbe rohe Weg mit Endblock wird gespeichert (der Test oben beweist also etwas)
+  let ok!: () => void;
+  const antwort = new Promise<string>(r => (ok = () => r('')));
+  let text = '';
+  const s2 = await Bun.connect({ hostname: '127.0.0.1', port: t.server.port!, socket: { data(_, d) { text += d.toString(); if (text.includes('\r\n\r\n')) ok(); }, open(sock) {
+    sock.write(`PUT /v1/fotos/CHUNK2/foto HTTP/1.1\r\nHost: x\r\nAuthorization: Bearer ${t.token}\r\nTransfer-Encoding: chunked\r\n\r\n5\r\nhallo\r\n0\r\n\r\n`);
+  } } });
+  await antwort;
+  s2.end();
+  expect(text.startsWith('HTTP/1.1 200')).toBe(true);
+  expect((await bekannt()).some(x => x.kennung === 'CHUNK2' && x.groesse === 5)).toBe(true);
+});
+
 test('Content-Length passt nicht zum Body: abgelehnt, nichts liegt da', async () => {
   const strom = new ReadableStream({ start(c) { c.enqueue(new Uint8Array(10)); c.close(); } });
   const vorher = alleDateien(t.fotos);

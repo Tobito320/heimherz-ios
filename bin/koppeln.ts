@@ -1,6 +1,6 @@
 // Koppeln (SPEC 7): QR mit URL, Token und Schlüssel; wartet, bis das Handy sich meldet. Alles Geheime bleibt im Speicher oder im 0600-PNG.
 import { chmodSync, closeSync, existsSync, mkdirSync, openSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import { hashe, leseGeraete, neuesToken, schreibeGeraete } from '../server/geraete';
 
 const b64url = (b: Uint8Array) => Buffer.from(b).toString('base64url');
@@ -30,6 +30,8 @@ function loescheBild(datei: string) {
 }
 
 export async function koppeln(o: KoppelAbh): Promise<boolean> {
+  // Ohne $XDG_RUNTIME_DIR würde das PNG mit Token und Schlüssel in den aktuellen Ordner fallen.
+  if (!isAbsolute(o.laufzeit)) throw new Error('XDG_RUNTIME_DIR fehlt, QR wird nicht geschrieben');
   const token = neuesToken();
   const id = crypto.randomUUID().slice(0, 8);
   schreibeGeraete(o.daten, [...leseGeraete(o.daten), { id, name: o.name, hash: hashe(token), angelegt: new Date().toISOString(), zuletzt: null }]);

@@ -1,7 +1,7 @@
 // CLI `heimherz` (SPEC 7). Hier nur die echte Verdrahtung (Umgebung, systemd-creds, bw, qrencode); die Logik steht in befehle.ts.
 import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import { Meldung, einrichtenBefehl, exportBitwarden, geraetWeg, importBitwarden, koppelnBefehl, liste, status, type Abh } from './befehle';
 import { urlAusTailscale } from './koppeln';
 import { systemdCreds } from './schluessel';
@@ -24,11 +24,15 @@ async function ausgabeVon(argv: string[], env?: Record<string, string | undefine
 
 // Bitwarden-Sitzung von claude-bw; fehlt sie oder ist sie abgelaufen, ist der Tresor gesperrt. Ausgabe nur in den Speicher.
 async function bwJson(): Promise<string> {
-  const sitzung = join(process.env.XDG_RUNTIME_DIR ?? '', 'claude-bw/session');
+  const laufzeit = process.env.XDG_RUNTIME_DIR ?? '';
+  const sitzung = join(laufzeit, 'claude-bw/session');
   const gesperrt = new Meldung('Bitwarden gesperrt: claude-bw entsperre');
-  if (!existsSync(sitzung)) throw gesperrt;
+  if (!isAbsolute(laufzeit) || !existsSync(sitzung)) throw gesperrt;
   const env = { ...process.env, BITWARDENCLI_APPDATA_DIR: join(homedir(), '.config/claude-bw'), BW_SESSION: readFileSync(sitzung, 'utf8').trim() };
-  try { return await ausgabeVon(['bw', 'list', 'items', '--raw', '--nointeraction'], env); } catch { throw gesperrt; }
+  try {
+    await ausgabeVon(['bw', 'sync', '--nointeraction'], env); // lokaler Cache kann veraltet sein (claude-bw synct aus demselben Grund)
+    return await ausgabeVon(['bw', 'list', 'items', '--raw', '--nointeraction'], env);
+  } catch { throw gesperrt; }
 }
 
 async function anzeigen(datei: string) {

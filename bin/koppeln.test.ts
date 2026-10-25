@@ -88,3 +88,10 @@ test('qrencode scheitert: Gerät und Bild werden entfernt, Fehler geht weiter', 
   expect(leseGeraete(s.daten).map(g => g.name)).toEqual(['pc']);
   expect(existsSync(join(s.laufzeit, 'heimherz/koppeln.png'))).toBe(false);
 });
+
+test('ohne absolutes Laufzeit-Verzeichnis wird nichts geschrieben und kein Gerät angelegt', async () => {
+  const s = aufbau();
+  for (const laufzeit of ['', 'relativ/pfad']) await expect(koppeln({ ...s.abh, laufzeit })).rejects.toThrow('XDG_RUNTIME_DIR');
+  expect(leseGeraete(s.daten).map(g => g.name)).toEqual(['pc']);
+  expect(existsSync('heimherz/koppeln.png')).toBe(false);
+});
