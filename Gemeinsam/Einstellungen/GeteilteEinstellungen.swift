@@ -34,6 +34,8 @@ struct GeteilteEinstellungen {
     private enum Schluessel {
         static let entsperrDauer = "einstellung.entsperrDauer"
         static let codeKopieren = "einstellung.codeKopieren"
+        static let leckPruefung = "einstellung.leckPruefung"
+        static let fotoMitteilung = "einstellung.fotoMitteilung"
     }
 
     /// Standard 5 Minuten (wie die bisherige App-Sperre).
@@ -46,5 +48,17 @@ struct GeteilteEinstellungen {
     var codeKopieren: Bool {
         get { speicher.object(forKey: Schluessel.codeKopieren) as? Bool ?? true }
         nonmutating set { speicher.set(newValue, forKey: Schluessel.codeKopieren) }
+    }
+
+    /// Sicherheit: Passwörter gegen bekannte Datenlecks prüfen (Have I Been Pwned, k-Anonymität: nur die ersten 5 Zeichen des SHA-1 gehen raus). Standard an.
+    var leckPruefung: Bool {
+        get { speicher.object(forKey: Schluessel.leckPruefung) as? Bool ?? true }
+        nonmutating set { speicher.set(newValue, forKey: Schluessel.leckPruefung) }
+    }
+
+    /// Mitteilung, wenn ein Foto-Abgleich fertig ist oder nachts etwas gesichert hat. Standard an.
+    var fotoMitteilung: Bool {
+        get { speicher.object(forKey: Schluessel.fotoMitteilung) as? Bool ?? true }
+        nonmutating set { speicher.set(newValue, forKey: Schluessel.fotoMitteilung) }
     }
 }
