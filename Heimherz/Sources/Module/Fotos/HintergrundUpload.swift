@@ -42,6 +42,28 @@ final class HintergrundUpload: NSObject, FotoSender, URLSessionTaskDelegate, Sen
         }
     }
 
+    /// Kommt die App nach vorn, holt sie Transfers zurück, die noch in der Hintergrund-Sitzung warten (iOS lässt sie dort oft minutenlang liegen,
+    /// der Abgleich steht dann still): solche, die noch nicht zur Hälfte gesendet sind, gehen neu über die Vordergrund-Sitzung.
+    private struct ZurueckNachVorn: Error {}
+
+    override private init() {
+        super.init()
+        NotificationCenter.default.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: nil) { [self] _ in
+            holeNachVorn()
+        }
+    }
+
+    private func holeNachVorn() {
+        sitzung.getAllTasks { [self] tasks in
+            for t in tasks where t.countOfBytesSent * 2 < max(t.countOfBytesExpectedToSend, 1) {
+                guard let c = wartende.withLock({ $0.removeValue(forKey: t.taskIdentifier) }) else { continue }
+                t.taskDescription = nil   // sonst löscht der Delegate beim Abbruch die Temp-Datei, die der neue Transfer braucht
+                t.cancel()
+                c.resume(throwing: ZurueckNachVorn())
+            }
+        }
+    }
+
     @MainActor
     private static func appIstVorn() -> Bool { UIApplication.shared.applicationState == .active }
 
@@ -60,7 +82,12 @@ final class HintergrundUpload: NSObject, FotoSender, URLSessionTaskDelegate, Sen
                 if await Self.appIstVorn() { throw fehler }
             }
         }
-        try await sendeHintergrund(datei: datei, anfrage: FotoMessung.markiere(anfrage, vordergrund: false, zusatzWarteMs: sprungMs))
+        do {
+            try await sendeHintergrund(datei: datei, anfrage: FotoMessung.markiere(anfrage, vordergrund: false, zusatzWarteMs: sprungMs))
+        } catch is ZurueckNachVorn {
+            try Task.checkCancellation()
+            try await sendeVorn(datei: datei, anfrage: FotoMessung.markiere(anfrage, vordergrund: true, zusatzWarteMs: sprungMs))
+        }
     }
 
     private func sendeVorn(datei: URL, anfrage: URLRequest) async throws {

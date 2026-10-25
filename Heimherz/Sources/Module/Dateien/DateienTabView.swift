@@ -288,6 +288,7 @@ struct OrdnerSeite: View {
         } label: {
             Label("Mehr", systemImage: "ellipsis")
         }
+        .tint(.primary)   // wie Apple Dateien: weiße Punkte, nicht die Akzentfarbe
     }
 
     private func sortierKnopf(_ k: SortierKriterium) -> some View {

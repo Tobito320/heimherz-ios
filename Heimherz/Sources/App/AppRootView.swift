@@ -41,7 +41,10 @@ struct AppRootView: View {
         .onChange(of: SpotlightPostfach.geteilt.angefragt) { _, id in if id != nil { tab = .passwoerter } }
         // Schnellaktion vom App-Symbol: der Tab wechselt gleich (auch unter der Sperre); ausgeführt wird sie erst nach dem Entsperren, im Ziel-Tab.
         .onChange(of: aktionen.offen, initial: true) { _, aktion in if let aktion { tab = aktion.tab } }
-        .onChange(of: phase) { _, neu in umgebung.sperre.szene(neu) }
+        .onChange(of: phase) { _, neu in
+            umgebung.sperre.szene(neu)
+            if neu == .active { FotosModell.geteilt.appIstVorn() }
+        }
         #if DEBUG
         .onAppear {
             if let name = UserDefaults.standard.string(forKey: "heimherzAktion"), let aktion = Schnellaktion.demo(name) { aktionen.lege(aktion) }
