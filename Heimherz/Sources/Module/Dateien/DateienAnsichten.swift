@@ -32,7 +32,7 @@ struct DateiBild: View {
     let pfad: String
     let seite: CGFloat
     let px: Int
-    let lader: VorschauLader
+    let lader: DateiVorschauLader
 
     @State private var bild: UIImage?
 
@@ -70,7 +70,7 @@ struct DateiBild: View {
 struct ListenZeile: View {
     let eintrag: DateiInfo
     let pfad: String
-    let lader: VorschauLader
+    let lader: DateiVorschauLader
 
     var body: some View {
         HStack(spacing: 12) {
@@ -91,7 +91,7 @@ struct ListenZeile: View {
 struct RasterZelle: View {
     let eintrag: DateiInfo
     let pfad: String
-    let lader: VorschauLader
+    let lader: DateiVorschauLader
 
     var body: some View {
         VStack(spacing: 4) {
@@ -110,7 +110,7 @@ struct RasterZelle: View {
 /// Zeile eines Suchtreffers: wie die Listenzeile, darunter der Ordner, in dem die Datei liegt.
 struct TrefferZeile: View {
     let treffer: SuchTreffer
-    let lader: VorschauLader
+    let lader: DateiVorschauLader
 
     var body: some View {
         HStack(spacing: 12) {

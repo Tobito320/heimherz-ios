@@ -219,7 +219,7 @@ final class DateienSucheModellTests: XCTestCase {
 }
 
 @MainActor
-final class VorschauLaderTests: XCTestCase {
+final class DateiVorschauLaderTests: XCTestCase {
     private func jpeg() -> Data {
         UIGraphicsImageRenderer(size: CGSize(width: 4, height: 4)).jpegData(withCompressionQuality: 0.5) { ctx in
             UIColor.red.setFill()
@@ -230,7 +230,7 @@ final class VorschauLaderTests: XCTestCase {
     func testLaedtEinmalUndMerktDasBild() async {
         let aufrufe = Kasten(0)
         let daten = jpeg()
-        let l = VorschauLader { _, _ in aufrufe.mit { $0 += 1 }; return daten }
+        let l = DateiVorschauLader { _, _ in aufrufe.mit { $0 += 1 }; return daten }
         let a = await l.lade(pfad: "a.pdf", schluessel: "k1", px: 120)
         let b = await l.lade(pfad: "a.pdf", schluessel: "k1", px: 120)
         XCTAssertNotNil(a)
@@ -241,20 +241,20 @@ final class VorschauLaderTests: XCTestCase {
 
     func testKeinBildVomPCWirdNichtNochEinmalGefragtEinNetzfehlerSchon() async {
         let aufrufe = Kasten(0)
-        let l = VorschauLader { _, _ in aufrufe.mit { $0 += 1 }; return nil }
+        let l = DateiVorschauLader { _, _ in aufrufe.mit { $0 += 1 }; return nil }
         let a = await l.lade(pfad: "a.pdf", schluessel: "k", px: 120)
         _ = await l.lade(pfad: "a.pdf", schluessel: "k", px: 120)
         XCTAssertNil(a)
         XCTAssertEqual(aufrufe.mit { $0 }, 1, "404 gilt für diese Sitzung")
         let n = Kasten(0)
-        let aus = VorschauLader { _, _ in n.mit { $0 += 1 }; throw HeimFehler.nichtErreichbar }
+        let aus = DateiVorschauLader { _, _ in n.mit { $0 += 1 }; throw HeimFehler.nichtErreichbar }
         _ = await aus.lade(pfad: "b.pdf", schluessel: "k2", px: 120)
         _ = await aus.lade(pfad: "b.pdf", schluessel: "k2", px: 120)
         XCTAssertEqual(n.mit { $0 }, 2, "bei Netzfehler beim nächsten Erscheinen wieder versuchen")
     }
 
     func testOhneVerbindungBleibtEsBeimSymbol() async {
-        let l = VorschauLader()
+        let l = DateiVorschauLader()
         let b = await l.lade(pfad: "a.pdf", schluessel: "k", px: 120)
         XCTAssertNil(b)
     }
@@ -262,7 +262,7 @@ final class VorschauLaderTests: XCTestCase {
     func testHoechstensParallelGleichzeitig() async {
         let aktiv = Kasten((jetzt: 0, hoechstens: 0))
         let daten = jpeg()
-        let l = VorschauLader(holen: { _, _ in
+        let l = DateiVorschauLader(holen: { _, _ in
             aktiv.mit { $0.jetzt += 1; $0.hoechstens = max($0.hoechstens, $0.jetzt) }
             try? await Task.sleep(for: .milliseconds(30))
             aktiv.mit { $0.jetzt -= 1 }
@@ -279,7 +279,7 @@ final class VorschauLaderTests: XCTestCase {
 
     func testDemoBilderSindEchteJPEGs() throws {
         for pfad in ["Urlaub Strand.jpg", "Mietvertrag.pdf"] {
-            let daten = try XCTUnwrap(VorschauLader.demoBild(pfad: pfad, px: 120))
+            let daten = try XCTUnwrap(DateiVorschauLader.demoBild(pfad: pfad, px: 120))
             XCTAssertNotNil(UIImage(data: daten), pfad)
         }
     }

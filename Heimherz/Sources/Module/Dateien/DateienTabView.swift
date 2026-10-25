@@ -6,7 +6,7 @@ import SwiftUI
 /// Sortierung, Vorschaubilder, Langdruck-Menü (Teilen, Informationen, Papierkorb), Hochladen.
 struct DateienTabView: View {
     @Environment(AppUmgebung.self) private var umgebung
-    @State private var lader: VorschauLader?
+    @State private var lader: DateiVorschauLader?
     @State private var pfad: [OrdnerZiel] = []
     @State private var aufgeraeumt = false
 
@@ -42,7 +42,7 @@ struct DateienTabView: View {
                 VorschauCache.leere()
                 aufgeraeumt = true
             }
-            lader = VorschauLader(holen: VorschauLader.holenFuer(umgebung))
+            lader = DateiVorschauLader(holen: DateiVorschauLader.holenFuer(umgebung))
             await umgebung.ladeStatus()
         }
     }
@@ -51,7 +51,7 @@ struct DateienTabView: View {
 /// Ein Ordner: Liste oder Raster, Suche, Menüs. Hält sein eigenes Modell; die Stufen des Stapels leben im NavigationStack.
 struct OrdnerSeite: View {
     let ordner: [String]
-    let lader: VorschauLader
+    let lader: DateiVorschauLader
     @Binding var navigation: [OrdnerZiel]
 
     @Environment(AppUmgebung.self) private var umgebung
@@ -71,7 +71,7 @@ struct OrdnerSeite: View {
     @State private var teilen: TeilenZiel?
     @State private var laedt: String?
 
-    init(ordner: [String], umgebung: AppUmgebung, lader: VorschauLader, navigation: Binding<[OrdnerZiel]>) {
+    init(ordner: [String], umgebung: AppUmgebung, lader: DateiVorschauLader, navigation: Binding<[OrdnerZiel]>) {
         self.ordner = ordner
         self.lader = lader
         _navigation = navigation
@@ -229,14 +229,16 @@ struct OrdnerSeite: View {
 
     @ViewBuilder private var ergebnisse: some View {
         if !suchModell.treffer.isEmpty {
-            List(suchModell.treffer) { t in
-                let g = Gewaehlt(info: t.info, pfad: t.pfad)
-                Button { Task { await oeffneTreffer(t) } } label: {
-                    TrefferZeile(treffer: t, lader: lader)
-                }
-                .contextMenu { menue(g) }
-                .swipeActions(edge: .trailing) {
-                    Button(role: .destructive) { frageWeg = g } label: { Label("Papierkorb", systemImage: "trash") }
+            List {
+                ForEach(suchModell.treffer) { t in
+                    let g = Gewaehlt(info: t.info, pfad: t.pfad)
+                    Button { Task { await oeffneTreffer(t) } } label: {
+                        TrefferZeile(treffer: t, lader: lader)
+                    }
+                    .contextMenu { menue(g) }
+                    .swipeActions(edge: .trailing) {
+                        Button(role: .destructive) { frageWeg = g } label: { Label("Papierkorb", systemImage: "trash") }
+                    }
                 }
             }
             .listStyle(.plain)

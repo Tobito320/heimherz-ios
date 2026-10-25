@@ -4,7 +4,7 @@ import UIKit
 /// Holt Vorschaubilder vom PC (`GET /v1/dateien/vorschau`) und hält sie im Speicher (Neustart oder Leeren der Dateien-Zwischenspeicher löscht sie, der PC hat sie ohnehin fertig).
 /// Wie `SymbolLader`: nur sichtbare Zellen fragen an (`.task` pro Zelle), höchstens `parallel` gleichzeitig, bis dahin zeigt die Zelle das graue Dateisymbol.
 @MainActor
-final class VorschauLader {
+final class DateiVorschauLader {
     typealias Holen = @Sendable (_ pfad: String, _ px: Int) async throws -> Data?
 
     private let cache = NSCache<NSString, UIImage>()
