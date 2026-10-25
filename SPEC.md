@@ -35,6 +35,7 @@ Nutzer: nur Ahmed (ein iPhone, ein PC). Annika nicht.
 - iCloud-Passwörter-Import per Credential Exchange: iOS listet Ziel-Apps nach eigenen Regeln, ob Heimherz erscheint, ist offen (unsicher).
 - Passkeys: Phase 2, nicht im ersten Build (Abschnitt 14).
 - PC aus = kein Abgleich. Tailscale weckt den PC nicht.
+- Schlüssel am PC: `systemd-creds --user` schützt gegen eine ausgebaute Platte (TPM2), nicht gegen Programme, die als `tobi` laufen. Jeder Prozess dieses Nutzers (auch ein Agent mit Bash) könnte K entschlüsseln. Bewusst angenommen wie bei `claude-bw` (`master.cred`); Regel: Agenten lesen K nie.
 
 ## 3. Capability Map
 
