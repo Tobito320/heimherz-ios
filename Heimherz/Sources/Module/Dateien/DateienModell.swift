@@ -109,7 +109,7 @@ final class DateienModell {
         if ok > 0 { await lade() }
     }
 
-    static func ergebnisText(ok: Int, von: Int, fehler: String?) -> (text: String, istFehler: Bool) {
+    nonisolated static func ergebnisText(ok: Int, von: Int, fehler: String?) -> (text: String, istFehler: Bool) {
         if let fehler { return (ok > 0 ? "\(ok) von \(von) hochgeladen. \(fehler)" : fehler, true) }
         return (ok == 1 ? "1 Datei hochgeladen." : "\(ok) Dateien hochgeladen.", false)
     }

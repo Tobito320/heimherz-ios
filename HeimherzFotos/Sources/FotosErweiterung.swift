@@ -57,13 +57,19 @@ final class FotosErweiterung: PHBackgroundResourceUploadExtension {
         }
     }
 
+    /// `PHAssetResourceUploadJob.error` gibt es erst ab iOS 26.4 (laut Compiler, die Doku nennt es nicht); davor wird immer wiederholt.
+    private static func fehlerCode(_ job: PHAssetResourceUploadJob) -> URLError.Code? {
+        if #available(iOS 26.4, *) { return (job.error as? URLError)?.code }
+        return nil
+    }
+
     /// Fehlgeschlagene Jobs noch einmal; dauerhafte Fehler (falsche Antwort, Token abgelehnt) werden quittiert und gemeldet.
     private static func wiederhole(_ bib: PHPhotoLibrary, ablage: FotoStandAblage) throws {
         let jobs = PHAssetResourceUploadJob.fetchJobs(action: .retry, options: nil)
         for i in 0..<jobs.count {
             let job = jobs.object(at: i)
-            if let fehler = job.error as? URLError, fehler.code == .badServerResponse || fehler.code == .userAuthenticationRequired {
-                let grund = fehler.code == .userAuthenticationRequired ? "Der PC kennt dieses Handy nicht mehr. Bitte neu koppeln." : "Der PC hat einen Upload abgelehnt."
+            if let code = fehlerCode(job), code == .badServerResponse || code == .userAuthenticationRequired {
+                let grund = code == .userAuthenticationRequired ? "Der PC kennt dieses Handy nicht mehr. Bitte neu koppeln." : "Der PC hat einen Upload abgelehnt."
                 ablage.aendere { $0.fehler = grund }
                 try bib.performChangesAndWait {
                     guard let r = PHAssetResourceUploadJobChangeRequest(for: job) else { return }
@@ -83,11 +89,12 @@ final class FotosErweiterung: PHBackgroundResourceUploadExtension {
         let jobs = PHAssetResourceUploadJob.fetchJobs(action: .acknowledge, options: nil)
         for i in 0..<jobs.count {
             let job = jobs.object(at: i)
+            if let k = job.destination.url.flatMap({ FotoRegeln.schluessel(pfad: $0.path) }) { ablage.aendere { $0.eingereicht?[k] = nil } }
             if job.state == .succeeded, let schluessel = job.destination.url.flatMap({ FotoRegeln.schluessel(pfad: $0.path) }) {
                 ablage.aendere { $0.teil.insert(schluessel); $0.letzteUebertragung = Date(); $0.fehler = nil }
             } else if job.state == .failed {
                 // Die Datei kommt beim nächsten Durchgang wieder in die Liste; der Grund steht in der App.
-                let code = (job.error as? URLError).map { " (\($0.code.rawValue))" } ?? ""
+                let code = fehlerCode(job).map { " (\($0.rawValue))" } ?? ""
                 ablage.aendere { $0.fehler = "Ein Upload im Hintergrund ist fehlgeschlagen\(code). Heimherz versucht es später noch einmal." }
             }
             try bib.performChangesAndWait {
@@ -100,7 +107,7 @@ final class FotosErweiterung: PHBackgroundResourceUploadExtension {
     /// Legt Jobs für noch fehlende Dateien an (neueste zuerst), bis iOS `limitExceeded` meldet oder nichts mehr offen ist.
     private static func legeJobsAn(_ bib: PHPhotoLibrary, client: HeimClient, ablage: FotoStandAblage, beendet: () -> Bool) throws -> (neu: Int, limit: Bool, nochMehr: Bool) {
         var stand = ablage.lade()
-        let unterwegs = schluesselUnterwegs()
+        let unterwegs = schluesselUnterwegs(stand: stand)
         let treffer = FotoBibliothek.abfrage()
         var stelle: [String: Int] = [:]
         var koepfe: [FotoKopf] = []
@@ -133,6 +140,7 @@ final class FotosErweiterung: PHBackgroundResourceUploadExtension {
             do {
                 try bib.performChangesAndWait { legeJobAn(fertigeAnfrage, huelle.objekt) }
                 neu += 1
+                ablage.aendere { $0.eingereicht = ($0.eingereicht ?? [:]).merging([r.schluessel: Date()]) { _, neuer in neuer } }
             } catch let e as PHPhotosError where e.code == .limitExceeded {
                 return (neu, true, true)
             }
@@ -149,10 +157,13 @@ final class FotosErweiterung: PHBackgroundResourceUploadExtension {
         }
     }
 
-    /// Dateien, für die schon ein Job läuft oder wartet, damit sie nicht doppelt angelegt werden.
-    private static func schluesselUnterwegs() -> Set<String> {
-        var menge: Set<String> = []
-        for aktion in [PHAssetResourceUploadJob.Action.process, .retry, .acknowledge] {
+    /// Dateien, für die schon ein Job läuft oder wartet, damit sie nicht doppelt angelegt werden. Laufende Jobs listet iOS erst ab 26.5
+    /// (`Action.process`); davor merkt sich der `FotoStand` (`eingereicht`), was die Erweiterung selbst angelegt hat.
+    private static func schluesselUnterwegs(stand: FotoStand) -> Set<String> {
+        var menge = stand.unterwegs(jetzt: Date())
+        var aktionen = [PHAssetResourceUploadJob.Action.retry, .acknowledge]
+        if #available(iOS 26.5, *) { aktionen.append(.process) }
+        for aktion in aktionen {
             let jobs = PHAssetResourceUploadJob.fetchJobs(action: aktion, options: nil)
             for i in 0..<jobs.count {
                 if let s = jobs.object(at: i).destination.url.flatMap({ FotoRegeln.schluessel(pfad: $0.path) }) { menge.insert(s) }

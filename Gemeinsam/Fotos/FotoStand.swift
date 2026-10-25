@@ -12,10 +12,17 @@ struct FotoStand: Codable, Sendable, Equatable {
     var fehler: String?
     /// nil = Standard (an).
     var nurWLAN: Bool?
+    /// Schlüssel der Dateien, für die die Erweiterung einen Upload-Job angelegt hat, mit Zeit (iOS zeigt laufende Jobs erst ab 26.5).
+    var eingereicht: [String: Date]?
     /// Anzahl Assets bei der letzten Zählung (für die Anzeige, wenn der PC gerade aus ist).
     var gesamt: Int?
 
     var wlanNoetig: Bool { nurWLAN ?? true }
+
+    /// Schlüssel mit einem Job, der jünger als drei Tage ist; ältere gelten als verschwunden und werden neu versucht.
+    func unterwegs(jetzt: Date) -> Set<String> {
+        Set((eingereicht ?? [:]).filter { jetzt.timeIntervalSince($0.value) < 3 * 86_400 }.keys)
+    }
 
     func istErledigt(_ r: FotoRessource) -> Bool { teil.contains(r.schluessel) }
 

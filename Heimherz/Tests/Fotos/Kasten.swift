@@ -4,5 +4,5 @@ import Synchronization
 final class Kasten<T: Sendable>: Sendable {
     private let m: Mutex<T>
     init(_ wert: T) { m = Mutex(wert) }
-    func mit<R>(_ f: (inout T) -> R) -> R { m.withLock(f) }
+    func mit<R: Sendable>(_ f: (inout T) -> R) -> R { m.withLock { f(&$0) } }
 }
