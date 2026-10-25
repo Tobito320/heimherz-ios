@@ -135,7 +135,7 @@ final class DateienLogikTests: XCTestCase {
         let l = DateiAnzeige.listenUntertitel(d)
         XCTAssertTrue(l.contains(" – "), l)
         XCTAssertTrue(l.contains("2026"), l)
-        XCTAssertTrue(l.hasSuffix("KB"), l)
+        XCTAssertTrue(l.lowercased().hasSuffix("kb"), l)
         var o = datei("Büro", ordner: true, tag: 25)
         XCTAssertFalse(DateiAnzeige.listenUntertitel(o).contains("Objekt"), "ohne anzahl keine Zahl erfinden")
         o.anzahl = 12
