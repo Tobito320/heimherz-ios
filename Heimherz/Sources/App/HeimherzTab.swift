@@ -1,7 +1,7 @@
 import Foundation
 
 enum HeimherzTab: String, CaseIterable, Hashable, Sendable, Identifiable {
-    case passwoerter, fotos, dateien, mehr
+    case passwoerter, fotos, dateien, einstellungen
     var id: String { rawValue }
 
     var titel: String {
@@ -9,7 +9,7 @@ enum HeimherzTab: String, CaseIterable, Hashable, Sendable, Identifiable {
         case .passwoerter: return "Passwörter"
         case .fotos: return "Fotos"
         case .dateien: return "Dateien"
-        case .mehr: return "Mehr"
+        case .einstellungen: return "Einstellungen"
         }
     }
 
@@ -18,7 +18,7 @@ enum HeimherzTab: String, CaseIterable, Hashable, Sendable, Identifiable {
         case .passwoerter: return "key.fill"
         case .fotos: return "photo.fill"
         case .dateien: return "folder.fill"
-        case .mehr: return "ellipsis.circle.fill"
+        case .einstellungen: return "gearshape.fill"
         }
     }
 }

@@ -12,7 +12,7 @@ struct DateienTabView: View {
         NavigationStack {
             Group {
                 if !umgebung.istGekoppelt {
-                    ScrollView { LeerZustand(stimmung: .schlaeft, titel: "Dateien", text: "Koppel zuerst dein Handy mit dem PC (Tab Mehr).") }
+                    ScrollView { LeerZustand(stimmung: .schlaeft, titel: "Dateien", text: "Koppel zuerst dein Handy mit dem PC (Tab Einstellungen).") }
                 } else if let modell {
                     DateienInhalt(modell: modell)
                 } else {
@@ -44,7 +44,8 @@ private struct DateienInhalt: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Abstand.l) {
-                brotkrumen
+                // Im Hauptordner sagt der Titel schon "Dateien"; Krumen gibt es erst eine Ebene tiefer.
+                if !modell.ordner.isEmpty { brotkrumen }
                 if let meldung = modell.meldung {
                     HStack {
                         StatusChip(text: meldung, symbol: modell.meldungIstFehler ? "exclamationmark.triangle.fill" : "checkmark.circle.fill", ton: modell.meldungIstFehler ? .warn : .ok)
@@ -143,7 +144,7 @@ private struct DateienInhalt: View {
     private var leer: some View {
         LeerZustand(
             titel: modell.ordner.isEmpty ? "Noch nichts da" : "Der Ordner ist leer",
-            text: modell.ordner.isEmpty ? "Lege Dateien in den Ordner Heimherz/Dateien am PC, oder lade vom Handy etwas hoch." : "Hier liegt nichts. Lade vom Handy etwas hoch."
+            text: modell.ordner.isEmpty ? "Lade etwas hoch (Plus oben) oder lege Dateien am PC in den Ordner Heimherz/Dateien." : "Lade etwas hoch (Plus oben)."
         )
     }
 

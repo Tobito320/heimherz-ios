@@ -15,7 +15,7 @@ struct ImportAnleitungBlatt: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: Abstand.l) {
-                    Text("Alle Konten, Einmalcodes, Passkeys und Notizen auf einmal. Das System vermittelt zwischen Apple Passwörter und Heim und schreibt dabei nichts in eine Datei.")
+                    Text("Alle Konten, Einmalcodes, Passkeys und Notizen auf einmal. Es entsteht keine Datei.")
                         .font(.body)
                         .foregroundStyle(Color.tinte)
                         .fixedSize(horizontal: false, vertical: true)
@@ -38,15 +38,20 @@ struct ImportAnleitungBlatt: View {
                             .accessibilityLabel("Schritt \(i + 1): \(text)")
                         }
                     }
-                    VStack(alignment: .leading, spacing: Abstand.s) {
-                        Text("Gut zu wissen").font(.headline).foregroundStyle(Color.tinte)
-                        punkt("Gleicher Benutzer und gleiche Seite mit gleichem Passwort: wird übersprungen.")
-                        punkt("Gleicher Benutzer und gleiche Seite mit neuerem Passwort: Heim übernimmt das neue, das alte bleibt im Verlauf des Eintrags.")
-                        punkt("Passkeys werden gesichert (mit Seite, Konto und Schlüssel, nur im verschlüsselten Tresor). Anmelden damit kommt in einem späteren Build.")
-                        punkt("WLAN-Passwörter, Karten und Ausweise kennt Heim nicht und überspringt sie.")
-                        punkt("Heim muss in den iPhone-Einstellungen unter Allgemein, AutoFill und Passwörter als Anbieter eingeschaltet sein, falls Apple die App sonst nicht anbietet.")
+                    // Selten gebraucht: zugeklappt, damit die Schritte die Seite tragen.
+                    DisclosureGroup("Gut zu wissen") {
+                        VStack(alignment: .leading, spacing: Abstand.s) {
+                            punkt("Gleicher Benutzer und gleiche Seite mit gleichem Passwort: wird übersprungen.")
+                            punkt("Gleicher Benutzer und gleiche Seite mit neuerem Passwort: Heim übernimmt das neue, das alte bleibt im Verlauf des Eintrags.")
+                            punkt("Passkeys werden gesichert (mit Seite, Konto und Schlüssel, nur im verschlüsselten Tresor). Anmelden damit kommt in einem späteren Build.")
+                            punkt("WLAN-Passwörter, Karten und Ausweise kennt Heim nicht und überspringt sie.")
+                            punkt("Heim muss in den iPhone-Einstellungen unter Allgemein, AutoFill und Passwörter als Anbieter eingeschaltet sein, falls Apple die App sonst nicht anbietet.")
+                        }
+                        .padding(.top, Abstand.s)
                     }
-                    .font(.subheadline)
+                    .font(.headline)
+                    .foregroundStyle(Color.tinte)
+                    .tint(Color.tinte2)
                 }
                 .padding(Abstand.l)
             }
@@ -63,6 +68,7 @@ struct ImportAnleitungBlatt: View {
             Text("•").foregroundStyle(Color.tinte2).accessibilityHidden(true)
             Text(text).foregroundStyle(Color.tinte2).fixedSize(horizontal: false, vertical: true)
         }
+        .font(.subheadline)
     }
 }
 
@@ -95,9 +101,6 @@ struct ImportErgebnisBlatt: View {
                             .font(.footnote)
                             .foregroundStyle(Color.tinte2)
                     }
-                    Text("Heim gleicht mit deinem PC ab, sobald er erreichbar ist.")
-                        .font(.footnote)
-                        .foregroundStyle(Color.tinte2)
                 }
                 .padding(Abstand.l)
             }

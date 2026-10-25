@@ -20,6 +20,8 @@ final class FotosModell {
 
     let istDemo: Bool
     private let ablage: FotoStandAblage
+    private let einstellungen: GeteilteEinstellungen
+    private let mitteilung: any MitteilungsDienst
     /// Beobachtet den Strom der Anzeigen, wartet auf `arbeit` und räumt danach auf.
     private var lauf: Task<Void, Never>?
     private var arbeit: Task<Void, Never>?
@@ -33,8 +35,10 @@ final class FotosModell {
     /// "Abgleich starten" kam, während nur gezählt wurde: das Zählen bricht ab, danach startet der Abgleich.
     private var vorgemerkt: HeimClient?
 
-    init(istDemo: Bool, ablage: FotoStandAblage? = nil) {
+    init(istDemo: Bool, ablage: FotoStandAblage? = nil, einstellungen: GeteilteEinstellungen = GeteilteEinstellungen(), mitteilung: any MitteilungsDienst = SystemMitteilungen()) {
         self.istDemo = istDemo
+        self.einstellungen = einstellungen
+        self.mitteilung = mitteilung
         let ordner = URL.applicationSupportDirectory.appending(path: "Heimherz", directoryHint: .isDirectory)
         self.ablage = ablage ?? FotoStandAblage.appGruppe() ?? FotoStandAblage(ordner: ordner)
         if istDemo {
@@ -58,7 +62,8 @@ final class FotosModell {
             zahlen: FotoZahlen(gesamt: 8_312, amPC: 1_234), schritt: "Sende IMG_4821.HEIC …", fortschritt: 1_234.0 / 8_312.0, laeuft: true,
             fertig: Set(koepfe.prefix(40).enumerated().filter { $0.offset != 5 && $0.offset != 6 }.map(\.element.kennung)),
             laufend: [koepfe[5].kennung], fehler: [koepfe[6].kennung: "vom PC abgelehnt, Code 400"],
-            datei: "IMG_4821.HEIC", bytesProSekunde: 4_200_000, restSekunden: 5_400)
+            datei: "IMG_4821.HEIC", bytesProSekunde: 4_200_000, restSekunden: 5_400,
+            phasen: FotoPhasen(fotosGesamt: 7_687, fotosAmPC: 1_234, videosGesamt: 625, videosAmPC: 0))
     }
 
     private static func lese(_ s: PHAuthorizationStatus) -> Erlaubnis {
@@ -95,6 +100,13 @@ final class FotosModell {
         guard !istDemo, erlaubnis == .voll else { return }
         try? PHPhotoLibrary.shared().setUploadJobExtensionEnabled(an)
         hintergrundAn = PHPhotoLibrary.shared().uploadJobExtensionEnabled
+    }
+
+    /// Nur lesen, was iOS gerade sagt (Einstellungen-Tab); schaltet nichts ein, anders als `lade`.
+    func liesSystemStand() {
+        guard !istDemo else { return }
+        erlaubnis = Self.lese(PHPhotoLibrary.authorizationStatus(for: .readWrite))
+        hintergrundAn = erlaubnis == .voll && PHPhotoLibrary.shared().uploadJobExtensionEnabled
     }
 
     /// Beim Öffnen und bei jedem Wechsel der Kopplung: Stand neu lesen, Erweiterung einschalten (nur gekoppelt, sonst gäbe es Jobs ohne Zugang).
@@ -135,6 +147,8 @@ final class FotosModell {
             arbeit?.cancel()
             return
         }
+        // Die erste Mitteilung braucht die Erlaubnis; der Start per Knopf ist der Moment, in dem der Nutzer sie versteht.
+        if einstellungen.fotoMitteilung { Task { [mitteilung] in await mitteilung.erlaubnisFragen() } }
         beginne(client: client, senden: true, nur: nil, vomNutzer: true, nachts: true)
     }
 
@@ -176,6 +190,7 @@ final class FotosModell {
     /// der nächste Start macht dort weiter. Der Nachtlauf wird abgesagt (`nachtAbsagen`), außer das System selbst beendet die Aufgabe.
     func halteAn(nachtAbsagen: Bool = true) {
         guard !istDemo else { return }
+        BildschirmWach.setze(laeuft: false)
         arbeit?.cancel()
         if nachtAbsagen {
             nutzerHatAngehalten = true
@@ -185,12 +200,16 @@ final class FotosModell {
 
     private func uebernimm(_ a: FotoAnzeige) {
         anzeige = a
+        if !istDemo { BildschirmWach.setze(laeuft: a.laeuft) }
         spiegele(a)
     }
 
     private func laufBeendet() async {
+        if !istDemo { BildschirmWach.setze(laeuft: false) }
         stand = ablage.lade()
         let a = anzeige
+        let meldeLauf = plantNachts   // nur Knopf und Nachtlauf melden; Zählen und Einzel-Upload bleiben still
+        let angehalten = nutzerHatAngehalten
         lauf = nil
         arbeit = nil
         anzeige.fertig = stand.fertig.union(a.fertig)
@@ -202,6 +221,10 @@ final class FotosModell {
         if plantNachts, !nutzerHatAngehalten, (a.zahlen?.offen ?? 0) > 0 { FotoHintergrund.planeNacht() }
         nutzerLauf = false
         plantNachts = false
+        // Läuft noch im Lauf selbst: Der Nachtlauf wartet auf ihn, die Mitteilung geht raus, bevor iOS die Aufgabe schließt.
+        if meldeLauf, !istDemo {
+            await FotoMitteilung.meldeNachLauf(gesichert: a.gesichert, vomNutzerAngehalten: angehalten, schalterAn: einstellungen.fotoMitteilung, dienst: mitteilung)
+        }
         await raeumeTempAuf()
         if let c = vorgemerkt {
             vorgemerkt = nil

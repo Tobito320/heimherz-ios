@@ -149,3 +149,82 @@ struct WertZeile: View {
         .accessibilityElement(children: .combine)
     }
 }
+
+/// Farbe einer Symbolkachel (wie in den iOS-Einstellungen). Feste, kräftige Töne mit weißem Symbol, in Hell und Dunkel gleich lesbar
+/// (dieselben Werte wie die Kacheln der Passwörter-Startseite).
+enum KachelTon {
+    case gruen, tuerkis, gelb, rot, orange, rosa, grau
+
+    var farbe: Color {
+        switch self {
+        case .gruen: return Color(red: 0.16, green: 0.55, blue: 0.27)
+        case .tuerkis: return Color(red: 0.12, green: 0.62, blue: 0.68)
+        case .gelb: return Color(red: 0.90, green: 0.68, blue: 0.10)
+        case .rot: return Color(red: 0.88, green: 0.27, blue: 0.22)
+        case .orange: return Color(red: 0.93, green: 0.55, blue: 0.14)
+        case .rosa: return Color(red: 0.93, green: 0.36, blue: 0.45)
+        case .grau: return Color(red: 0.45, green: 0.50, blue: 0.45)
+        }
+    }
+}
+
+/// Die kleine farbige Kachel vor einer Einstellungszeile.
+struct EinstellungsKachel: View {
+    let symbol: String
+    var ton: KachelTon = .gruen
+
+    var body: some View {
+        Image(systemName: symbol)
+            .font(.system(size: 15, weight: .semibold))
+            .foregroundStyle(Color.white)
+            .frame(width: 30, height: 30)
+            .background(ton.farbe, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+            .accessibilityHidden(true)
+    }
+}
+
+/// Titel mit Symbolkachel: der Inhalt jeder Einstellungszeile.
+struct KachelTitel: View {
+    let titel: String
+    let symbol: String
+    var ton: KachelTon = .gruen
+
+    var body: some View {
+        HStack(spacing: Abstand.m) {
+            EinstellungsKachel(symbol: symbol, ton: ton)
+            Text(titel).foregroundStyle(Color.tinte)
+        }
+    }
+}
+
+extension View {
+    /// Gruppierte Liste im Stil der iOS-Einstellungen mit dem Heim-Hintergrund und weißen Karten (Hell) beziehungsweise dunkelgrünen (Dunkel).
+    func heimherzEinstellungenListe() -> some View {
+        self
+            .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
+            .heimherzHintergrund()
+            .tint(Color.knopf)
+    }
+
+    /// Zeile einer solchen Liste.
+    func heimherzZeile() -> some View {
+        self
+            .listRowBackground(Color.karte)
+            .listRowSeparatorTint(Color.haar)
+    }
+}
+
+/// Kopf- und Fußzeile einer Einstellungsgruppe in den Heim-Farben.
+struct GruppenText: View {
+    let text: String
+    var fuss = false
+
+    var body: some View {
+        Text(text)
+            .font(fuss ? .footnote : .footnote.weight(.semibold))
+            .foregroundStyle(Color.tinte2)
+            .textCase(fuss ? nil : .uppercase)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+}

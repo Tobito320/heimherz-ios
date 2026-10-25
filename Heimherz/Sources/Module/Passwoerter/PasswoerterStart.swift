@@ -48,34 +48,14 @@ struct PasswoerterStart: View {
                             .buttonStyle(.plain)
                     }
                 }
-                Button(action: anleitung) {
-                    HStack(spacing: Abstand.m) {
-                        Image(systemName: "square.and.arrow.down")
-                            .font(.title3)
-                            .foregroundStyle(Color.gruen)
-                            .frame(width: 36)
-                            .accessibilityHidden(true)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Aus Apple Passwörter holen").font(.headline).foregroundStyle(Color.tinte)
-                            Text("Alle Konten, Codes und Passkeys auf einmal").font(.subheadline).foregroundStyle(Color.tinte2)
-                        }
-                        Spacer(minLength: Abstand.s)
-                        Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(Color.tinte3).accessibilityHidden(true)
-                    }
-                    .padding(Abstand.m)
-                    .frame(maxWidth: .infinity, minHeight: Abstand.tippflaeche, alignment: .leading)
-                    .background(Color.karte, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-                }
-                .buttonStyle(.plain)
-                .accessibilityElement(children: .combine)
                 if store.eintraege.isEmpty {
                     LeerZustand(
                         titel: "Noch keine Einträge",
-                        text: "Hol alles aus Apple Passwörter, importiere am PC mit `heimherz import bitwarden` oder lege hier ein neues Konto an.",
+                        text: "Lege ein Konto an oder hol sie über das Menü oben aus Apple Passwörter.",
                         aktionTitel: "Neues Konto"
                     ) { neu(.neu(Eintrag.artLogin)) }
                 }
-                SyncStatus(store: store)
+                if store.abgleichFehler != nil || store.offlineText != nil || store.gleichtAb { SyncStatus(store: store) }
             }
             .padding(.horizontal, Abstand.l)
             .padding(.bottom, Abstand.xl)
@@ -122,8 +102,10 @@ struct PasswoerterStart: View {
 
     private var mehrMenue: some View {
         Menu {
-            Button(action: anleitung) { Label("Aus Apple Passwörter holen", systemImage: "square.and.arrow.down") }
-            Button { Task { await store.abgleichen() } } label: { Label("Jetzt abgleichen", systemImage: "arrow.triangle.2.circlepath") }
+            Section(SyncStatus.zuletztText(store.zuletzt)) {
+                Button(action: anleitung) { Label("Aus Apple Passwörter holen", systemImage: "square.and.arrow.down") }
+                Button { Task { await store.abgleichen() } } label: { Label("Jetzt abgleichen", systemImage: "arrow.triangle.2.circlepath") }
+            }
         } label: {
             Image(systemName: "ellipsis")
                 .frame(minWidth: Abstand.tippflaeche, minHeight: Abstand.tippflaeche)
@@ -168,35 +150,23 @@ struct KategorieKachel: View {
     }
 }
 
-/// Wann zuletzt mit dem PC abgeglichen wurde, und ob etwas klemmt.
+/// Nur was klemmt: Fehler, PC nicht erreichbar, läuft gerade. Das "Zuletzt abgeglichen" steht im Menü (drei Punkte).
 struct SyncStatus: View {
     let store: TresorStore
 
+    /// "Zuletzt abgeglichen: vor 5 Minuten" (Kopf des Menüs), nie leer.
+    static func zuletztText(_ zuletzt: Date?) -> String {
+        guard let zuletzt else { return "Noch nicht abgeglichen" }
+        return "Zuletzt abgeglichen: \(zuletzt.formatted(.relative(presentation: .named, unitsStyle: .wide).locale(Locale(identifier: "de_DE"))))"
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: Abstand.s) {
-            if let fehler = store.abgleichFehler {
-                StatusChip(text: fehler, symbol: "exclamationmark.triangle.fill", ton: .warn)
-            } else if store.offlineText != nil {
-                StatusChip(text: "PC nicht erreichbar, alles geht weiter", symbol: "icloud.slash", ton: .neutral)
-            } else if store.gleichtAb {
-                StatusChip(text: "Gleiche ab …", symbol: "arrow.triangle.2.circlepath", ton: .neutral)
-            }
-            if let zuletzt = store.zuletzt {
-                Text("Zuletzt abgeglichen: \(zuletzt.formatted(.relative(presentation: .named)))")
-                    .font(.footnote)
-                    .foregroundStyle(Color.tinte2)
-            } else {
-                Text("Noch nicht mit dem PC abgeglichen")
-                    .font(.footnote)
-                    .foregroundStyle(Color.tinte2)
-            }
-            if let offline = store.offlineText {
-                Text(offline)
-                    .font(.footnote)
-                    .foregroundStyle(Color.tinte2)
-            }
+        if let fehler = store.abgleichFehler {
+            StatusChip(text: fehler, symbol: "exclamationmark.triangle.fill", ton: .warn)
+        } else if store.offlineText != nil {
+            StatusChip(text: "PC nicht erreichbar, alles geht weiter", symbol: "icloud.slash", ton: .neutral)
+        } else if store.gleichtAb {
+            StatusChip(text: "Gleiche ab …", symbol: "arrow.triangle.2.circlepath", ton: .neutral)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityElement(children: .combine)
     }
 }

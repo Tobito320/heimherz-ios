@@ -48,6 +48,17 @@ targets:
           - com.onlyus.heimherz.fotos-nacht
         UIBackgroundModes:
           - processing
+        # Schnellaktionen am App-Symbol (langes Drücken); Typen wie `Schnellaktion` in Heimherz/Sources/App/Schnellaktion.swift
+        UIApplicationShortcutItems:
+          - UIApplicationShortcutItemType: com.onlyus.heimherz.aktion.codes
+            UIApplicationShortcutItemTitle: Codes
+            UIApplicationShortcutItemIconSymbolName: lock.badge.clock
+          - UIApplicationShortcutItemType: com.onlyus.heimherz.aktion.fotos
+            UIApplicationShortcutItemTitle: Fotos sichern
+            UIApplicationShortcutItemIconSymbolName: photo.badge.arrow.down
+          - UIApplicationShortcutItemType: com.onlyus.heimherz.aktion.passwort
+            UIApplicationShortcutItemTitle: Neues Passwort
+            UIApplicationShortcutItemIconSymbolName: plus
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.onlyus.heimherz

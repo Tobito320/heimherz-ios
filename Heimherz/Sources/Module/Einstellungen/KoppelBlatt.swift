@@ -8,6 +8,8 @@ struct KoppelBlatt: View {
     @State private var link = ""
     @State private var fehler: String?
     @State private var laeuft = false
+    /// Der Link-Weg ist zugeklappt, solange die Kamera geht; ohne Kamera liegt er offen.
+    @State private var linkOffen = false
     /// Ein gültiger Link, der auf die Bestätigung wartet.
     @State private var ausstehend: Ausstehend?
 
@@ -20,7 +22,7 @@ struct KoppelBlatt: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: Abstand.l) {
-                    Text("Am PC `heimherz koppeln` aufrufen. Dort erscheint ein QR-Code, den du hier scannst. Er enthält Adresse, Geräte-Token und Schlüssel und gilt nur für dieses Handy.")
+                    Text("Starte am PC `heimherz koppeln` und scanne den QR-Code.")
                         .font(.subheadline)
                         .foregroundStyle(Color.tinte2)
                     scanner
@@ -83,18 +85,27 @@ struct KoppelBlatt: View {
             .accessibilityLabel("Kamera zum Scannen des QR-Codes")
         } else {
             ListenKarte {
-                Label("Die Kamera steht hier nicht zur Verfügung. Füge den Link vom PC unten ein.", systemImage: "camera.slash")
+                Label("Keine Kamera hier. Füge den Link vom PC ein.", systemImage: "camera.slash")
                     .font(.subheadline)
                     .foregroundStyle(Color.tinte2)
             }
         }
     }
 
+    @ViewBuilder
     private var einfuegen: some View {
-        VStack(alignment: .leading, spacing: Abstand.s) {
-            Text("Oder Link einfügen")
-                .font(.headline)
+        if QRScanner.istMoeglich {
+            DisclosureGroup("Link statt QR-Code einfügen", isExpanded: $linkOffen) { linkFeld.padding(.top, Abstand.s) }
+                .font(.subheadline.weight(.semibold))
                 .foregroundStyle(Color.tinte)
+                .tint(Color.tinte2)
+        } else {
+            linkFeld
+        }
+    }
+
+    private var linkFeld: some View {
+        VStack(alignment: .leading, spacing: Abstand.s) {
             TextField("heimherz://koppeln?…", text: $link, axis: .vertical)
                 .lineLimit(1...4)
                 .textInputAutocapitalization(.never)

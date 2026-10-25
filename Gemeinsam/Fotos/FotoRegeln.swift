@@ -31,6 +31,8 @@ struct FotoRessource: Sendable, Hashable {
     let art: FotoArt
     let dateiname: String
     let aufnahme: Date?
+    /// Das Asset ist ein Video (nicht Foto und nicht Live Photo); bestimmt die Phase im Abgleich (erst Fotos, dann Videos).
+    var assetIstVideo = false
 
     /// Der Eintrag in `GET /v1/fotos/bekannt` und in `FotoStand`.
     var schluessel: String { FotoRegeln.schluessel(kennung: kennung, name: name) }
@@ -40,6 +42,8 @@ struct FotoRessource: Sendable, Hashable {
 struct FotoKopf: Sendable, Hashable {
     let assetId: String
     let kennung: String
+    /// `PHAssetMediaType.video`; ein Live Photo bleibt ein Foto (es geht als Ganzes in die Foto-Phase). Die Größe wäre genauer, steht aber nur über einen privaten Schlüssel bereit.
+    var istVideo = false
 }
 
 /// Reine Regeln, die App und Erweiterung teilen. Beide müssen für dieselbe Datei denselben Schlüssel bilden, sonst gäbe es Doppelte.
@@ -69,11 +73,11 @@ enum FotoRegeln {
         return teile.map { teil in
             let i = zaehler[teil.art, default: 0]
             zaehler[teil.art] = i + 1
-            return FotoRessource(assetId: kopf.assetId, kennung: kopf.kennung, name: "\(teil.art.kuerzel)-\(i)", art: teil.art, dateiname: teil.dateiname, aufnahme: aufnahme)
+            return FotoRessource(assetId: kopf.assetId, kennung: kopf.kennung, name: "\(teil.art.kuerzel)-\(i)", art: teil.art, dateiname: teil.dateiname, aufnahme: aufnahme, assetIstVideo: kopf.istVideo)
         }
     }
 
-    static func kopf(assetId: String) -> FotoKopf { FotoKopf(assetId: assetId, kennung: kennung(assetId: assetId)) }
+    static func kopf(assetId: String, istVideo: Bool = false) -> FotoKopf { FotoKopf(assetId: assetId, kennung: kennung(assetId: assetId), istVideo: istVideo) }
 }
 
 /// PhotoKit-Anbindung (App und Erweiterung): Assets neueste zuerst, Dateien eines Assets. Liest nur, ändert und löscht nie etwas.
@@ -88,7 +92,7 @@ enum FotoBibliothek {
 
     /// Die Dateien eines Assets samt PhotoKit-Objekt (nur lokal benutzen, nicht Sendable).
     static func ressourcen(_ asset: PHAsset) -> [(ressource: FotoRessource, objekt: PHAssetResource)] {
-        let kopf = FotoRegeln.kopf(assetId: asset.localIdentifier)
+        let kopf = FotoRegeln.kopf(assetId: asset.localIdentifier, istVideo: asset.mediaType == .video)
         let objekte = PHAssetResource.assetResources(for: asset).compactMap { o in FotoArt(o.type).map { (art: $0, objekt: o) } }
         let liste = FotoRegeln.ressourcen(kopf: kopf, aufnahme: asset.creationDate, teile: objekte.map { (art: $0.art, dateiname: $0.objekt.originalFilename) })
         return zip(liste, objekte).map { (ressource: $0, objekt: $1.objekt) }

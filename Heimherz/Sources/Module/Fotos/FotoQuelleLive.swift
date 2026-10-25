@@ -51,7 +51,7 @@ struct FotoQuelleLive: FotoQuelle {
         var stelle: [String: Int] = [:]
         koepfe.reserveCapacity(treffer.count)
         treffer.enumerateObjects { asset, i, _ in
-            let k = FotoRegeln.kopf(assetId: asset.localIdentifier)
+            let k = FotoRegeln.kopf(assetId: asset.localIdentifier, istVideo: asset.mediaType == .video)
             koepfe.append(k)
             stelle[k.kennung] = i
         }

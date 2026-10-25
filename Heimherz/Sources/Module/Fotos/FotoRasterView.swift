@@ -220,6 +220,16 @@ struct FotoStartKnopf: View {
 
 /// Texte zum Stand, rein (Test).
 enum FotoText {
+    /// "Fotos: 4.812 von 6.900 · danach 625 Videos", danach "Videos: 120 von 625". nil ohne Videos oder wenn alles da ist.
+    static func phasen(_ p: FotoPhasen?) -> String? {
+        guard let p, p.videosGesamt > 0 else { return nil }
+        if p.fotosOffen > 0 {
+            let videos = p.videosOffen == 1 ? "1 Video" : "\(p.videosOffen.formatted()) Videos"
+            return p.videosOffen > 0 ? "Fotos: \(p.fotosAmPC.formatted()) von \(p.fotosGesamt.formatted()) · danach \(videos)" : "Fotos: \(p.fotosAmPC.formatted()) von \(p.fotosGesamt.formatted())"
+        }
+        return p.videosOffen > 0 ? "Videos: \(p.videosAmPC.formatted()) von \(p.videosGesamt.formatted())" : nil
+    }
+
     static func stand(_ a: FotoAnzeige) -> String {
         guard let z = a.zahlen else { return a.laeuft ? "Zähle die Fotos …" : "Noch nicht gezählt" }
         if z.offen == 0 { return "Alles liegt auf dem PC" }

@@ -56,6 +56,17 @@ enum VorschauCache {
     static func leere(wurzel: URL = wurzel) {
         try? FileManager.default.removeItem(at: wurzel)
     }
+
+    /// Wie viel der Zwischenspeicher am Handy belegt (Summe aller Dateien darunter), für die Einstellungen.
+    static func groesse(wurzel: URL = wurzel) -> Int64 {
+        guard let liste = FileManager.default.enumerator(at: wurzel, includingPropertiesForKeys: [.fileSizeKey, .isRegularFileKey]) else { return 0 }
+        var summe: Int64 = 0
+        for case let url as URL in liste {
+            guard let werte = try? url.resourceValues(forKeys: [.fileSizeKey, .isRegularFileKey]), werte.isRegularFile == true else { continue }
+            summe += Int64(werte.fileSize ?? 0)
+        }
+        return summe
+    }
 }
 
 /// Namen für Dateien, die aus Fotos kommen (der Fotoauswahl-Dialog nennt keinen Namen).
