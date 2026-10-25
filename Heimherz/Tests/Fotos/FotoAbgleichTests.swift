@@ -10,6 +10,10 @@ private struct FakeQuelle: FotoQuelle {
     var beimExport: (@Sendable (FotoRessource) async throws -> Void)?
     let plaene = Kasten<Int>(0)
     let iCloudWerte = Kasten<[Bool]>([])
+    /// "dateiname:iCloud" in der Reihenfolge der Exportversuche.
+    let versuche = Kasten<[String]>([])
+    /// Diese Dateien liegen nur in iCloud: ohne iCloud-Erlaubnis scheitert der Export.
+    var nurInICloud: Set<String> = []
 
     func plane(stand: FotoStand, hoechstens: Int, nur: [String]?, uebersprungen: Set<String>) async -> FotoPlan.Ergebnis {
         plaene.mit { $0 += 1 }
@@ -22,6 +26,8 @@ private struct FakeQuelle: FotoQuelle {
 
     func exportiere(_ r: FotoRessource, iCloud: Bool) async throws -> URL {
         iCloudWerte.mit { $0.append(iCloud) }
+        versuche.mit { $0.append("\(r.dateiname):\(iCloud)") }
+        if !iCloud, nurInICloud.contains(r.dateiname) { throw FotoFehler.nurInICloud }
         try await beimExport?(r)
         let u = ordner.appending(path: "\(UUID().uuidString)-\(r.name)")
         try Data("inhalt \(r.name)".utf8).write(to: u)
@@ -32,10 +38,16 @@ private struct FakeQuelle: FotoQuelle {
 private final class FakeSender: FotoSender, Sendable {
     let anfragen = Kasten<[URLRequest]>([])
     let verhalten: @Sendable (URLRequest) -> HeimFehler?
-    init(_ v: @escaping @Sendable (URLRequest) -> HeimFehler? = { _ in nil }) { verhalten = v }
+    /// Läuft während des "Hochladens" (darf dauern oder hängen) und kennt die Temp-Datei.
+    let waehrendDessen: (@Sendable (URL, URLRequest) async throws -> Void)?
+    init(_ v: @escaping @Sendable (URLRequest) -> HeimFehler? = { _ in nil }, waehrendDessen: (@Sendable (URL, URLRequest) async throws -> Void)? = nil) {
+        verhalten = v
+        self.waehrendDessen = waehrendDessen
+    }
     func sende(datei: URL, anfrage: URLRequest) async throws {
         XCTAssertTrue(FileManager.default.fileExists(atPath: datei.path), "die Datei muss beim Senden da sein")
         anfragen.mit { $0.append(anfrage) }
+        try await waehrendDessen?(datei, anfrage)
         if let f = verhalten(anfrage) { throw f }
     }
     var pfade: [String] { anfragen.mit { $0.compactMap { $0.url?.path } } }
@@ -61,8 +73,8 @@ final class FotoAbgleichTests: XCTestCase {
     }
 
     private func baue(assets: [(kopf: FotoKopf, teile: [(art: FotoArt, dateiname: String)])], bekannt: String = "[]", bekanntStatus: Int = 200,
-                      wlan: Bool = true, nurWLAN: Bool? = nil, sender: FakeSender = FakeSender(), gleichzeitig: Int = 2, stueck: Int = 20,
-                      ablage vorhanden: FotoStandAblage? = nil, beimExport: (@Sendable (FotoRessource) async throws -> Void)? = nil) throws -> Umgebung {
+                      wlan: Bool = true, nurWLAN: Bool? = nil, sender: FakeSender = FakeSender(), gleichzeitig: Int = 2, voraus: Int = 0, stueck: Int = 20,
+                      ablage vorhanden: FotoStandAblage? = nil, nurInICloud: Set<String> = [], beimExport: (@Sendable (FotoRessource) async throws -> Void)? = nil) throws -> Umgebung {
         let temp = try tempOrdner()
         let ablage = try vorhanden ?? FotoStandAblage(ordner: try tempOrdner())
         if let nurWLAN { ablage.aendere { $0.nurWLAN = nurWLAN } }
@@ -72,9 +84,10 @@ final class FotoAbgleichTests: XCTestCase {
         }
         let client = HeimClient(basis: basis, token: TestSchluessel.token, sitzung: sitzung)
         let anzeigen = Kasten<[FotoAnzeige]>([])
-        let quelle = FakeQuelle(assets: assets, ordner: temp, beimExport: beimExport)
+        var quelle = FakeQuelle(assets: assets, ordner: temp, beimExport: beimExport)
+        quelle.nurInICloud = nurInICloud
         let a = FotoAbgleich(client: client, quelle: quelle, sender: sender, netz: FakeNetzart(wlan: wlan), ablage: ablage,
-                             gleichzeitig: gleichzeitig, stueck: stueck, jetzt: { Date(timeIntervalSince1970: 1_800_000_000) }) { neu in anzeigen.mit { $0.append(neu) } }
+                             gleichzeitig: gleichzeitig, voraus: voraus, stueck: stueck, jetzt: { Date(timeIntervalSince1970: 1_800_000_000) }) { neu in anzeigen.mit { $0.append(neu) } }
         return Umgebung(abgleich: a, sender: sender, ablage: ablage, temp: temp, anzeigen: anzeigen, quelle: quelle)
     }
 
@@ -313,7 +326,79 @@ final class FotoAbgleichTests: XCTestCase {
     func testICloudSchalterGehtAnDieQuelle() async throws {
         let u = try baue(assets: viele(1))
         await u.abgleich.abgleichen()
-        XCTAssertEqual(u.quelle.iCloudWerte.mit { $0 }, [true], "Standard: Originale aus iCloud laden")
+        XCTAssertEqual(u.quelle.iCloudWerte.mit { $0 }, [false], "erster Durchgang: lokal, ohne iCloud-Download; die Datei war lokal, mehr braucht es nicht")
+    }
+
+    func testErstAllesLokalDannDieICloudOriginale() async throws {
+        let assets = viele(3)
+        let u = try baue(assets: assets, gleichzeitig: 1, nurInICloud: ["x2.heic"])
+        await u.abgleich.abgleichen()
+        XCTAssertEqual(u.quelle.versuche.mit { $0 }, ["x1.heic:false", "x2.heic:false", "x3.heic:false", "x2.heic:true"], "x2 wartet auf den zweiten Durchgang")
+        XCTAssertEqual(u.sender.pfade, [0, 2, 1].map { "/v1/fotos/\(assets[$0].kopf.kennung)/foto-0" }, "das Schnelle zuerst, das iCloud-Bild zuletzt")
+        XCTAssertEqual(u.ablage.lade().fertig.count, 3)
+        XCTAssertNil(u.ablage.lade().fehler, "Zurückstellen ist kein Fehler")
+        XCTAssertEqual(u.anzeigen.mit { $0.last }?.gesichert, 3)
+    }
+
+    func testOhneICloudErlaubnisBleibtDasICloudBildOffen() async throws {
+        let ablage = FotoStandAblage(ordner: try tempOrdner())
+        ablage.aendere { $0.iCloudLaden = false }
+        let assets = viele(3)
+        let u = try baue(assets: assets, gleichzeitig: 1, ablage: ablage, nurInICloud: ["x2.heic"])
+        await u.abgleich.abgleichen()
+        XCTAssertFalse(u.quelle.versuche.mit { $0 }.contains { $0.hasSuffix(":true") }, "kein Download")
+        XCTAssertEqual(u.ablage.lade().fertig.count, 2)
+        XCTAssertEqual(u.ablage.lade().fehler, "1 Datei konnte nicht übertragen werden (liegt nur in iCloud, und das Laden von iCloud ist aus).")
+    }
+
+    func testHoechstensZweiICloudDownloadsGleichzeitig() async throws {
+        let jetzt = Kasten<Int>(0), hoechstens = Kasten<Int>(0)
+        let namen = Set((1...6).map { "x\($0).heic" })
+        let u = try baue(assets: viele(6), gleichzeitig: 6, nurInICloud: namen) { _ in
+            let n = jetzt.mit { $0 += 1; return $0 }
+            hoechstens.mit { $0 = max($0, n) }
+            try await Task.sleep(for: .milliseconds(40))
+            jetzt.mit { $0 -= 1 }
+        }
+        await u.abgleich.abgleichen()
+        XCTAssertEqual(u.sender.pfade.count, 6)
+        XCTAssertEqual(hoechstens.mit { $0 }, 2, "zwei Downloads zugleich, nie mehr")
+    }
+
+    func testPufferGrenzeHaeltDenExportAnWennZuvielWartet() async throws {
+        let exporte = Kasten<Int>(0)
+        let hoechstensWartend = Kasten<Int>(0)
+        let hochgeladen = Kasten<Int>(0)
+        // Der erste Upload hängt kurz: bis dahin darf der Export höchstens `voraus` Dateien Vorsprung haben.
+        let sender = FakeSender(waehrendDessen: { _, _ in
+            try await Task.sleep(for: .milliseconds(150))
+            hochgeladen.mit { $0 += 1 }
+        })
+        let u = try baue(assets: viele(20), sender: sender, gleichzeitig: 1, voraus: 3) { _ in
+            let n = exporte.mit { $0 += 1; return $0 }
+            hoechstensWartend.mit { $0 = max($0, n - hochgeladen.mit { $0 }) }
+        }
+        await u.abgleich.abgleichen()
+        XCTAssertLessThanOrEqual(hoechstensWartend.mit { $0 }, 4, "ein Upload plus drei im Voraus exportiert")
+        XCTAssertEqual(u.sender.pfade.count, 20)
+    }
+
+    /// Messung mit Attrappen: jeder Upload dauert 100 ms. Nacheinander brauchen 24 Dateien mehr als 2,4 s, sechs zugleich etwa ein Sechstel.
+    func testParallelIstDeutlichSchnellerAlsNacheinander() async throws {
+        func dauer(gleichzeitig: Int, voraus: Int) async throws -> Double {
+            let sender = FakeSender(waehrendDessen: { _, _ in try await Task.sleep(for: .milliseconds(100)) })
+            let u = try baue(assets: viele(24), sender: sender, gleichzeitig: gleichzeitig, voraus: voraus, stueck: 60)
+            let start = ContinuousClock.now
+            await u.abgleich.abgleichen()
+            XCTAssertEqual(u.sender.pfade.count, 24)
+            let d = ContinuousClock.now - start
+            return Double(d.components.seconds) + Double(d.components.attoseconds) / 1e18
+        }
+        let nacheinander = try await dauer(gleichzeitig: 1, voraus: 0)
+        let parallel = try await dauer(gleichzeitig: 6, voraus: 12)
+        print("MESSUNG Attrappe: 24 Dateien je 100 ms: nacheinander \(nacheinander) s, sechs parallel \(parallel) s, Faktor \(nacheinander / parallel)")
+        XCTAssertGreaterThan(nacheinander, 2.3)
+        XCTAssertLessThan(parallel, nacheinander / 3, "mindestens dreimal schneller (ideal sechsmal)")
     }
 
     func testZaehlenSendetNichts() async throws {
@@ -358,5 +443,123 @@ final class FotoAbgleichTests: XCTestCase {
         XCTAssertEqual(alle.first?.zahlen, FotoZahlen(gesamt: 3, amPC: 0), "Überschrift und Balken verschwinden beim Start nicht")
         XCTAssertEqual(alle.last?.zahlen, FotoZahlen(gesamt: 3, amPC: 1), "das gesendete Bild zählt sofort mit")
     }
-}
 
+    // MARK: Parallel
+
+    /// Zählt gleichzeitige Uploads und die Temp-Dateien, die dabei im Ordner liegen.
+    private final class Messung: Sendable {
+        let jetzt = Kasten<Int>(0)
+        let hoechstens = Kasten<Int>(0)
+        let hoechstensTemp = Kasten<Int>(0)
+        func beginn(temp: URL) {
+            let n = jetzt.mit { $0 += 1; return $0 }
+            hoechstens.mit { $0 = max($0, n) }
+            let dateien = (try? FileManager.default.contentsOfDirectory(atPath: temp.deletingLastPathComponent().path).count) ?? 0
+            hoechstensTemp.mit { $0 = max($0, dateien) }
+        }
+        func ende() { jetzt.mit { $0 -= 1 } }
+    }
+
+    private func langsamerSender(_ m: Messung) -> FakeSender {
+        FakeSender(waehrendDessen: { datei, _ in
+            m.beginn(temp: datei)
+            defer { m.ende() }
+            try await Task.sleep(for: .milliseconds(40))
+        })
+    }
+
+    func testVierUploadsGleichzeitigUndJedeDateiNurEinmal() async throws {
+        let m = Messung()
+        let assets = viele(24)
+        let u = try baue(assets: assets, sender: langsamerSender(m), gleichzeitig: 4, voraus: 1, stueck: 7)
+        await u.abgleich.abgleichen()
+
+        XCTAssertEqual(m.hoechstens.mit { $0 }, 4, "vier gleichzeitig, nie mehr")
+        let pfade = u.sender.pfade
+        XCTAssertEqual(pfade.count, 24)
+        XCTAssertEqual(Set(pfade), Set(assets.map { "/v1/fotos/\($0.kopf.kennung)/foto-0" }), "jede Datei genau einmal, keine doppelt (sonst 409 am PC)")
+        XCTAssertEqual(u.ablage.lade().fertig.count, 24)
+        XCTAssertEqual(u.anzeigen.mit { $0.last }?.gesichert, 24)
+        XCTAssertEqual(dateienIn(u.temp), [])
+    }
+
+    func testHoechstensGleichzeitigePlusEineTempDatei() async throws {
+        let m = Messung()
+        let u = try baue(assets: viele(20), sender: langsamerSender(m), gleichzeitig: 4, voraus: 1)
+        await u.abgleich.abgleichen()
+        XCTAssertLessThanOrEqual(m.hoechstensTemp.mit { $0 }, 5, "vier im Upload plus eine schon exportierte")
+        XCTAssertEqual(u.sender.pfade.count, 20)
+    }
+
+    func testDieNaechsteDateiWirdExportiert_WaehrendDieErsteHochgeht() async throws {
+        let exporte = Kasten<Int>(0)
+        let erreicht = Kasten<Bool>(false)
+        let sender = FakeSender(waehrendDessen: { _, _ in
+            // Der erste Upload wartet, bis der zweite Export angefangen hat; ohne Vorlauf käme der nie und die Zeit liefe ab.
+            for _ in 0..<100 where exporte.mit({ $0 }) < 2 { try await Task.sleep(for: .milliseconds(30)) }
+            if exporte.mit({ $0 }) >= 2 { erreicht.mit { $0 = true } }
+        })
+        let u = try baue(assets: viele(2), sender: sender, gleichzeitig: 1, voraus: 1) { _ in exporte.mit { $0 += 1 } }
+        await u.abgleich.abgleichen()
+        XCTAssertTrue(erreicht.mit { $0 }, "der zweite Export lief, während der erste Upload noch ging")
+        XCTAssertEqual(u.sender.pfade.count, 2)
+    }
+
+    func testAnhaltenBrichtAlleParallelenUploadsAbUndRaeumtAuf() async throws {
+        let (signal, weiter) = AsyncStream.makeStream(of: Void.self)
+        let gestartet = Kasten<Int>(0)
+        let sender = FakeSender(waehrendDessen: { _, _ in
+            if gestartet.mit({ $0 += 1; return $0 }) == 4 { weiter.yield(Void()) }
+            try await Task.sleep(for: .seconds(60))   // hängt, bis der Abbruch kommt
+        })
+        let u = try baue(assets: viele(12), sender: sender, gleichzeitig: 4, voraus: 1)
+        let lauf = Task { await u.abgleich.abgleichen() }
+        for await _ in signal { break }
+        lauf.cancel()
+        await lauf.value
+
+        XCTAssertEqual(dateienIn(u.temp), [], "halbe Exporte und laufende Uploads sind verworfen")
+        XCTAssertNil(u.ablage.lade().fehler, "Anhalten ist kein Fehler")
+        XCTAssertEqual(u.ablage.lade().fertig, [], "nichts war fertig")
+        let letzte = try XCTUnwrap(u.anzeigen.mit { $0.last })
+        XCTAssertTrue(letzte.angehalten)
+        XCTAssertFalse(letzte.laeuft)
+        XCTAssertEqual(letzte.laufend, [])
+        XCTAssertEqual(letzte.gesichert, 0)
+        XCTAssertEqual(gestartet.mit { $0 }, 4, "der fünfte stand nur bereit und kam nicht mehr zum Zug")
+    }
+
+    func testFertigeDateienZaehlenBeimAnhaltenAuchBeiParallelerArbeit() async throws {
+        let (signal, weiter) = AsyncStream.makeStream(of: Void.self)
+        let fertige = Kasten<Int>(0)
+        // x1 und x2 gehen sofort durch, alle anderen hängen.
+        let sender = FakeSender(waehrendDessen: { _, anfrage in
+            if anfrage.value(forHTTPHeaderField: "X-Dateiname") == "x1.heic" || anfrage.value(forHTTPHeaderField: "X-Dateiname") == "x2.heic" {
+                if fertige.mit({ $0 += 1; return $0 }) == 2 { weiter.yield(Void()) }
+                return
+            }
+            try await Task.sleep(for: .seconds(60))
+        })
+        let assets = viele(8)
+        let u = try baue(assets: assets, sender: sender, gleichzeitig: 4, voraus: 1)
+        let lauf = Task { await u.abgleich.abgleichen() }
+        for await _ in signal { break }
+        try await Task.sleep(for: .milliseconds(200))   // der Abschluss der beiden wird verbucht
+        lauf.cancel()
+        await lauf.value
+        XCTAssertEqual(u.ablage.lade().fertig, [assets[0].kopf.kennung, assets[1].kopf.kennung])
+        XCTAssertEqual(u.anzeigen.mit { $0.last }?.gesichert, 2)
+        XCTAssertEqual(dateienIn(u.temp), [])
+    }
+
+    func testLivePhotoGehtMitBeidenDateienParallelOhneDoppelte() async throws {
+        let m = Messung()
+        let a = asset("a", [(.foto, "IMG.HEIC"), (.live, "IMG.MOV")]), b = asset("b", [(.foto, "IMG2.HEIC"), (.live, "IMG2.MOV")])
+        let u = try baue(assets: [a, b], sender: langsamerSender(m), gleichzeitig: 4, voraus: 1)
+        await u.abgleich.abgleichen()
+        XCTAssertEqual(Set(u.sender.pfade).count, 4)
+        XCTAssertEqual(u.sender.pfade.count, 4)
+        XCTAssertEqual(u.ablage.lade().fertig, [a.kopf.kennung, b.kopf.kennung])
+        XCTAssertEqual(u.anzeigen.mit { $0.last }?.gesichert, 2, "ein Live Photo zählt einmal")
+    }
+}

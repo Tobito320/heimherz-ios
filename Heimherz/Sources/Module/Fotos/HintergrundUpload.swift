@@ -1,13 +1,27 @@
 import Foundation
 import Network
 import Synchronization
+import UIKit
 
-/// Schickt Dateien über eine Hintergrund-`URLSession`: iOS führt den Transfer weiter, auch wenn die App schläft oder das Handy gesperrt ist.
+/// Schickt Dateien. Steht die App im Vordergrund, geht es über eine normale `URLSession` (die Hintergrund-Sitzung drosselt iOS spürbar).
+/// Sonst, und wenn ein Vordergrund-Transfer unterbrochen wird, weil die App schlafen geht, über eine Hintergrund-`URLSession`:
+/// iOS führt den Transfer weiter, auch wenn die App schläft oder das Handy gesperrt ist. Beide lesen direkt aus der Datei, nie ganz im Speicher.
 /// Nur Delegate, keine Completion-Handler (Hintergrund-Sitzungen erlauben nichts anderes). Die Sitzung hat eine feste Kennung; nach einem
 /// Neustart der App liefert iOS die Ergebnisse alter Transfers an diesen Delegate, dann gibt es keinen Wartenden mehr und nur die Temp-Datei wird gelöscht.
 final class HintergrundUpload: NSObject, FotoSender, URLSessionTaskDelegate, Sendable {
     static let sitzungsKennung = "com.onlyus.heimherz.fotos-upload"
     static let geteilt = HintergrundUpload()
+
+    /// Gleichzeitige Verbindungen zum PC; wie viele Uploads wirklich laufen, bestimmt `FotoAbgleich` (6 im WLAN, 2 mobil).
+    static let verbindungen = 6
+
+    private let vordergrund: URLSession = {
+        let konfig = URLSessionConfiguration.default
+        konfig.httpMaximumConnectionsPerHost = HintergrundUpload.verbindungen
+        konfig.timeoutIntervalForRequest = 120
+        konfig.waitsForConnectivity = false
+        return URLSession(configuration: konfig)
+    }()
 
     private let wartende = Mutex<[Int: CheckedContinuation<Void, any Error>]>([:])
     private let sitzungBox = Mutex<URLSession?>(nil)
@@ -21,13 +35,41 @@ final class HintergrundUpload: NSObject, FotoSender, URLSessionTaskDelegate, Sen
             konfig.sessionSendsLaunchEvents = true
             konfig.isDiscretionary = false
             konfig.waitsForConnectivity = true
+            konfig.httpMaximumConnectionsPerHost = Self.verbindungen
             let s = URLSession(configuration: konfig, delegate: self, delegateQueue: nil)
             box = s
             return s
         }
     }
 
+    @MainActor
+    private static func appIstVorn() -> Bool { UIApplication.shared.applicationState == .active }
+
     func sende(datei: URL, anfrage: URLRequest) async throws {
+        if await Self.appIstVorn() {
+            do {
+                try await sendeVorn(datei: datei, anfrage: anfrage)
+                return
+            } catch let fehler as HeimFehler where fehler.istNetzproblem {
+                // Die App ging schlafen und iOS hat den Transfer beendet: dieselbe Datei geht jetzt über die Hintergrund-Sitzung.
+                if Task.isCancelled { throw fehler }
+                if await Self.appIstVorn() { throw fehler }
+            }
+        }
+        try await sendeHintergrund(datei: datei, anfrage: anfrage)
+    }
+
+    private func sendeVorn(datei: URL, anfrage: URLRequest) async throws {
+        do {
+            let (_, antwort) = try await vordergrund.upload(for: anfrage, fromFile: datei)
+            let status = (antwort as? HTTPURLResponse)?.statusCode ?? 0
+            guard (200...299).contains(status) else { throw HeimFehler.aus(status: status) }
+        } catch let fehler as URLError {
+            throw HeimFehler(urlFehler: fehler)
+        }
+    }
+
+    private func sendeHintergrund(datei: URL, anfrage: URLRequest) async throws {
         let pfad = datei.path
         try Task.checkCancellation()
         try await withTaskCancellationHandler {

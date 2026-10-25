@@ -37,6 +37,7 @@ private struct FotosInhalt: View {
     @State private var ansicht: Ansicht = Self.startAnsicht
     @State private var aktionen = SchnellaktionPostfach.geteilt
     @State private var zeigeErklaerung = false
+    @State private var amStrom = false
 
     private static var startAnsicht: Ansicht {
         #if DEBUG
@@ -55,6 +56,11 @@ private struct FotosInhalt: View {
         inhalt
             .task(id: AktionBedingung(gesperrt: umgebung.sperre.gesperrt, aktion: aktionen.offen)) { fuehreAktionAus() }
             .sheet(isPresented: $zeigeErklaerung) { SichernErklaerungBlatt() }
+            .onAppear { amStrom = BildschirmWach.amStrom }
+            .onReceive(NotificationCenter.default.publisher(for: UIDevice.batteryStateDidChangeNotification)) { _ in
+                amStrom = BildschirmWach.amStrom
+                if modell.laeuft { BildschirmWach.setze(laeuft: true) }   // Stecker rein oder raus mitten im Lauf
+            }
     }
 
     /// "Fotos sichern" vom App-Symbol: derselbe Start wie der Knopf. Fehlt die Erlaubnis, bleibt der Tab stehen und zeigt sie an.
@@ -161,6 +167,11 @@ private struct FotosInhalt: View {
             }
             if modell.laeuft, let t = FotoText.tempo(modell.anzeige) {
                 Text(t)
+                    .font(.footnote)
+                    .foregroundStyle(Color.tinte2)
+            }
+            if modell.laeuft, amStrom || modell.istDemo {
+                Label("Bildschirm bleibt an, solange am Strom", systemImage: "bolt.fill")
                     .font(.footnote)
                     .foregroundStyle(Color.tinte2)
             }

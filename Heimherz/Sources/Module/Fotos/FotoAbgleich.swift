@@ -45,12 +45,58 @@ struct FotoAnzeige: Sendable, Equatable {
     var gesichert = 0
 }
 
+/// Zählt Plätze für gleichzeitige Uploads. Wer wartet, wird der Reihe nach bedient; ein Abbruch weckt ihn mit `CancellationError`.
+actor UploadSchranke {
+    private var frei: Int
+    private var wartende: [(id: UUID, fortsetzung: CheckedContinuation<Void, any Error>)] = []
+
+    init(plaetze: Int) { frei = max(1, plaetze) }
+
+    func hole() async throws {
+        try Task.checkCancellation()
+        if frei > 0 {
+            frei -= 1
+            return
+        }
+        let id = UUID()
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { (c: CheckedContinuation<Void, any Error>) in
+                wartende.append((id, c))
+            }
+        } onCancel: {
+            Task { await self.abbruch(id) }
+        }
+    }
+
+    func gib() {
+        if wartende.isEmpty { frei += 1 } else { wartende.removeFirst().fortsetzung.resume() }
+    }
+
+    private func abbruch(_ id: UUID) {
+        guard let i = wartende.firstIndex(where: { $0.id == id }) else { return }
+        wartende.remove(at: i).fortsetzung.resume(throwing: CancellationError())
+    }
+}
+
 /// Ein Abgleich in kleinen Stücken (`stueck` Dateien): Liste vom PC holen, das nächste Stück planen (neueste zuerst), jede Datei exportieren
 /// und senden, Stand sichern, nächstes Stück. Abbruch der Aufgabe hält an: fertige Dateien zählen (der Server kennt sie), laufende Übertragungen
-/// und halbe Exporte werden verworfen, der nächste Lauf macht dort weiter. Es liegen nie mehr als `gleichzeitig` Temp-Dateien da.
+/// und halbe Exporte werden verworfen, der nächste Lauf macht dort weiter.
+/// Bis zu `gleichzeitig` Dateien gehen zugleich hoch (6 im WLAN, 2 mobil); bis zu `voraus` weitere sind schon exportiert oder werden es gerade,
+/// damit der nächste Upload ohne Wartezeit beginnt, solange diese Warteschlange unter `pufferGrenze` Bytes bleibt. Es liegen also nie mehr als
+/// `gleichzeitig + voraus` Temp-Dateien da. Gestartet wird in der Reihenfolge der Mediathek, abgeschlossen wird, wie es kommt (grob neueste zuerst).
+/// Eine Datei geht nie zweimal: jeder Schlüssel steht genau einmal in der Stückliste.
+/// Zwei Durchgänge: erst alles, was lokal auf dem Handy liegt (Export ohne Netz; scheitert er, wird die Datei zurückgestellt), danach die iCloud-Originale
+/// (nur mit "Originale aus iCloud laden"), dabei höchstens `iCloudParallel` Downloads zugleich. So kommt erst alles Schnelle durch.
 /// Der Server ist die Wahrheit: schlägt hier etwas fehl, steht die Datei beim nächsten Lauf wieder in der Liste.
 actor FotoAbgleich {
-    static let stueckGroesse = 20
+    static let stueckGroesse = 60
+    /// Gleichzeitige Uploads (Messung am Gerät: nacheinander nur 2,6 MB/s bei 1 Gbit/s am PC, der Engpass war das Nacheinander).
+    static let wlanParallel = 6
+    static let mobilParallel = 2
+    static let iCloudParallel = 2
+    /// Bis zu so viele fertig exportierte Dateien warten auf einen freien Upload-Platz, und nur bis zu so vielen Bytes.
+    static let standardVoraus = 12
+    static let standardPuffer: Int64 = 1_000_000_000
 
     private let client: HeimClient
     private let quelle: any FotoQuelle
@@ -59,8 +105,19 @@ actor FotoAbgleich {
     private let ablage: FotoStandAblage
     private let melde: @Sendable (FotoAnzeige) -> Void
     private let jetzt: @Sendable () -> Date
-    private let gleichzeitig: Int
+    /// nil: richtet sich nach dem Netz (WLAN `wlanParallel`, sonst `mobilParallel`), vor jedem Stück neu.
+    private let festeParallelitaet: Int?
+    private var gleichzeitig: Int
     private let stueck: Int
+    private let voraus: Int
+    private let pufferGrenze: Int64
+    private var schranke: UploadSchranke
+    /// Nur im iCloud-Durchgang: begrenzt die Downloads.
+    private var ladeSchranke: UploadSchranke?
+    /// Bytes der fertig exportierten Dateien, die noch auf einen Upload-Platz warten.
+    private var puffer: Int64 = 0
+    private var zurueckgestellt: Set<String> = []
+    private var inICloudPhase = false
 
     private var stand = FotoStand()
     private var anzeige = FotoAnzeige()
@@ -81,14 +138,19 @@ actor FotoAbgleich {
     private var imFlug: [String: Int] = [:]
 
     init(client: HeimClient, quelle: any FotoQuelle, sender: any FotoSender, netz: any Netzart, ablage: FotoStandAblage,
-         gleichzeitig: Int = 2, stueck: Int = FotoAbgleich.stueckGroesse, jetzt: @escaping @Sendable () -> Date = { Date() },
+         gleichzeitig: Int? = nil, voraus: Int = FotoAbgleich.standardVoraus, pufferGrenze: Int64 = FotoAbgleich.standardPuffer,
+         stueck: Int = FotoAbgleich.stueckGroesse, jetzt: @escaping @Sendable () -> Date = { Date() },
          melde: @escaping @Sendable (FotoAnzeige) -> Void) {
         self.client = client
         self.quelle = quelle
         self.sender = sender
         self.netz = netz
         self.ablage = ablage
-        self.gleichzeitig = max(1, gleichzeitig)
+        self.festeParallelitaet = gleichzeitig.map { max(1, $0) }
+        self.gleichzeitig = max(1, gleichzeitig ?? Self.wlanParallel)
+        self.voraus = max(0, voraus)
+        self.pufferGrenze = pufferGrenze
+        self.schranke = UploadSchranke(plaetze: max(1, gleichzeitig ?? Self.wlanParallel))
         self.stueck = max(1, stueck)
         self.jetzt = jetzt
         self.melde = melde
@@ -117,6 +179,7 @@ actor FotoAbgleich {
         sendet = senden
         erledigt = 0; gescheitert = 0; wartetAufWLAN = 0; exportFehler = nil; abbruch = nil; wlanStop = false
         uebersprungen = []; fehlend = [:]; gesendet = [:]; imFlug = [:]
+        zurueckgestellt = []; inICloudPhase = false; ladeSchranke = nil; puffer = 0
         tempo = FotoTempo(start: jetzt())
         // Zahlen vom letzten Mal, damit Überschrift und Balken beim Start nicht verschwinden (auch beim Einzel-Upload, der nicht neu zählt).
         anzeige = FotoAnzeige(zahlen: stand.gesamt.map { FotoZahlen(gesamt: $0, amPC: stand.fertig.count) })
@@ -144,13 +207,40 @@ actor FotoAbgleich {
                 anzeige.zahlen = plan.zahlen
             }
             sichere()
-            if !senden || plan.offen.isEmpty { break }
+            if !senden { break }
+            if plan.offen.isEmpty {
+                if wechsleInICloud() { continue }
+                break
+            }
             let vorher = erledigt + uebersprungen.count
-            await sendeStueck(plan.offen)
+            await waehleParallelitaet()
+            await sendeStueck(plan.offen, iCloud: inICloudPhase)
             sichere()
-            if erledigt + uebersprungen.count == vorher { break }   // kein Fortschritt: nicht endlos planen
+            if erledigt + uebersprungen.count == vorher {   // kein Fortschritt: nicht endlos planen
+                if wechsleInICloud() { continue }
+                break
+            }
         }
         abschliessen(senden: senden)
+    }
+
+    /// Alles Lokale ist durch: jetzt die zurückgestellten Dateien, die nur in iCloud liegen (nur wenn der Schalter an ist).
+    private func wechsleInICloud() -> Bool {
+        guard !inICloudPhase, !zurueckgestellt.isEmpty, !Task.isCancelled, abbruch == nil, !wlanStop else { return false }
+        inICloudPhase = true
+        uebersprungen.subtract(zurueckgestellt)
+        zurueckgestellt = []
+        ladeSchranke = UploadSchranke(plaetze: Self.iCloudParallel)
+        return true
+    }
+
+    /// Vor jedem Stück (dann läuft kein Upload mehr): 6 im WLAN, 2 mobil, außer die Zahl ist fest vorgegeben.
+    private func waehleParallelitaet() async {
+        let n: Int
+        if let fest = festeParallelitaet { n = fest } else { n = await netz.istWLAN() ? Self.wlanParallel : Self.mobilParallel }
+        guard n != gleichzeitig else { return }
+        gleichzeitig = n
+        schranke = UploadSchranke(plaetze: n)
     }
 
     private func abschliessen(senden: Bool) {
@@ -199,17 +289,20 @@ actor FotoAbgleich {
     // MARK: Senden
 
     private enum Ausgang: Sendable {
-        case gesendet(FotoRessource, Int64), wartetAufWLAN(FotoRessource), nichtLesbar(FotoRessource, String)
+        case gesendet(FotoRessource, Int64), wartetAufWLAN(FotoRessource), nichtLesbar(FotoRessource, String), nachICloud(FotoRessource)
         case nichtUebertragen(FotoRessource, String), stop(HeimFehler), abgebrochen(FotoRessource)
     }
 
-    private func sendeStueck(_ liste: [FotoRessource]) async {
-        var naechste = liste.makeIterator()
+    private func sendeStueck(_ liste: [FotoRessource], iCloud: Bool) async {
+        var gesehen: Set<String> = []
+        var naechste = liste.filter { gesehen.insert($0.schluessel).inserted }.makeIterator()
         await withTaskGroup(of: Ausgang.self) { gruppe in
             var laufend = 0
             while true {
-                while laufend < gleichzeitig, abbruch == nil, !wlanStop, !Task.isCancelled, let r = naechste.next() {
-                    gruppe.addTask { await self.bearbeite(r) }
+                // Immer `gleichzeitig` Dateien in Arbeit; darüber hinaus nur, solange die Warteschlange nicht voll ist (Anzahl und Bytes).
+                while laufend < gleichzeitig || (laufend < gleichzeitig + voraus && puffer < pufferGrenze),
+                      abbruch == nil, !wlanStop, !Task.isCancelled, let r = naechste.next() {
+                    gruppe.addTask { await self.bearbeite(r, iCloud: iCloud) }
                     laufend += 1
                 }
                 guard laufend > 0, let ausgang = await gruppe.next() else { break }
@@ -244,15 +337,18 @@ actor FotoAbgleich {
             anzeige.fehler[r.kennung] = grund
         case .stop(let f): abbruch = f
         case .abgebrochen(let r): uebersprungen.insert(r.schluessel)
+        case .nachICloud(let r):
+            zurueckgestellt.insert(r.schluessel)
+            uebersprungen.insert(r.schluessel)
         }
         zeige(schritt: anzeige.schritt)
     }
 
-    private func beginne(_ r: FotoRessource) {
+    private func beginne(_ r: FotoRessource, iCloud: Bool) {
         imFlug[r.kennung, default: 0] += 1
         anzeige.fehler[r.kennung] = nil
         anzeige.datei = r.dateiname
-        zeige(schritt: "Sende \(r.dateiname) …")
+        zeige(schritt: iCloud ? "Lade \(r.dateiname) aus iCloud …" : "Sende \(r.dateiname) …")
     }
 
     private func ende(_ r: FotoRessource) {
@@ -260,25 +356,38 @@ actor FotoAbgleich {
         if imFlug[r.kennung, default: 0] <= 0 { imFlug[r.kennung] = nil }
     }
 
-    private func bearbeite(_ r: FotoRessource) async -> Ausgang {
+    private func bearbeite(_ r: FotoRessource, iCloud: Bool) async -> Ausgang {
         if (stand.wlanNoetig || r.art.istVideo), !(await netz.istWLAN()) { return .wartetAufWLAN(r) }
-        beginne(r)
+        beginne(r, iCloud: iCloud)
         defer { ende(r) }
         let temp: URL
         do {
-            temp = try await quelle.exportiere(r, iCloud: stand.iCloudErlaubt)
+            temp = try await exportiere(r, iCloud: iCloud)
         } catch is CancellationError {
             return .abgebrochen(r)
         } catch {
+            // Erster Durchgang: liegt das Original nicht auf dem Handy, kommt es in den iCloud-Durchgang (falls erlaubt).
+            if !iCloud, stand.iCloudErlaubt, (error as? FotoFehler) == .nurInICloud { return .nachICloud(r) }
             return .nichtLesbar(r, (error as? FotoFehler)?.nutzerText ?? "nicht lesbar")
         }
         defer { try? FileManager.default.removeItem(at: temp) }
         if Task.isCancelled { return .abgebrochen(r) }
         let bytes = (try? FileManager.default.attributesOfItem(atPath: temp.path)[.size] as? Int64) ?? 0
+        puffer += bytes
+        var imPuffer = true
+        defer { if imPuffer { puffer -= bytes } }
         do {
             var anfrage = try client.fotoHochladenAnfrage(kennung: r.kennung, ressource: r.name, aufnahme: r.aufnahme, dateiname: r.dateiname)
             anfrage.allowsCellularAccess = !(stand.wlanNoetig || r.art.istVideo)
-            try await sender.sende(datei: temp, anfrage: anfrage)
+            // Ein Platz für den Upload; der Export dieser Datei lief schon, während andere hochgingen.
+            try await schranke.hole()
+            puffer -= bytes
+            imPuffer = false
+            do { try await sender.sende(datei: temp, anfrage: anfrage) } catch {
+                await schranke.gib()
+                throw error
+            }
+            await schranke.gib()
             return .gesendet(r, bytes)
         } catch is CancellationError {
             return .abgebrochen(r)
@@ -293,6 +402,20 @@ actor FotoAbgleich {
             }
         } catch {
             return .nichtUebertragen(r, "Übertragung fehlgeschlagen")
+        }
+    }
+
+    /// Export; im iCloud-Durchgang höchstens `iCloudParallel` Downloads zugleich.
+    private func exportiere(_ r: FotoRessource, iCloud: Bool) async throws -> URL {
+        guard iCloud, let platz = ladeSchranke else { return try await quelle.exportiere(r, iCloud: iCloud) }
+        try await platz.hole()
+        do {
+            let u = try await quelle.exportiere(r, iCloud: true)
+            await platz.gib()
+            return u
+        } catch {
+            await platz.gib()
+            throw error
         }
     }
 

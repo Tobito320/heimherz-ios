@@ -189,6 +189,7 @@ final class FotosModell {
     /// der nächste Start macht dort weiter. Der Nachtlauf wird abgesagt (`nachtAbsagen`), außer das System selbst beendet die Aufgabe.
     func halteAn(nachtAbsagen: Bool = true) {
         guard !istDemo else { return }
+        BildschirmWach.setze(laeuft: false)
         arbeit?.cancel()
         if nachtAbsagen {
             nutzerHatAngehalten = true
@@ -198,10 +199,12 @@ final class FotosModell {
 
     private func uebernimm(_ a: FotoAnzeige) {
         anzeige = a
+        if !istDemo { BildschirmWach.setze(laeuft: a.laeuft) }
         spiegele(a)
     }
 
     private func laufBeendet() async {
+        if !istDemo { BildschirmWach.setze(laeuft: false) }
         stand = ablage.lade()
         let a = anzeige
         let meldeLauf = plantNachts   // nur Knopf und Nachtlauf melden; Zählen und Einzel-Upload bleiben still
