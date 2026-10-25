@@ -2,6 +2,7 @@ import BackgroundTasks
 import Foundation
 import Observation
 import Photos
+import UIKit
 
 /// Zustand des Fotos-Tabs: Erlaubnis, Zahlen, Lauf. In Demo und Test-Host rührt er PhotoKit und das Netz nie an.
 /// Es gibt genau einen Lauf zur Zeit (`geteilt`): Tab, Systemaufgabe im Hintergrund und Nachtlauf bedienen dasselbe Modell.
@@ -32,6 +33,8 @@ final class FotosModell {
     /// Nach diesem Lauf darf nachts weitergemacht werden (Start per Knopf, Nachtlauf selbst); Einzel-Upload und Zählen planen nichts.
     private var plantNachts = false
     private var nutzerHatAngehalten = false
+    /// iOS hat den Lauf im Hintergrund beendet (Systemaufgabe abgelaufen): beim nächsten Öffnen der App geht er von selbst weiter.
+    private var systemHatAngehalten = false
     /// "Abgleich starten" kam, während nur gezählt wurde: das Zählen bricht ab, danach startet der Abgleich.
     private var vorgemerkt: HeimClient?
 
@@ -190,6 +193,7 @@ final class FotosModell {
     /// der nächste Start macht dort weiter. Der Nachtlauf wird abgesagt (`nachtAbsagen`), außer das System selbst beendet die Aufgabe.
     func halteAn(nachtAbsagen: Bool = true) {
         guard !istDemo else { return }
+        if nachtAbsagen { systemHatAngehalten = false }
         BildschirmWach.setze(laeuft: false)
         arbeit?.cancel()
         if nachtAbsagen {
@@ -213,8 +217,9 @@ final class FotosModell {
         lauf = nil
         arbeit = nil
         anzeige.fertig = stand.fertig.union(a.fertig)
+        // Anhalten ist kein Fehler: mit `false` zeigt iOS "Vorgang fehlgeschlagen" und lässt die Meldung oben stehen.
         if let box = fortsetzung {
-            box.task.setTaskCompleted(success: !a.angehalten)
+            box.task.setTaskCompleted(success: true)
             fortsetzung = nil
         }
         // Der Rest geht nachts weiter, solange etwas offen ist und der Nutzer nicht angehalten hat (das System darf beenden).
@@ -242,8 +247,25 @@ final class FotosModell {
             return
         }
         fortsetzung = box
-        box.task.expirationHandler = { Task { @MainActor in self.halteAn(nachtAbsagen: false) } }
+        box.task.expirationHandler = { Task { @MainActor in self.fortsetzungLaeuftAb() } }
         spiegele(anzeige)
+    }
+
+    /// iOS beendet die Systemaufgabe (zu lange ohne Fortschritt, oder der Nutzer bricht in der Systemanzeige ab). Ist die App vorn, läuft der
+    /// Abgleich ohne die Aufgabe weiter; im Hintergrund muss er anhalten und geht beim nächsten Öffnen von selbst weiter (`appIstVorn`).
+    private func fortsetzungLaeuftAb() {
+        fortsetzung?.task.setTaskCompleted(success: true)
+        fortsetzung = nil
+        guard UIApplication.shared.applicationState != .active, lauf != nil else { return }
+        systemHatAngehalten = true
+        halteAn(nachtAbsagen: false)
+    }
+
+    /// Die App kommt nach vorn: ein Lauf, den iOS im Hintergrund beendet hat, geht weiter (der Nutzer hatte ihn gestartet und nicht angehalten).
+    func appIstVorn() {
+        guard systemHatAngehalten, !nutzerHatAngehalten, lauf == nil, let client = try? AppUmgebung.geteilt.client() else { return }
+        systemHatAngehalten = false
+        starte(client: client)
     }
 
     private func spiegele(_ a: FotoAnzeige) {
@@ -264,6 +286,6 @@ final class FotosModell {
         box.task.expirationHandler = { Task { @MainActor in self.halteAn(nachtAbsagen: false) } }
         beginne(client: client, senden: true, nur: nil, vomNutzer: false, nachts: true)
         await lauf?.value
-        box.task.setTaskCompleted(success: !anzeige.angehalten)
+        box.task.setTaskCompleted(success: true)
     }
 }

@@ -159,10 +159,12 @@ private struct FotosInhalt: View {
                     .foregroundStyle(Color.tinte)
             }
             if modell.laeuft || modell.anzeige.schritt != nil, let schritt = modell.anzeige.schritt {
+                // Eine Zeile: lange Dateinamen (UUIDs) sollen die Karte nicht springen lassen.
                 Text(schritt)
                     .font(.subheadline)
                     .foregroundStyle(Color.tinte2)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
             }
             if modell.laeuft, let f = modell.anzeige.fortschritt {
                 ProgressView(value: f)
