@@ -82,6 +82,13 @@ struct PasswoerterListe: View {
                         .listRowSeparator(.hidden)
                 }
                 let hinweisListe = hinweise
+                if kategorie == .sicherheit, !istBearbeiten {
+                    Section {
+                        NavigationLink(value: PasswoerterZiel.gesundheit) { GesundheitZeile(gesundheit: PasswortGesundheit.pruefe(store.eintraege)) }
+                    }
+                    .listRowBackground(Color.clear)
+                    .listRowSeparatorTint(Color.haar)
+                }
                 if kategorie == .sicherheit {
                     if !leckZeilen.isEmpty {
                         Section {

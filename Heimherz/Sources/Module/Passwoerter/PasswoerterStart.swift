@@ -4,6 +4,7 @@ import SwiftUI
 enum PasswoerterZiel: Hashable {
     case kategorie(PasswoerterKategorie)
     case eintrag(String)
+    case gesundheit
 }
 
 /// Die Startseite des Tabs wie die Passwörter-App von Apple: große Kacheln mit Zahl, Suche über alles, Plus. Die Zahlen sind live aus dem Tresor.

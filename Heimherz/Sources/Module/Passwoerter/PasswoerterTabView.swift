@@ -50,6 +50,8 @@ struct PasswoerterInhalt: View {
                         PasswoerterListe(store: store, kategorie: k, neu: { formular = $0 }, generator: { zeigeGenerator = true })
                     case .eintrag(let id):
                         EintragDetailView(store: store, id: id) { formular = .bearbeiten($0) }
+                    case .gesundheit:
+                        GesundheitAnsicht(store: store)
                     }
                 }
                 .heimherzHintergrund()
