@@ -39,6 +39,16 @@ final class EinmalFortsetzung<T: Sendable>: Sendable {
     }
 }
 
+/// Merkt, wann ein Export zuletzt Daten bekam. PhotoKit beendet `requestData` bei manchen Dateien nie (weder Daten noch Abschluss);
+/// ohne Grenze belegen solche Exporte alle Plätze, und der Abgleich steht still, obwohl er läuft (Ahmed 26.10.: "kommt nicht mehr voran").
+final class Stillstand: Sendable {
+    private let zuletzt = Mutex(ContinuousClock.now)
+
+    func regt() { zuletzt.withLock { $0 = .now } }
+    var ruhtSeit: Duration { zuletzt.withLock { ContinuousClock.now - $0 } }
+    func ruht(laengerAls grenze: Duration) -> Bool { ruhtSeit > grenze }
+}
+
 /// Was ein Lauf von der Mediathek schon gelesen hat: die Köpfe und die Dateilisten der Assets, die schon nachgeschlagen wurden.
 /// Ändert sich die Mediathek mitten im Lauf, sieht erst der nächste Lauf das (neue Aufnahmen kommen dann dran).
 final class PlanSpeicher: Sendable {
@@ -123,15 +133,29 @@ struct FotoQuelleLive: FotoQuelle {
         // Die Rückrufe laufen laut Apple auf einer seriellen Warteschlange, die Anfrage-ID gehört zu dieser Instanz.
         let manager = PHAssetResourceManager()
         let fortsetzung = EinmalFortsetzung<Void>()
+        let wache = Stillstand()
+        // Lokal kommt das erste Byte sofort; aus iCloud darf es dauern.
+        let grenze: Duration = optionen.isNetworkAccessAllowed ? .seconds(120) : .seconds(30)
         let anfrage = Mutex<PHAssetResourceDataRequestID?>(nil)
         let zu = Mutex(false)
         let schreibFehler = Mutex<(any Error)?>(nil)
         defer { zu.withLock { $0 = true } }
+        let waechter = Task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(5))
+                guard wache.ruht(laengerAls: grenze) else { continue }
+                if let id = anfrage.withLock({ $0 }) { manager.cancelDataRequest(id) }
+                fortsetzung.wirf(FotoFehler.haengt)
+                return
+            }
+        }
+        defer { waechter.cancel() }
         try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { (c: CheckedContinuation<Void, any Error>) in
                 fortsetzung.setze(c)
                 let id = manager.requestData(for: objekt, options: optionen, dataReceivedHandler: { daten in
                     guard !zu.withLock({ $0 }) else { return }
+                    wache.regt()
                     do { try datei.write(contentsOf: daten) } catch { schreibFehler.withLock { $0 = error } }
                 }, completionHandler: { fehler in
                     let grund = schreibFehler.withLock { $0 } ?? fehler

@@ -514,12 +514,15 @@ enum FotoFehler: Error, Equatable {
     case speicherKnapp
     case nichtGefunden
     case nurInICloud
+    /// PhotoKit lieferte zu lange keine Daten (`Stillstand`); die Datei kommt beim nächsten Lauf wieder dran.
+    case haengt
 
     var nutzerText: String {
         switch self {
         case .speicherKnapp: return "zu wenig freier Speicher am Handy"
         case .nichtGefunden: return "nicht mehr in der Mediathek"
         case .nurInICloud: return "liegt nur in iCloud, und das Laden von iCloud ist aus"
+        case .haengt: return "Laden hing, kommt beim nächsten Mal dran"
         }
     }
 }
