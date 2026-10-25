@@ -38,12 +38,11 @@ test('doppelt: gleiche Kennung und Größe = 200 ohne Schreiben', async () => {
   expect(await bekannt()).toHaveLength(1);
 });
 
-test('ohne Content-Length (Chunked) ist 411, nichts wird geschrieben oder gemerkt', async () => {
+test('ohne Content-Length (Chunked, vollständig) wird angenommen', async () => {
   const strom = new ReadableStream({ start(c) { c.enqueue(new Uint8Array(4)); c.close(); } });
-  const vorher = alleDateien(t.fotos);
   const r = await t.f('/v1/fotos/K1/foto', { method: 'PUT', body: strom as any, duplex: 'half' } as any);
-  expect(r.status).toBe(411);
-  expect(alleDateien(t.fotos)).toEqual(vorher);
+  expect(r.status).toBe(200);
+  expect((await bekannt()).some(x => x.kennung === 'K1' && x.groesse === 4)).toBe(true);
 });
 
 test('andere Ressource derselben Kennung (Live Photo) und Namensgleichheit bekommt (2)', async () => {
@@ -100,7 +99,7 @@ test('abgebrochener Upload hinterlässt nichts Halbes und gilt nicht als bekannt
   expect((await foto('ABBRUCH', 'foto', new Uint8Array(3), { 'x-dateiname': 'ganz.jpg' })).status).toBe(200);
 });
 
-test('Chunked-Upload (ohne Content-Length), abgebrochen oder vollständig: 411, nichts liegt da', async () => {
+test('Chunked-Upload ohne Endblock hinterlässt nichts, mit Endblock wird er gespeichert', async () => {
   const vorher = alleDateien(t.fotos);
   const n = (await bekannt()).length;
   let zu!: () => void;
@@ -115,7 +114,7 @@ test('Chunked-Upload (ohne Content-Length), abgebrochen oder vollständig: 411, 
   s.end();
   expect(alleDateien(t.fotos)).toEqual(vorher);
   expect((await bekannt()).length).toBe(n);
-  // auch der vollständige rohe Chunked-Upload mit Endblock wird abgelehnt
+  // der vollständige rohe Chunked-Upload mit Endblock wird gespeichert
   let ok!: () => void;
   const antwort = new Promise<string>(r => (ok = () => r('')));
   let text = '';
@@ -124,9 +123,9 @@ test('Chunked-Upload (ohne Content-Length), abgebrochen oder vollständig: 411, 
   } } });
   await antwort;
   s2.end();
-  expect(text.startsWith('HTTP/1.1 411')).toBe(true);
-  expect((await bekannt()).some(x => x.kennung === 'CHUNK2')).toBe(false);
-  expect(alleDateien(t.fotos)).toEqual(vorher);
+  expect(text.startsWith('HTTP/1.1 200')).toBe(true);
+  expect((await bekannt()).some(x => x.kennung === 'CHUNK2' && x.groesse === 5)).toBe(true);
+  expect((await bekannt()).some(x => x.kennung === 'CHUNK')).toBe(false);
 });
 
 test('Content-Length passt nicht zum Body: abgelehnt, nichts liegt da', async () => {

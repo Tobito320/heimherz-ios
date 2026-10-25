@@ -66,11 +66,10 @@ export class Fotos {
     if (!ID.test(kennung) || !ID.test(ressource)) return leer(400);
     const schluessel = `${kennung}/${ressource}`;
     const cl = req.headers.get('content-length');
-    if (cl === null) return leer(411);
     const da = this.db.query('SELECT groesse FROM fotos WHERE kennung = ? AND ressource = ?').get(kennung, ressource) as { groesse: number } | null;
     if (da && cl !== null && Number(cl) === da.groesse) return json({ schon: true });
     if (this.laeuft.has(schluessel)) return leer(409);
-    const abgelehnt = pruefeUpload(req, this.ordner, this.mindestFrei);
+    const abgelehnt = pruefeUpload(req, this.ordner, this.mindestFrei, false);
     if (abgelehnt) return abgelehnt;
     this.laeuft.add(schluessel);
 

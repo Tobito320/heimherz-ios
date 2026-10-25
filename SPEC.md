@@ -100,7 +100,7 @@ Auth: jedes Gerät hat ein Token (32 Byte, b64url). Der Server speichert nur SHA
 | `PUT /v1/datei?pfad=` | Upload (überschreibt nie: bei Namensgleichheit ` (2)` anhängen) |
 | `POST /v1/datei/papierkorb` `{pfad}` | in den Linux-Papierkorb (`trash-put`), nie löschen |
 
-Uploads (Fotos, Dateien): Content-Length ist Pflicht (fehlt sie, 411), unter 5 GB freiem Platz 507, Platte voll beim Ablegen 507, unmöglicher Name 400; neue Dateien 0600, neue Ordner 0700; Dateiname höchstens 200 UTF-8-Bytes. Ausnahmen in den Routen liefern leer 500 (kein Stacktrace); ist `tresor/aktuell.json` nicht lesbar oder kaputt, antwortet der Dienst 500 und schreibt nichts.
+Uploads: bei Dateien ist Content-Length Pflicht (fehlt sie, 411), Fotos dürfen chunked kommen (ob Apples Upload-Jobs die Länge senden, ist nicht belegt; ohne Endblock bleibt nichts liegen); unter 5 GB freiem Platz 507, Platte voll beim Ablegen 507, unmöglicher Name 400; neue Dateien 0600, neue Ordner 0700; Dateiname höchstens 200 UTF-8-Bytes. Ausnahmen in den Routen liefern leer 500 (kein Stacktrace); ist `tresor/aktuell.json` nicht lesbar oder kaputt, antwortet der Dienst 500 und schreibt nichts.
 
 Pfade: nur relativ, normalisiert, `realpath` muss in `HEIMHERZ_DATEIEN` liegen (keine `..`, keine Symlinks hinaus). Tests für jeden Ausbruchsversuch.
 

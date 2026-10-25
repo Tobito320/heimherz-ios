@@ -5,9 +5,10 @@ import { leer } from './http';
 
 export const MINDEST_FREI = 5 * 1024 ** 3;
 
-// Vor jedem Upload: ohne Content-Length 411 (kein Raten, wie groß es wird), unter `mindest` freiem Platz 507. null = weiter.
-export function pruefeUpload(req: Request, ordner: string, mindest: number): Response | null {
-  if (req.headers.get('content-length') === null) return leer(411);
+// Vor jedem Upload: unter `mindest` freiem Platz 507; mit `laengePflicht` ohne Content-Length 411. null = weiter.
+// Fotos dürfen chunked kommen: ob Apples Upload-Jobs die Länge senden, ist nicht belegt; Bun bricht Chunked ohne Endblock ab.
+export function pruefeUpload(req: Request, ordner: string, mindest: number, laengePflicht = true): Response | null {
+  if (laengePflicht && req.headers.get('content-length') === null) return leer(411);
   const s = statfsSync(ordner);
   return s.bavail * s.bsize < mindest ? leer(507) : null;
 }
