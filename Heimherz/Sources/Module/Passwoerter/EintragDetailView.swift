@@ -190,7 +190,7 @@ struct EintragDetailView: View {
                 Text(wert)
                     .font(monospace ? .system(.body, design: .monospaced) : .body)
                     .foregroundStyle(Color.tinte)
-                    .textSelection(auswaehlbar ? .enabled : .disabled)
+                    .auswaehlbar(auswaehlbar)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: Abstand.s)
@@ -263,5 +263,13 @@ struct TOTPRing: View {
         .frame(width: 44, height: 44)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Noch \(rest) Sekunden gültig")
+    }
+}
+
+private extension View {
+    /// `textSelection` hat je Wert einen anderen Typ, darum zwei Zweige.
+    @ViewBuilder
+    func auswaehlbar(_ an: Bool) -> some View {
+        if an { textSelection(.enabled) } else { textSelection(.disabled) }
     }
 }
