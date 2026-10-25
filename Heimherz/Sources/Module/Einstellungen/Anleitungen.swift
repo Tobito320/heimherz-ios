@@ -47,6 +47,69 @@ struct AutoFillAnleitung: View {
     }
 }
 
+/// Unterseite "Neue 2FA-Codes in Heimcloud" (W-028). Belegt ist nur der Weg über den Link und den QR-Code in der App;
+/// ob iOS Heimcloud unter „Codes konfigurieren in“ anbietet, zeigt erst das Handy (SPEC 9), darum steht es hier als „sollte“.
+struct CodesAnleitung: View {
+    @Environment(\.openURL) private var oeffne
+    @State private var zeigeScanner = false
+
+    private let schritte = [
+        "Einstellungen öffnen",
+        "Allgemein, dann AutoFill & Passwörter",
+        "Ganz unten bei „Codes konfigurieren in“ Heimcloud wählen"
+    ]
+
+    var body: some View {
+        List {
+            Section {
+                if QRScanner.istMoeglich {
+                    Button { zeigeScanner = true } label: {
+                        KachelTitel(titel: "QR-Code scannen", symbol: "qrcode.viewfinder", ton: .gelb)
+                    }
+                    .heimherzZeile()
+                }
+                Text("Tippst du auf der Seite auf den Link zum Einrichten oder öffnest ihn aus einer Mail, nimmt Heimcloud den Code an. Oder scanne den QR-Code hier.")
+                    .font(.subheadline)
+                    .foregroundStyle(Color.tinte2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .heimherzZeile()
+            } header: {
+                GruppenText(text: "Das geht immer")
+            }
+            Section {
+                ForEach(Array(schritte.enumerated()), id: \.offset) { i, text in
+                    HStack(alignment: .firstTextBaseline, spacing: Abstand.m) {
+                        Text("\(i + 1)")
+                            .font(.footnote.weight(.bold))
+                            .foregroundStyle(Color.gruen)
+                            .frame(width: 26, height: 26)
+                            .background(Color.chip, in: Circle())
+                            .accessibilityHidden(true)
+                        Text(text).foregroundStyle(Color.tinte).fixedSize(horizontal: false, vertical: true)
+                    }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("Schritt \(i + 1): \(text)")
+                    .heimherzZeile()
+                }
+                Button {
+                    if let url = URL(string: UIApplication.openSettingsURLString) { oeffne(url) }
+                } label: {
+                    KachelTitel(titel: "iOS-Einstellungen öffnen", symbol: "gearshape.fill", ton: .grau)
+                }
+                .heimherzZeile()
+            } header: {
+                GruppenText(text: "Direkt von iOS")
+            } footer: {
+                GruppenText(text: "Dann sollen Links und QR-Codes zum Einrichten gleich in Heimcloud landen statt im Authenticator. Ob iOS Heimcloud dort anbietet, zeigt erst dein Handy.", fuss: true)
+            }
+        }
+        .heimherzEinstellungenListe()
+        .navigationTitle("Neue 2FA-Codes")
+        .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $zeigeScanner) { CodeScanBlatt { CodePostfach.geteilt.empfange(text: $0) } }
+    }
+}
+
 /// Unterseite "Wie das Sichern läuft": die Regeln von iOS in kurzen Abschnitten (stand vorher als Textblock im Fotos-Tab).
 struct SichernErklaerung: View {
     private let punkte: [(titel: String, text: String)] = [

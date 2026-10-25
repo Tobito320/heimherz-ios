@@ -23,6 +23,8 @@ struct EintragFormular: View {
     @State private var zeigePasswort = false
     @State private var zeigeGenerator = false
     @State private var speichert = false
+    @State private var zeigeScanner = false
+    @State private var scanFehler: String?
 
     init(store: TresorStore, ziel: FormularZiel) {
         self.store = store
@@ -71,14 +73,21 @@ struct EintragFormular: View {
                     }
                     .listRowBackground(Color.karte)
                     Section {
-                        TextField("Einmalcode (otpauth:// oder Geheimnis)", text: $entwurf.totp)
+                        TextField("Einrichtungsschlüssel oder otpauth://-Link", text: $entwurf.totp)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
                             .font(.system(.body, design: .monospaced))
+                            .onChange(of: entwurf.totp) { scanFehler = nil }
+                        if QRScanner.istMoeglich {
+                            Button { zeigeScanner = true } label: { Label("QR-Code scannen", systemImage: "qrcode.viewfinder") }
+                                .frame(minHeight: Abstand.tippflaeche, alignment: .leading)
+                        }
                     } header: {
                         Text("Einmalcode")
                     } footer: {
-                        if !entwurf.totpGueltig {
+                        if let scanFehler {
+                            Text(scanFehler).foregroundStyle(Color.schlecht)
+                        } else if !entwurf.totpGueltig {
                             Text("Den Einmalcode kann ich nicht lesen. Erwartet wird ein otpauth://-Link oder das Geheimnis in Buchstaben und Ziffern.")
                                 .foregroundStyle(Color.schlecht)
                         }
@@ -110,6 +119,7 @@ struct EintragFormular: View {
         }
         .fontDesign(.rounded)
         .sheet(isPresented: $zeigeGenerator) { GeneratorBlatt { entwurf.passwort = $0; zeigePasswort = true } }
+        .sheet(isPresented: $zeigeScanner) { CodeScanBlatt { uebernimmScan($0) } }
         .interactiveDismissDisabled(speichert)
     }
 
@@ -137,6 +147,21 @@ struct EintragFormular: View {
             .buttonStyle(.plain)
             .foregroundStyle(Color.gruen)
             .accessibilityLabel("Passwort erzeugen")
+        }
+    }
+
+    /// Ein gescannter Code landet im Feld (als fester Link mit Hash, Stellen und Periode); leere Felder Name und Benutzer füllt er mit Anbieter und Konto.
+    private func uebernimmScan(_ text: String) {
+        do {
+            let k = try OtpAuth.lese(text)
+            entwurf.totp = k.uri
+            if entwurf.name.trimmingCharacters(in: .whitespaces).isEmpty { entwurf.name = k.issuer }
+            if entwurf.benutzer.trimmingCharacters(in: .whitespaces).isEmpty { entwurf.benutzer = k.konto }
+            scanFehler = nil
+            Haptik.erfolg()
+        } catch {
+            scanFehler = (error as? OtpFehler)?.nutzerText ?? OtpFehler.keinLink.nutzerText
+            Haptik.fehler()
         }
     }
 
