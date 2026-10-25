@@ -2,10 +2,10 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
-import { Meldung, eintraege, einrichtenBefehl, exportBitwarden, geraetWeg, importBitwarden, importCsv, koppelnBefehl, liste, status, type Abh } from './befehle';
+import { Meldung, eintraege, einrichtenBefehl, exportBitwarden, geraetWeg, importBitwarden, importCsv, koppelnBefehl, liste, status, totpSetzen, type Abh } from './befehle';
 import { urlAusTailscale } from './koppeln';
 import { systemdCreds } from './schluessel';
-import { eigenerTab, fuelleFeld, FuellFehler, handyHinweis, protokoll, waehle, wertVon, type Was } from './fuellen';
+import { eigenerTab, fuelleFeld, FuellFehler, handyHinweis, leseSchluessel, protokoll, waehle, wertVon, type Was } from './fuellen';
 import { erlaubt, modellVon, stufenText } from './stufen';
 
 const HILFE = `heimherz einrichten
@@ -17,6 +17,7 @@ heimherz liste [SUCHE]
 heimherz status
 heimherz geraet weg ID
 heimherz fuell TAB CSS benutzer|passwort|code [--konto K] [--rahmen IFRAME-CSS] [--enter] [--auftrag DATEI]
+heimherz totp-setzen TAB --konto K [--feld CSS]   (Einrichtungsschlüssel der Seite in den Eintrag)
 heimherz erlaubt HOST [--auftrag DATEI]   (Exit 0 erlaubt, 7 verweigert)
 heimherz stufen`;
 
@@ -82,7 +83,7 @@ async function main(argv: string[]) {
   if (cmd === 'liste') return liste(a, r[0]);
   if (cmd === 'status') return status(a);
   if (cmd === 'geraet' && r[0] === 'weg' && r[1]) return geraetWeg(a, r[1]);
-  if (cmd === 'fuell' || cmd === 'erlaubt' || cmd === 'stufen') return fuellen(a, cmd, r);
+  if (cmd === 'fuell' || cmd === 'totp-setzen' || cmd === 'erlaubt' || cmd === 'stufen') return fuellen(a, cmd, r);
   console.error(HILFE);
   process.exitCode = 2;
 }
@@ -92,7 +93,7 @@ async function fuellen(a: Abh, cmd: string, r: string[]) {
   const e = process.env, opt: Record<string, string | true> = {}, pos: string[] = [];
   for (let i = 0; i < r.length; i++) {
     if (r[i] === '--enter') opt.enter = true;
-    else if (['--konto', '--rahmen', '--auftrag'].includes(r[i]) && r[i + 1]) opt[r[i].slice(2)] = r[++i];
+    else if (['--konto', '--rahmen', '--auftrag', '--feld'].includes(r[i]) && r[i + 1]) opt[r[i].slice(2)] = r[++i];
     else pos.push(r[i]);
   }
   const auftrag = (opt.auftrag as string | undefined) ?? e.HEIMHERZ_AUFTRAG;
@@ -104,6 +105,26 @@ async function fuellen(a: Abh, cmd: string, r: string[]) {
     const u = erlaubt(pos[0].replace(/^https?:\/\//, '').split('/')[0], modell, auftrag, e);
     a.ausgabe(`${u.ok ? 'erlaubt' : 'verweigert'}: ${u.grund}`);
     if (!u.ok) { protokoll(state, { host: pos[0], was: 'erlaubt', stufe: u.stufe, modell, ok: false, grund: u.grund, auftrag }); process.exitCode = 7; }
+    return;
+  }
+  if (cmd === 'totp-setzen') {
+    if (!pos[0] || !opt.konto) { console.error(HILFE); process.exitCode = 2; return; }
+    try {
+      const t = eigenerTab(await ausgabeVon(['claude-chrome', 'tabs']), pos[0]);
+      const host = new URL(t.url).hostname;
+      const u = erlaubt(host, modell, auftrag, e);
+      if (!u.ok) { protokoll(state, { host, was: 'totp-setzen', stufe: u.stufe, modell, ok: false, grund: u.grund, auftrag }); throw new FuellFehler(`verweigert: ${u.grund}`, 7); }
+      const it = waehle(await eintraege(a), t.url, 'benutzer', opt.konto as string);
+      let roh = await leseSchluessel({ port: Number(e.HEIMHERZ_CDP_PORT ?? 9333), tabId: t.id, feld: opt.feld as string | undefined });
+      try {
+        const neu = await totpSetzen(a, it.id, roh);
+        protokoll(state, { host, id: it.id, was: 'totp-setzen', stufe: u.stufe, modell, ok: true, grund: u.grund, auftrag });
+        a.ausgabe(`${neu ? 'gesetzt' : 'war schon gesetzt'}: ${it.name} (${host})`);
+      } finally { roh = ''; }
+    } catch (err) {
+      if (err instanceof FuellFehler) { console.error(`heimherz: ${err.message}`); process.exitCode = err.exit; return; }
+      throw err;
+    }
     return;
   }
   const [tab, css, was] = pos;

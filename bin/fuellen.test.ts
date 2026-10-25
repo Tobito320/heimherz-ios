@@ -3,7 +3,10 @@ import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'node:f
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Eintrag } from '../lib/zusammenfuehren';
-import { eigenerTab, fuelleFeld, FuellFehler, handyHinweis, protokoll, waehle, wertVon } from './fuellen';
+import { eigenerTab, fuelleFeld, FuellFehler, handyHinweis, leseSchluessel, mitTotp, protokoll, waehle, wertVon } from './fuellen';
+import { aendereTresor, ladeTresor } from './tresorclient';
+import { totpSetzen } from './befehle';
+import { baueMitCli, TESTSCHLUESSEL_B64URL } from './testhilfe';
 
 const ordner = mkdtempSync(join(tmpdir(), 'heimherz-fuellen-'));
 afterAll(() => rmSync(ordner, { recursive: true, force: true }));
@@ -58,6 +61,34 @@ test('Protokoll und Hinweis enthalten nie Werte', () => {
   expect(JSON.parse(readFileSync(join(ordner, 'zentrale-hinweis', h[0]), 'utf8')).titel).toBe('Sparkasse: Login durch Agent');
 });
 
+test('mitTotp: prüft Base32, setzt geaendert, alter Schlüssel in totpVerlauf', () => {
+  const jetzt = new Date('2026-10-25T12:00:00Z');
+  expect(() => mitTotp(e({}), 'kein-schluessel!', jetzt)).toThrow('Base32');
+  expect(() => mitTotp(e({}), 'ABCDEF', jetzt)).toThrow('Base32');
+  const n = mitTotp(e({}), 'gezd gnbv gy3t qojq gezd gnbv gy3t qojq', jetzt);
+  expect(n.totp).toBe(TOTP);
+  expect(n.geaendert).toBe(jetzt.toISOString());
+  expect(n.totpVerlauf).toBeUndefined();
+  const alt = e({ totp: 'JBSWY3DPEHPK3PXPJBSWY3DP' });
+  const m = mitTotp(alt, TOTP, jetzt);
+  expect(m.totpVerlauf).toEqual([{ totp: 'JBSWY3DPEHPK3PXPJBSWY3DP', bis: jetzt.toISOString() }]);
+  expect(mitTotp(m, TOTP, jetzt)).toBe(m);   // gleicher Schlüssel: nichts ändern
+  expect(mitTotp(e({}), `otpauth://totp/x?secret=${TOTP}&digits=8`, jetzt).totp).toContain('digits=8');
+});
+
+test('totpSetzen schreibt in den Tresor und gibt den Schlüssel nie aus', async () => {
+  const c = await baueMitCli();
+  try {
+    const k = Buffer.from(TESTSCHLUESSEL_B64URL, 'base64url'), v = { url: c.url, token: c.token };
+    await aendereTresor(v, k, t => ({ ...t, eintraege: [e({ id: 'gh', urls: ['https://github.com'] })] }));
+    expect(await totpSetzen(c.a, 'gh', TOTP)).toBe(true);
+    expect(await totpSetzen(c.a, 'gh', TOTP)).toBe(false);
+    expect((await ladeTresor(v, k)).tresor.eintraege[0].totp).toBe(TOTP);
+    await expect(totpSetzen(c.a, 'fehlt', TOTP)).rejects.toThrow('nicht mehr da');
+    expect(c.text()).not.toContain(TOTP);
+  } finally { c.ende(); }
+});
+
 // Echter Chrome ohne Profil und ohne Netz: Feld füllen, doppelt vermeiden, Enter.
 const chrome = ['google-chrome-stable', 'chromium'].map(b => Bun.which(b)).find(Boolean);
 test.skipIf(!chrome)('CDP füllt das Feld und meldet nur die Länge', async () => {
@@ -75,6 +106,27 @@ test.skipIf(!chrome)('CDP füllt das Feld und meldet nur die Länge', async () =
     const titel = await new Promise<string>(r => { ws.onmessage = m => r(JSON.parse(String(m.data)).result.result.value); ws.send(JSON.stringify({ id: 1, method: 'Runtime.evaluate', params: { expression: 'document.title', returnByValue: true } })); });
     ws.close();
     expect(titel).toBe('gesendet');
+  } finally { p.kill(); await p.exited; }
+}, 20000);
+
+test.skipIf(!chrome)('Schlüssel von der Seite: eindeutiger Text, --feld, mehrdeutig, keiner', async () => {
+  const port = 9557, profil = join(ordner, 'chrome2');
+  const html = (b: string) => 'data:text/html,' + encodeURIComponent(`<p>Sicherheitseinstellungen</p>${b}`);
+  const p = Bun.spawn([chrome!, '--headless=new', `--remote-debugging-port=${port}`, `--user-data-dir=${profil}`, '--no-first-run', html('<p>Schlüssel:</p><code>gezd gnbv gy3t qojq gezd gnbv gy3t qojq</code><input id=k value="JBSWY3DPEHPK3PXPJBSWY3DP">')], { stdout: 'ignore', stderr: 'ignore' });
+  try {
+    let tab: any;
+    for (let i = 0; i < 50 && !tab; i++) { try { tab = ((await (await fetch(`http://127.0.0.1:${port}/json`)).json()) as any[]).find(t => t.type === 'page' && t.url.startsWith('data:')); } catch { /* startet noch */ } if (!tab) await Bun.sleep(100); }
+    await expect(leseSchluessel({ port, tabId: tab.id })).rejects.toThrow('2 mögliche');
+    expect(await leseSchluessel({ port, tabId: tab.id, feld: '#k' })).toBe('JBSWY3DPEHPK3PXPJBSWY3DP');
+    const geh = async (u: string) => { await fetch(`http://127.0.0.1:${port}/json/new?${u}`, { method: 'PUT' }); };
+    await geh(html('<span>gezd gnbv  gy3t qojq<br>gezd gnbv gy3t qojq</span>'));
+    await Bun.sleep(500);
+    const tabs = ((await (await fetch(`http://127.0.0.1:${port}/json`)).json()) as any[]).filter(t => t.type === 'page' && t.url.startsWith('data:'));
+    const zwei = tabs.find(t => t.id !== tab.id);
+    expect((await leseSchluessel({ port, tabId: zwei.id })).replace(/ /g, '').toUpperCase()).toBe(TOTP);
+    await geh(html('<p>nichts</p>')); await Bun.sleep(500);
+    const drei = ((await (await fetch(`http://127.0.0.1:${port}/json`)).json()) as any[]).find(t => t.type === 'page' && t.url.startsWith('data:') && ![tab.id, zwei.id].includes(t.id));
+    await expect(leseSchluessel({ port, tabId: drei.id })).rejects.toThrow('Kein Einrichtungsschlüssel');
   } finally { p.kill(); await p.exited; }
 }, 20000);
 

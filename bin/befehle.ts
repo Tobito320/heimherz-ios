@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { zusammenfuehren, type Tresor } from '../lib/zusammenfuehren';
 import { leseGeraete, schreibeGeraete } from '../server/geraete';
 import { nachBitwarden, vonBitwarden } from './bitwarden';
+import { mitTotp } from './fuellen';
 import { koppeln, type KoppelAbh } from './koppeln';
 import { einrichten, ladeSchluessel, ladeToken, type Creds } from './schluessel';
 import { aendereTresor, holeStatus, ladeTresor, type Verbindung } from './tresorclient';
@@ -70,6 +71,18 @@ const host = (u: string) => { try { return new URL(u).hostname; } catch { return
 export async function eintraege(a: Abh) {
   const { v, k } = await verbindung(a);
   return (await ladeTresor(v, k)).tresor.eintraege;
+}
+
+// `heimherz totp-setzen`: Schlüssel nur in den Speicher und in den Tresor, nie ausgeben.
+export async function totpSetzen(a: Abh, id: string, roh: string): Promise<boolean> {
+  const { v, k } = await verbindung(a);
+  const r = await aendereTresor(v, k, t => {
+    const i = t.eintraege.findIndex(e => e.id === id && !e.geloescht);
+    if (i < 0) throw new Meldung('Eintrag ist nicht mehr da, nichts gespeichert');
+    const eintraege = [...t.eintraege]; eintraege[i] = mitTotp(t.eintraege[i], roh);
+    return { ...t, eintraege };
+  });
+  return r.geschrieben;
 }
 
 // Nie Passwort, nie TOTP-Geheimnis, nie Notiztext.

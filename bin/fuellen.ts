@@ -80,6 +80,35 @@ export async function fuelleFeld(o: { port: number; tabId: string; css: string; 
   } finally { c.close(); }
 }
 
+// totp-setzen: neuer Schlüssel in den Eintrag; der alte geht in `totpVerlauf` (eigenes Feld, damit der Passwort-Verlauf der App keine Schlüssel zeigt).
+export function mitTotp(e: Eintrag, roh: string, jetzt = new Date()): Eintrag {
+  const t = einstellung(roh);
+  if (!t || t.geheim.length < 16) throw new FuellFehler('Kein gültiger Base32-Schlüssel (mindestens 16 Zeichen), nichts gespeichert');
+  if (einstellung(e.totp)?.geheim === t.geheim) return e;
+  const bis = jetzt.toISOString();
+  const verlauf = e.totp ? { totpVerlauf: [{ totp: e.totp, bis }, ...((e.totpVerlauf as unknown[]) ?? [])].slice(0, 5) } : {};
+  return { ...e, ...verlauf, totp: /^otpauth:/i.test(roh.trim()) ? roh.trim() : t.geheim, geaendert: bis };
+}
+
+// Einrichtungsschlüssel von der Seite: aus --feld, sonst der eine sichtbare Text, der wie ein Schlüssel aussieht (auch in Gruppen-Spans; gleiche Schlüssel zählen einmal).
+export async function leseSchluessel(o: { port: number; tabId: string; feld?: string }): Promise<string> {
+  const c = await cdp(o.port, o.tabId);
+  try {
+    if (o.feld) return String(await c.val(`(()=>{const e=document.querySelector(${JSON.stringify(o.feld)});return e?(e.value??e.innerText??''):''})()`) ?? '').trim();
+    const kandidaten: string[] = await c.val(`(()=>{
+      const muster=[/^(?:[a-z2-7]{4} ){3,}[a-z2-7]{1,8}$/i,/^[A-Z2-7]{16,}=*$/,/^(?=.*[2-7])[a-z2-7]{16,}$/];
+      const sichtbar=e=>e.getClientRects().length>0;
+      const t=[...document.querySelectorAll('body *')].filter(sichtbar).map(e=>(e.innerText||'').slice(0,200))
+        .concat([...document.querySelectorAll('input,textarea')].filter(sichtbar).map(e=>e.value||''))
+        .map(x=>x.trim().replace(/\\s+/g,' ')).filter(x=>muster.some(m=>m.test(x)));
+      return t.concat([...document.querySelectorAll('a[href^="otpauth:"]')].map(a=>a.href));
+    })()`) ?? [];
+    const eindeutig = new Map(kandidaten.map(k => [einstellung(k)?.geheim ?? '', k]).filter(([g]) => g.length >= 16));
+    if (eindeutig.size !== 1) throw new FuellFehler(eindeutig.size ? `${eindeutig.size} mögliche Schlüssel auf der Seite, --feld CSS angeben` : 'Kein Einrichtungsschlüssel sichtbar (erst "Schlüssel anzeigen"/"Kann nicht scannen" öffnen oder --feld CSS)');
+    return [...eindeutig.values()][0];
+  } finally { c.close(); }
+}
+
 // Nie Werte: nur wer, wo, was, ob erlaubt.
 export function protokoll(ordner: string, z: { host: string; id?: string; was: string; stufe: number; modell: string; ok: boolean; grund: string; auftrag?: string }) {
   mkdirSync(ordner, { recursive: true, mode: 0o700 });
