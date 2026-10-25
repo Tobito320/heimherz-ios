@@ -22,6 +22,8 @@ enum GeraeteAbfrage {
     /// true bei Erfolg oder wenn das Gerät gar keinen Code hat (dann gibt es nichts zu prüfen, wie bei der App-Sperre).
     @concurrent
     static func pruefe(grund: String) async -> Bool {
+        // Ahmed (W-009): nicht jede Sekunde Face ID. Innerhalb der Entsperr-Dauer gilt das letzte Face ID auch hier.
+        if Schluesselbund.live.fensterOffen { return true }
         let kontext = LAContext()
         var fehler: NSError?
         guard kontext.canEvaluatePolicy(.deviceOwnerAuthentication, error: &fehler) else { return true }

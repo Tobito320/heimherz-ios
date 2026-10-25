@@ -131,7 +131,7 @@ Targets: `Heimherz` (App), `HeimherzAutoFill` (Credential Provider), `HeimherzFo
 
 Gemeinsam/:
 - `Tresor/` Modelle, `Umschlag` (AES-GCM), `Zusammenfuehren`, `TOTP` (aus `tresor-format`).
-- `Schluessel/` K im Schlüsselbund, `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`, Zugriffsschutz `.userPresence` (Face ID oder Code), Gerät-Token getrennt ohne Face ID.
+- `Schluessel/` K im Schlüsselbund, `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`, Zugriffsschutz `.userPresence` (Face ID oder Code), Gerät-Token getrennt ohne Face ID. Dazu für die Entsperr-Dauer eine Fenster-Kopie ohne `.userPresence` (SPEC 2 und 10, W-009); innerhalb des Fensters fragen auch Passwort zeigen, Codes und frühere Passwörter in der App nicht erneut (`GeraeteAbfrage`).
 - `Ablage/` verschlüsselter Tresor-Cache als Datei in der App Group (nur Umschlag, nie Klartext auf Platte).
 - `Netz/` `HeimClient` (async, URLSession, Bearer, Fehler als Typ), Server-URL aus dem Koppeln.
 - `Koppeln/` QR lesen (VisionKit `DataScannerViewController`), URI prüfen, speichern, Testanfrage `GET /v1/status`.
