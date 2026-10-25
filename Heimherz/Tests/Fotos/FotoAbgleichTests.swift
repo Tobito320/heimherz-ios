@@ -59,8 +59,8 @@ private struct FakeNetzart: Netzart {
 }
 
 final class FotoAbgleichTests: XCTestCase {
-    private func asset(_ id: String, _ teile: [(art: FotoArt, dateiname: String)]) -> (kopf: FotoKopf, teile: [(art: FotoArt, dateiname: String)]) {
-        (FotoRegeln.kopf(assetId: id), teile)
+    private func asset(_ id: String, _ teile: [(art: FotoArt, dateiname: String)], video: Bool = false) -> (kopf: FotoKopf, teile: [(art: FotoArt, dateiname: String)]) {
+        (FotoRegeln.kopf(assetId: id, istVideo: video), teile)
     }
 
     private struct Umgebung {
@@ -561,5 +561,65 @@ final class FotoAbgleichTests: XCTestCase {
         XCTAssertEqual(u.sender.pfade.count, 4)
         XCTAssertEqual(u.ablage.lade().fertig, [a.kopf.kennung, b.kopf.kennung])
         XCTAssertEqual(u.anzeigen.mit { $0.last }?.gesichert, 2, "ein Live Photo zählt einmal")
+    }
+
+    // MARK: Reihenfolge: Fotos vor Videos
+
+    func testErstAlleFotosDannAlleVideosJeNeuesteZuerst() async throws {
+        // Mediathek, neueste zuerst: Video, Foto, Video, Foto, Live Photo (bleibt ein Foto).
+        let v1 = asset("v1", [(.video, "v1.mov")], video: true), f1 = asset("f1", [(.foto, "f1.heic")]), v2 = asset("v2", [(.video, "v2.mov")], video: true)
+        let f2 = asset("f2", [(.foto, "f2.heic")]), l = asset("l", [(.foto, "l.heic"), (.live, "l.mov")])
+        let u = try baue(assets: [v1, f1, v2, f2, l], gleichzeitig: 1)
+        await u.abgleich.abgleichen()
+        let erwartet = [
+            "/v1/fotos/\(f1.kopf.kennung)/foto-0", "/v1/fotos/\(f2.kopf.kennung)/foto-0",
+            "/v1/fotos/\(l.kopf.kennung)/foto-0", "/v1/fotos/\(l.kopf.kennung)/live-0",
+            "/v1/fotos/\(v1.kopf.kennung)/video-0", "/v1/fotos/\(v2.kopf.kennung)/video-0"
+        ]
+        XCTAssertEqual(u.sender.pfade, erwartet, "Fotos (auch das ganze Live Photo) vor allen Videos, innerhalb davon neueste zuerst")
+        XCTAssertEqual(u.anzeigen.mit { $0.last }?.phasen, FotoPhasen(fotosGesamt: 3, fotosAmPC: 3, videosGesamt: 2, videosAmPC: 2))
+    }
+
+    func testVideosWartenAuchBeimErstenStueck() async throws {
+        // Ein kleines Stück (2 Dateien) darf nicht schon Videos enthalten, solange noch Fotos offen sind.
+        let v = asset("v", [(.video, "v.mov")], video: true)
+        let fotos = (1...4).map { asset("f\($0)", [(.foto, "f\($0).heic")]) }
+        let u = try baue(assets: [v] + fotos, gleichzeitig: 1, stueck: 2)
+        await u.abgleich.abgleichen()
+        XCTAssertEqual(u.sender.pfade.last, "/v1/fotos/\(v.kopf.kennung)/video-0")
+        XCTAssertEqual(u.sender.pfade.count, 5)
+    }
+
+    func testLokalFotosLokalVideosICloudFotosICloudVideos() async throws {
+        let f1 = asset("f1", [(.foto, "f1.heic")]), f2 = asset("f2", [(.foto, "f2.heic")])
+        let v1 = asset("v1", [(.video, "v1.mov")], video: true), v2 = asset("v2", [(.video, "v2.mov")], video: true)
+        let u = try baue(assets: [v1, f1, v2, f2], gleichzeitig: 1, nurInICloud: ["f1.heic", "v1.mov"])
+        await u.abgleich.abgleichen()
+        XCTAssertEqual(u.quelle.versuche.mit { $0 }, ["f1.heic:false", "f2.heic:false", "v1.mov:false", "v2.mov:false", "f1.heic:true", "v1.mov:true"],
+                       "lokal Fotos, lokal Videos, dann iCloud Fotos, iCloud Videos")
+    }
+
+    func testPhasenZahlenInDerPlanung() {
+        let k = (1...5).map { FotoRegeln.kopf(assetId: "a\($0)", istVideo: $0 % 2 == 0) }   // a2 und a4 sind Videos
+        func dateien(_ kopf: FotoKopf) -> [FotoRessource] { FotoRegeln.ressourcen(kopf: kopf, aufnahme: nil, teile: [(art: kopf.istVideo ? .video : .foto, dateiname: "x")]) }
+        let p = FotoPlan.plane(koepfe: k, stand: FotoStand(), ressourcen: dateien)
+        XCTAssertEqual(p.offen.map(\.assetId), ["a1", "a3", "a5", "a2", "a4"])
+        XCTAssertEqual(p.phasen, FotoPhasen(fotosGesamt: 3, fotosAmPC: 0, videosGesamt: 2, videosAmPC: 0))
+        let erstes = FotoPlan.plane(koepfe: k, stand: FotoStand(), hoechstens: 3, ressourcen: dateien)
+        XCTAssertEqual(erstes.offen.map(\.assetId), ["a1", "a3", "a5"], "das erste Stück sind nur Fotos")
+        var s = FotoStand()
+        s.fertig = [k[0].kennung, k[1].kennung]
+        let q = FotoPlan.plane(koepfe: k, stand: s, ressourcen: dateien)
+        XCTAssertEqual(q.phasen, FotoPhasen(fotosGesamt: 3, fotosAmPC: 1, videosGesamt: 2, videosAmPC: 1))
+        XCTAssertEqual(q.zahlen, FotoZahlen(gesamt: 5, amPC: 2))
+    }
+
+    func testPhasenText() {
+        XCTAssertEqual(FotoText.phasen(FotoPhasen(fotosGesamt: 6_900, fotosAmPC: 4_812, videosGesamt: 625, videosAmPC: 0)), "Fotos: \(4_812.formatted()) von \(6_900.formatted()) · danach \(625.formatted()) Videos")
+        XCTAssertEqual(FotoText.phasen(FotoPhasen(fotosGesamt: 10, fotosAmPC: 10, videosGesamt: 5, videosAmPC: 2)), "Videos: 2 von 5")
+        XCTAssertEqual(FotoText.phasen(FotoPhasen(fotosGesamt: 10, fotosAmPC: 4, videosGesamt: 1, videosAmPC: 0)), "Fotos: 4 von 10 · danach 1 Video")
+        XCTAssertNil(FotoText.phasen(FotoPhasen(fotosGesamt: 10, fotosAmPC: 4, videosGesamt: 0, videosAmPC: 0)), "ohne Videos genügt die Überschrift")
+        XCTAssertNil(FotoText.phasen(FotoPhasen(fotosGesamt: 10, fotosAmPC: 10, videosGesamt: 5, videosAmPC: 5)))
+        XCTAssertNil(FotoText.phasen(nil))
     }
 }

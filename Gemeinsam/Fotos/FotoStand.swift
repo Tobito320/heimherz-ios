@@ -78,6 +78,16 @@ struct FotoZahlen: Sendable, Equatable {
     var offen: Int { max(0, gesamt - amPC) }
 }
 
+/// Zahlen je Phase: erst alle Fotos (mit Live Photos), dann alle Videos.
+struct FotoPhasen: Sendable, Equatable {
+    var fotosGesamt = 0
+    var fotosAmPC = 0
+    var videosGesamt = 0
+    var videosAmPC = 0
+    var fotosOffen: Int { max(0, fotosGesamt - fotosAmPC) }
+    var videosOffen: Int { max(0, videosGesamt - videosAmPC) }
+}
+
 /// Reine Planung: was ist noch offen? `ressourcen` holt die Dateien eines Assets (PhotoKit, teuer), wird für fertige Assets nie gerufen.
 enum FotoPlan {
     struct Ergebnis: Sendable, Equatable {
@@ -87,6 +97,7 @@ enum FotoPlan {
         var neuFertig: Set<String>
         /// Je Kennung eines Assets in `offen`: wie viele Dateien ihm am PC noch fehlen. Sind alle gesendet, ist das Asset fertig.
         var fehlend: [String: Int] = [:]
+        var phasen = FotoPhasen()
     }
 
     /// Geht die Köpfe (neueste zuerst) durch. `hoechstens` bricht die Suche ab, sobald so viele offene Dateien gefunden sind
@@ -94,8 +105,11 @@ enum FotoPlan {
     /// `zaehleAlles`: nach dem Stück weiter zählen, aber nur Assets nachschlagen, von denen der PC schon Dateien kennt
     /// (alle anderen sind sicher offen). So bleiben die Zahlen vollständig, ohne bei 8000 Assets alle Dateilisten zu lesen.
     /// `uebersprungen`: Schlüssel, die schon als Job unterwegs sind oder in diesem Lauf nicht gingen.
-    static func plane(koepfe: [FotoKopf], stand: FotoStand, uebersprungen: Set<String> = [], hoechstens: Int? = nil, zaehleAlles: Bool = false,
+    static func plane(koepfe alle: [FotoKopf], stand: FotoStand, uebersprungen: Set<String> = [], hoechstens: Int? = nil, zaehleAlles: Bool = false,
                       ressourcen: (FotoKopf) -> [FotoRessource]) -> Ergebnis {
+        // Erst alle Fotos, dann alle Videos, in jeder Gruppe die Reihenfolge der Mediathek (neueste zuerst). Die kleinen Dateien gehen so zuerst durch.
+        let koepfe = alle.filter { !$0.istVideo } + alle.filter(\.istVideo)
+        var phasen = FotoPhasen(fotosGesamt: alle.count { !$0.istVideo }, videosGesamt: alle.count { $0.istVideo })
         var amPC = 0
         var offen: [FotoRessource] = []
         var neu: Set<String> = []
@@ -103,11 +117,15 @@ enum FotoPlan {
         let bekannt: Set<String> = zaehleAlles ? Set(stand.teil.map(FotoRegeln.kennung(vonSchluessel:))) : []
         var voll = zaehleAlles && hoechstens == 0
         for kopf in koepfe {
-            if stand.fertig.contains(kopf.kennung) { amPC += 1; continue }
+            func zaehleAmPC() {
+                amPC += 1
+                if kopf.istVideo { phasen.videosAmPC += 1 } else { phasen.fotosAmPC += 1 }
+            }
+            if stand.fertig.contains(kopf.kennung) { zaehleAmPC(); continue }
             if voll, !bekannt.contains(kopf.kennung) { continue }
             let alle = ressourcen(kopf)
             let fehlt = alle.filter { !stand.istErledigt($0) }
-            if fehlt.isEmpty { amPC += 1; neu.insert(kopf.kennung); continue }
+            if fehlt.isEmpty { zaehleAmPC(); neu.insert(kopf.kennung); continue }
             if voll { continue }
             offen.append(contentsOf: fehlt.filter { !uebersprungen.contains($0.schluessel) })
             fehlend[kopf.kennung] = fehlt.count
@@ -116,6 +134,6 @@ enum FotoPlan {
                 if zaehleAlles { voll = true } else { break }
             }
         }
-        return Ergebnis(zahlen: FotoZahlen(gesamt: koepfe.count, amPC: amPC), offen: offen, neuFertig: neu, fehlend: fehlend)
+        return Ergebnis(zahlen: FotoZahlen(gesamt: koepfe.count, amPC: amPC), offen: offen, neuFertig: neu, fehlend: fehlend, phasen: phasen)
     }
 }

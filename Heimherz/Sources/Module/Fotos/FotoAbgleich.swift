@@ -43,6 +43,8 @@ struct FotoAnzeige: Sendable, Equatable {
     var restSekunden: Double?
     /// Fotos, die in diesem Lauf vollständig am PC angekommen sind (Grundlage der Mitteilung "N Fotos gesichert").
     var gesichert = 0
+    /// Fotos und Videos getrennt gezählt (erst Fotos, dann Videos); nil, bis das erste Mal gezählt wurde.
+    var phasen: FotoPhasen?
 }
 
 /// Zählt Plätze für gleichzeitige Uploads. Wer wartet, wird der Reihe nach bedient; ein Abbruch weckt ihn mit `CancellationError`.
@@ -205,6 +207,7 @@ actor FotoAbgleich {
             if nur == nil {
                 stand.gesamt = plan.zahlen.gesamt
                 anzeige.zahlen = plan.zahlen
+                anzeige.phasen = plan.phasen
             }
             sichere()
             if !senden { break }
@@ -325,6 +328,7 @@ actor FotoAbgleich {
             if gesendet[r.kennung] == fehlend[r.kennung], stand.fertig.insert(r.kennung).inserted {
                 anzeige.zahlen?.amPC += 1
                 anzeige.gesichert += 1
+                if r.assetIstVideo { anzeige.phasen?.videosAmPC += 1 } else { anzeige.phasen?.fotosAmPC += 1 }
             }
             if erledigt % 25 == 0 { sichere() }
         case .wartetAufWLAN(let r):

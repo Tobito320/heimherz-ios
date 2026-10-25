@@ -62,7 +62,8 @@ final class FotosModell {
             zahlen: FotoZahlen(gesamt: 8_312, amPC: 1_234), schritt: "Sende IMG_4821.HEIC …", fortschritt: 1_234.0 / 8_312.0, laeuft: true,
             fertig: Set(koepfe.prefix(40).enumerated().filter { $0.offset != 5 && $0.offset != 6 }.map(\.element.kennung)),
             laufend: [koepfe[5].kennung], fehler: [koepfe[6].kennung: "vom PC abgelehnt, Code 400"],
-            datei: "IMG_4821.HEIC", bytesProSekunde: 4_200_000, restSekunden: 5_400)
+            datei: "IMG_4821.HEIC", bytesProSekunde: 4_200_000, restSekunden: 5_400,
+            phasen: FotoPhasen(fotosGesamt: 7_687, fotosAmPC: 1_234, videosGesamt: 625, videosAmPC: 0))
     }
 
     private static func lese(_ s: PHAuthorizationStatus) -> Erlaubnis {

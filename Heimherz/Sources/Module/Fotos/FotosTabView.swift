@@ -153,6 +153,11 @@ private struct FotosInhalt: View {
                     .foregroundStyle(Color.tinte)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            if let phasen = FotoText.phasen(modell.anzeige.phasen) {
+                Text(phasen)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.tinte)
+            }
             if modell.laeuft || modell.anzeige.schritt != nil, let schritt = modell.anzeige.schritt {
                 Text(schritt)
                     .font(.subheadline)
