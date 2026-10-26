@@ -1,3 +1,4 @@
+// Lumen-Kit: NICHT in der App ändern. Änderungen im Kit (80 System/Agents/lumen-kit/Sources), dann `lumen-sync APP_REPO`.
 import SwiftUI
 import UIKit
 
@@ -23,7 +24,7 @@ struct FarbToken: Sendable, Hashable {
     }
 }
 
-/// Alle Farben der App, Revolut-Stil (Skill revolut-stil): flaches Grau/Schwarz, Blau als Akzent, Korallrot nur für das Herz. Die Kontraste sind nachgerechnet,
+/// Alle Farben der Lumen-Familie (Revolut-Stil, Skill revolut-stil): flaches Grau/Schwarz, Blau als Akzent. App-eigene Farben in einer eigenen Datei als `extension Palette` und `extension Color`. Kontraste nachgerechnet,
 /// `FarbenKontrastTests` prüft sie hart (Text 4,5:1, Linien und Knopfflächen 3:1, hell und dunkel).
 enum Palette {
     static let grund = FarbToken("grund", 0xF7F7F7, 0x000000)
@@ -35,12 +36,10 @@ enum Palette {
     static let tinte2 = FarbToken("tinte2", 0x565B62, 0xB0B3B8, hellHoch: 0x3D4248, dunkelHoch: 0xD0D2D6)
     static let tinte3 = FarbToken("tinte3", 0x5F656D, 0xA0A3A8, hellHoch: 0x3D4248, dunkelHoch: 0xD0D2D6)
     /// Blau für Links, Symbole und Hervorhebung auf Karten und Grund.
-    static let akzent = FarbToken("akzent", 0x0058D6, 0x5B9DFF, hellHoch: 0x0046AD, dunkelHoch: 0x8DBBFF)
+    static let akzent = FarbToken("akzent", 0x0058D6, 0x6EA8FF, hellHoch: 0x0046AD, dunkelHoch: 0x9CC3FF)
     /// Fläche des Hauptknopfs; Text darauf ist `aufKnopf`.
     static let knopf = FarbToken("knopf", 0x0A62E8, 0x3D8BFF)
     static let aufKnopf = FarbToken("aufKnopf", 0xFFFFFF, 0x000000)
-    /// Das Herz (Korall).
-    static let herz = FarbToken("herz", 0xB93A2B, 0xFF9D8D, hellHoch: 0x9A2A1D, dunkelHoch: 0xFFB4A8)
     static let linie = FarbToken("linie", 0x7A8088, 0x6B6E73, hellHoch: 0x565B62, dunkelHoch: 0xA0A3A8)
     static let haar = FarbToken("haar", 0xE0E0E3, 0x2A2A2D)
     static let ok = FarbToken("ok", 0x066B4B, 0x2BD99A)
@@ -51,7 +50,7 @@ enum Palette {
     static let schlechtGrund = FarbToken("schlechtGrund", 0xFFDADF, 0x3F1118)
 
     static let alle: [FarbToken] = [
-        grund, grundWarm, karte, karteZart, chip, tinte, tinte2, tinte3, akzent, knopf, aufKnopf, herz, linie, haar,
+        grund, grundWarm, karte, karteZart, chip, tinte, tinte2, tinte3, akzent, knopf, aufKnopf, linie, haar,
         ok, okGrund, warn, warnGrund, schlecht, schlechtGrund
     ]
 }
@@ -76,7 +75,6 @@ extension Color {
     static let akzent = token(Palette.akzent)
     static let knopf = token(Palette.knopf)
     static let aufKnopf = token(Palette.aufKnopf)
-    static let herz = token(Palette.herz)
     static let linie = token(Palette.linie)
     static let haar = token(Palette.haar)
     static let ok = token(Palette.ok)

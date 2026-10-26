@@ -63,10 +63,10 @@ struct EinstellungenTabView: View {
                     fotosGruppe
                     dateienGruppe
                 }
-                ueberGruppe
+                LumenStandardAbschnitte(konfig: konfig)
             }
-            .heimherzEinstellungenListe()
-            .heimherzGrossTitel("Einstellungen")
+            .lumenEinstellungenListe()
+            .lumenGrossTitel("Einstellungen")
             .navigationDestination(for: EinstellungenSeite.self) { seite in
                 switch seite {
                 case .pc: PCEinstellungenSeite()
@@ -135,11 +135,11 @@ struct EinstellungenTabView: View {
     private var pcGruppe: some View {
         Section {
             if umgebung.istGekoppelt {
-                NavigationLink(value: EinstellungenSeite.pc) { pcKopf }.heimherzZeile()
+                NavigationLink(value: EinstellungenSeite.pc) { pcKopf }.lumenZeile()
                 LabeledContent("Zuletzt abgeglichen", value: zuletzt.map { $0.formatted(.relative(presentation: .named, unitsStyle: .wide).locale(Locale(identifier: "de_DE"))) } ?? "noch nie")
-                    .heimherzZeile()
+                    .lumenZeile()
             } else {
-                pcKopf.heimherzZeile()
+                pcKopf.lumenZeile()
                 Button { zeigeKoppeln = true } label: {
                     Label("Mit PC koppeln", systemImage: "qrcode.viewfinder")
                         .font(.headline)
@@ -186,11 +186,11 @@ struct EinstellungenTabView: View {
                 KachelTitel(titel: "Face ID gilt für", symbol: "faceid", ton: .gruen)
             }
             .pickerStyle(.menu)
-            .heimherzZeile()
+            .lumenZeile()
             Toggle(isOn: $codeKopieren) {
                 KachelTitel(titel: "2FA-Code nach dem Ausfüllen kopieren", symbol: "doc.on.clipboard", ton: .gelb)
             }
-            .heimherzZeile()
+            .lumenZeile()
         } header: {
             GruppenText(text: "Sicherheit")
         } footer: {
@@ -205,19 +205,19 @@ struct EinstellungenTabView: View {
             NavigationLink(value: EinstellungenSeite.autoFill) {
                 KachelTitel(titel: "AutoFill einschalten", symbol: "checkmark.shield.fill", ton: .tuerkis)
             }
-            .heimherzZeile()
+            .lumenZeile()
             NavigationLink(value: EinstellungenSeite.codes) {
                 KachelTitel(titel: "Neue 2FA-Codes in Lumen Cloud", symbol: "qrcode.viewfinder", ton: .gelb)
             }
-            .heimherzZeile()
+            .lumenZeile()
             Button { zeigeImport = true } label: {
                 KachelTitel(titel: "Aus Apple Passwörter holen", symbol: "square.and.arrow.down", ton: .orange)
             }
-            .heimherzZeile()
+            .lumenZeile()
             Toggle(isOn: $leckPruefung) {
                 KachelTitel(titel: "Auf Datenlecks prüfen", symbol: "exclamationmark.shield.fill", ton: .rot)
             }
-            .heimherzZeile()
+            .lumenZeile()
         } header: {
             GruppenText(text: "Passwörter")
         } footer: {
@@ -232,7 +232,7 @@ struct EinstellungenTabView: View {
             NavigationLink(value: EinstellungenSeite.sicherung) {
                 KachelTitel(titel: "Sicherung und Wiederherstellung", symbol: "externaldrive.fill.badge.checkmark", ton: .gruen)
             }
-            .heimherzZeile()
+            .lumenZeile()
         }
     }
 
@@ -245,24 +245,24 @@ struct EinstellungenTabView: View {
                 Toggle(isOn: Binding(get: { m.nurWLAN }, set: { m.setzeNurWLAN($0) })) {
                     KachelTitel(titel: "Nur im WLAN senden", symbol: "wifi", ton: .tuerkis)
                 }
-                .heimherzZeile()
+                .lumenZeile()
                 Toggle(isOn: Binding(get: { m.iCloudLaden }, set: { m.setzeICloudLaden($0) })) {
                     KachelTitel(titel: "Originale aus iCloud laden", symbol: "icloud.and.arrow.down", ton: .gruen)
                 }
-                .heimherzZeile()
+                .lumenZeile()
                 Toggle(isOn: Binding(get: { m.hintergrundAn }, set: { m.schalteHintergrund($0) })) {
                     KachelTitel(titel: "Im Hintergrund hochladen", symbol: "moon.stars.fill", ton: .orange)
                 }
                 .disabled(m.erlaubnis != .voll)
-                .heimherzZeile()
+                .lumenZeile()
                 Toggle(isOn: $fotoMitteilung) {
                     KachelTitel(titel: "Mitteilung nach dem Abgleich", symbol: "bell.badge.fill", ton: .rosa)
                 }
-                .heimherzZeile()
+                .lumenZeile()
                 NavigationLink(value: EinstellungenSeite.sichern) {
                     KachelTitel(titel: "Wie das Sichern läuft", symbol: "questionmark.circle.fill", ton: .grau)
                 }
-                .heimherzZeile()
+                .lumenZeile()
             } header: {
                 GruppenText(text: "Fotos")
             } footer: {
@@ -291,7 +291,7 @@ struct EinstellungenTabView: View {
                 }
             }
             .disabled(zwischenspeicher == 0)
-            .heimherzZeile()
+            .lumenZeile()
         } header: {
             GruppenText(text: "Dateien")
         } footer: {
@@ -301,20 +301,15 @@ struct EinstellungenTabView: View {
 
     // MARK: Über
 
-    private var ueberGruppe: some View {
-        Section {
-            LabeledContent("Version", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "–")
-                .heimherzZeile()
-            if let datum = BuildAblauf.buildDatum(buildDatum) {
-                LabeledContent("Build vom", value: datum.formatted(.dateTime.day().month().year().locale(Locale(identifier: "de_DE"))))
-                    .heimherzZeile()
-            }
-            if let rest = BuildAblauf.verbleibendeTage(buildDatum: buildDatum, jetzt: Date()) {
-                LabeledContent("TestFlight läuft ab", value: rest < 0 ? "abgelaufen" : rest == 0 ? "heute" : rest == 1 ? "in 1 Tag" : "in \(rest) Tagen")
-                    .heimherzZeile()
-            }
-        } header: {
-            GruppenText(text: "Über")
+    /// Zeilen für die Standard-Abschnitte der Lumen-Familie (Darstellung, Mitteilungen, Über, Hilfe).
+    private var konfig: LumenEinstellungenKonfig {
+        var extra: [(String, String)] = []
+        if let datum = BuildAblauf.buildDatum(buildDatum) {
+            extra.append(("Build vom", datum.formatted(.dateTime.day().month().year().locale(Locale(identifier: "de_DE")))))
         }
+        if let rest = BuildAblauf.verbleibendeTage(buildDatum: buildDatum, jetzt: Date()) {
+            extra.append(("TestFlight läuft ab", rest < 0 ? "abgelaufen" : rest == 0 ? "heute" : rest == 1 ? "in 1 Tag" : "in \(rest) Tagen"))
+        }
+        return LumenEinstellungenKonfig(appName: "Lumen Cloud", verbindung: umgebung.istGekoppelt ? "Mit dem PC gekoppelt" : "Nicht gekoppelt", ueberExtra: extra)
     }
 }

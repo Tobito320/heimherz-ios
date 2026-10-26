@@ -301,7 +301,7 @@ final class FarbenKontrastTests: XCTestCase {
             (Palette.tinte2, [Palette.grund, Palette.karte, Palette.grundWarm, Palette.chip]),
             (Palette.tinte3, [Palette.grund, Palette.karte]),
             (Palette.akzent, [Palette.grund, Palette.karte, Palette.chip]),
-            (Palette.herz, [Palette.grund, Palette.karte]),
+            (Palette.akzent, [Palette.grund, Palette.karte]),
             (Palette.ok, [Palette.okGrund, Palette.karte]),
             (Palette.warn, [Palette.warnGrund, Palette.karte]),
             (Palette.schlecht, [Palette.schlechtGrund, Palette.karte]),

@@ -27,7 +27,7 @@ struct AutoFillAnleitung: View {
                     }
                     .accessibilityElement(children: .combine)
                     .accessibilityLabel("Schritt \(i + 1): \(text)")
-                    .heimherzZeile()
+                    .lumenZeile()
                 }
             } header: {
                 GruppenText(text: "Damit füllt iOS Passwörter und Einmalcodes aus Lumen Cloud aus, in Safari und in Apps.", fuss: true)
@@ -38,10 +38,10 @@ struct AutoFillAnleitung: View {
                 } label: {
                     KachelTitel(titel: "iOS-Einstellungen öffnen", symbol: "gearshape.fill", ton: .grau)
                 }
-                .heimherzZeile()
+                .lumenZeile()
             }
         }
-        .heimherzEinstellungenListe()
+        .lumenEinstellungenListe()
         .navigationTitle("AutoFill")
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -66,13 +66,13 @@ struct CodesAnleitung: View {
                     Button { zeigeScanner = true } label: {
                         KachelTitel(titel: "QR-Code scannen", symbol: "qrcode.viewfinder", ton: .gelb)
                     }
-                    .heimherzZeile()
+                    .lumenZeile()
                 }
                 Text("Tippst du auf der Seite auf den Link zum Einrichten oder öffnest ihn aus einer Mail, nimmt Lumen Cloud den Code an. Oder scanne den QR-Code hier.")
                     .font(.subheadline)
                     .foregroundStyle(Color.tinte2)
                     .fixedSize(horizontal: false, vertical: true)
-                    .heimherzZeile()
+                    .lumenZeile()
             } header: {
                 GruppenText(text: "Das geht immer")
             }
@@ -89,21 +89,21 @@ struct CodesAnleitung: View {
                     }
                     .accessibilityElement(children: .combine)
                     .accessibilityLabel("Schritt \(i + 1): \(text)")
-                    .heimherzZeile()
+                    .lumenZeile()
                 }
                 Button {
                     if let url = URL(string: UIApplication.openSettingsURLString) { oeffne(url) }
                 } label: {
                     KachelTitel(titel: "iOS-Einstellungen öffnen", symbol: "gearshape.fill", ton: .grau)
                 }
-                .heimherzZeile()
+                .lumenZeile()
             } header: {
                 GruppenText(text: "Direkt von iOS")
             } footer: {
                 GruppenText(text: "Dann sollen Links und QR-Codes zum Einrichten gleich in Lumen Cloud landen statt im Authenticator. Ob iOS Lumen Cloud dort anbietet, zeigt erst dein Handy.", fuss: true)
             }
         }
-        .heimherzEinstellungenListe()
+        .lumenEinstellungenListe()
         .navigationTitle("Neue 2FA-Codes")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $zeigeScanner) { CodeScanBlatt { CodePostfach.geteilt.empfange(text: $0) } }
@@ -132,11 +132,11 @@ struct SichernErklaerung: View {
                     }
                     .padding(.vertical, Abstand.xs)
                     .accessibilityElement(children: .combine)
-                    .heimherzZeile()
+                    .lumenZeile()
                 }
             }
         }
-        .heimherzEinstellungenListe()
+        .lumenEinstellungenListe()
         .navigationTitle("Wie das Sichern läuft")
         .navigationBarTitleDisplayMode(.inline)
     }

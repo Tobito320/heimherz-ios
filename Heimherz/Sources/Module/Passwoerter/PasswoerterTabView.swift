@@ -44,7 +44,7 @@ struct PasswoerterInhalt: View {
     var body: some View {
         NavigationStack(path: $pfad) {
             inhalt
-                .heimherzGrossTitel("Passwörter")
+                .lumenGrossTitel("Passwörter")
                 .navigationDestination(for: PasswoerterZiel.self) { ziel in
                     switch ziel {
                     case .kategorie(let k):
@@ -56,7 +56,7 @@ struct PasswoerterInhalt: View {
                         GesundheitAnsicht(store: store)
                     }
                 }
-                .heimherzHintergrund()
+                .lumenHintergrund()
         }
         .environment(symbole)
         .sheet(item: $formular) { ziel in EintragFormular(store: store, ziel: ziel) }

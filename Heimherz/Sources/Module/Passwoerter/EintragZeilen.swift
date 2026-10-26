@@ -148,7 +148,7 @@ struct HinweisKarte: View {
         }
         .padding(Abstand.l)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.karte, in: .heimherzKarte)
+        .background(Color.karte, in: .lumenKarte)
         .accessibilityElement(children: .combine)
     }
 }

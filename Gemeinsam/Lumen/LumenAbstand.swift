@@ -1,3 +1,4 @@
+// Lumen-Kit: NICHT in der App ändern. Änderungen im Kit (80 System/Agents/lumen-kit/Sources), dann `lumen-sync APP_REPO`.
 import SwiftUI
 
 /// Ein Raster für alle Karten und Zeilen (4 pt).
@@ -18,7 +19,7 @@ enum Rundung {
 }
 
 extension Shape where Self == RoundedRectangle {
-    /// Die eine Kartenform der App: `.background(Color.karte, in: .heimherzKarte)`.
-    static var heimherzKarte: RoundedRectangle { RoundedRectangle(cornerRadius: Rundung.karte, style: .continuous) }
-    static var heimherzFeld: RoundedRectangle { RoundedRectangle(cornerRadius: Rundung.klein, style: .continuous) }
+    /// Die eine Kartenform der Lumen-Apps: `.background(Color.karte, in: .lumenKarte)`.
+    static var lumenKarte: RoundedRectangle { RoundedRectangle(cornerRadius: Rundung.karte, style: .continuous) }
+    static var lumenFeld: RoundedRectangle { RoundedRectangle(cornerRadius: Rundung.klein, style: .continuous) }
 }

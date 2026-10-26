@@ -19,7 +19,7 @@ struct GeneratorBlatt: View {
                 }
                 .padding(Abstand.l)
             }
-            .heimherzHintergrund()
+            .lumenHintergrund()
             .navigationTitle("Passwort-Generator")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

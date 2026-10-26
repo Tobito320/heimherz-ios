@@ -25,7 +25,7 @@ struct EintragDetailView: View {
             }
         }
         .navigationBarTitleDisplayMode(.inline)
-        .heimherzHintergrund()
+        .lumenHintergrund()
     }
 
     private func inhalt(_ e: Eintrag) -> some View {

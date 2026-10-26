@@ -31,7 +31,7 @@ struct KoppelBlatt: View {
                 }
                 .padding(Abstand.l)
             }
-            .heimherzHintergrund()
+            .lumenHintergrund()
             .navigationTitle("Mit PC koppeln")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -80,7 +80,7 @@ struct KoppelBlatt: View {
         if QRScanner.istMoeglich {
             QRScanner { text in pruefe(text) }
             .frame(height: 300)
-            .clipShape(.heimherzKarte)
+            .clipShape(.lumenKarte)
             .overlay { RoundedRectangle(cornerRadius: Rundung.karte, style: .continuous).stroke(Color.linie, lineWidth: 1) }
             .accessibilityLabel("Kamera zum Scannen des QR-Codes")
         } else {
@@ -113,7 +113,7 @@ struct KoppelBlatt: View {
                 .keyboardType(.URL)
                 .padding(Abstand.m)
                 .frame(minHeight: Abstand.tippflaeche)
-                .background(Color.karte, in: .heimherzFeld)
+                .background(Color.karte, in: .lumenFeld)
             HStack(spacing: Abstand.m) {
                 Button {
                     if let text = UIPasteboard.general.string { link = text }

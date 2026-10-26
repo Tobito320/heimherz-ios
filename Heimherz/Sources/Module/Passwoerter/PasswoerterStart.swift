@@ -33,7 +33,7 @@ struct PasswoerterStart: View {
         Group {
             if suchtext.isEmpty { start } else { ergebnisse }
         }
-        .heimherzHintergrund(versatz: versatz)
+        .lumenHintergrund(versatz: versatz)
         .searchable(text: $suche, prompt: "Suchen")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) { mehrMenue }
@@ -181,7 +181,7 @@ struct KategorieKachel: View {
         }
         .padding(Abstand.m)
         .frame(maxWidth: .infinity, minHeight: 84, alignment: .leading)
-        .background(Color.karte, in: .heimherzKarte)
+        .background(Color.karte, in: .lumenKarte)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(kategorie.titel), \(anzahl)")
     }

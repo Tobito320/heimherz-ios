@@ -42,8 +42,8 @@ struct SicherungSeite: View {
     var body: some View {
         List {
             Section {
-                LabeledContent("Letzte Sicherung", value: geladen ? SicherungStand.text(letzte) : "…").heimherzZeile()
-                LabeledContent("Liegt in", value: "Dateien, Ordner Sicherung").heimherzZeile()
+                LabeledContent("Letzte Sicherung", value: geladen ? SicherungStand.text(letzte) : "…").lumenZeile()
+                LabeledContent("Liegt in", value: "Dateien, Ordner Sicherung").lumenZeile()
             } header: {
                 GruppenText(text: "Sicherung")
             } footer: {
@@ -57,9 +57,9 @@ struct SicherungSeite: View {
                         KachelTitel(titel: erzeugtAm > 0 ? "Neuen Wiederherstellungsschlüssel erzeugen" : "Wiederherstellungsschlüssel erzeugen", symbol: "key.fill", ton: .gelb)
                     }
                     .disabled(laeuft || umgebung.istDemo)
-                    .heimherzZeile()
+                    .lumenZeile()
                     if erzeugtAm > 0 {
-                        LabeledContent("Zuletzt erzeugt", value: Date(timeIntervalSince1970: erzeugtAm).formatted(.dateTime.day().month().year().locale(Locale(identifier: "de_DE")))).heimherzZeile()
+                        LabeledContent("Zuletzt erzeugt", value: Date(timeIntervalSince1970: erzeugtAm).formatted(.dateTime.day().month().year().locale(Locale(identifier: "de_DE")))).lumenZeile()
                     }
                 }
             } header: {
@@ -68,7 +68,7 @@ struct SicherungSeite: View {
                 GruppenText(text: "Mit dem Code lässt sich eine Sicherung auf einem neuen PC öffnen, ohne dieses Handy. Er wird nach Face ID einmal gezeigt. Schreib ihn ab oder drucke ihn und bewahre ihn getrennt vom Handy auf.", fuss: true)
             }
         }
-        .heimherzEinstellungenListe()
+        .lumenEinstellungenListe()
         .navigationTitle("Sicherung")
         .navigationBarTitleDisplayMode(.inline)
         .task { await ladeStand() }

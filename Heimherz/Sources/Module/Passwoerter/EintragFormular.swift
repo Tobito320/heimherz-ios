@@ -106,7 +106,7 @@ struct EintragFormular: View {
                 .listRowBackground(Color.karte)
             }
             .scrollContentBackground(.hidden)
-            .heimherzHintergrund()
+            .lumenHintergrund()
             .navigationTitle(titel)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

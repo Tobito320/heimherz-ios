@@ -24,7 +24,7 @@ struct DateienTabView: View {
             Group {
                 if !umgebung.istGekoppelt {
                     ScrollView { LeerZustand(stimmung: .schlaeft, titel: "Dateien", text: "Koppel zuerst dein Handy mit dem PC (Tab Einstellungen).") }
-                        .heimherzGrossTitel("Dateien")
+                        .lumenGrossTitel("Dateien")
                 } else if let lader {
                     OrdnerSeite(ordner: [], umgebung: umgebung, lader: lader, navigation: $pfad)
                 } else {
@@ -101,7 +101,7 @@ struct OrdnerSeite: View {
 
     var body: some View {
         hauptteil
-            .heimherzHintergrund(versatz: versatz)
+            .lumenHintergrund(versatz: versatz)
             .navigationTitle(titel)
             .navigationBarTitleDisplayMode(ordner.isEmpty ? .large : .inline)
             .searchable(text: $suchtext, placement: .navigationBarDrawer(displayMode: .always), prompt: "Suchen")
@@ -171,7 +171,7 @@ struct OrdnerSeite: View {
                     ForEach(startModell.abschnitte) { a in
                         Section {
                             if !eingeklappt.istEingeklappt(a.kategorie) {
-                                ForEach(a.zeilen) { startZeile($0).heimherzZeile() }
+                                ForEach(a.zeilen) { startZeile($0).lumenZeile() }
                             }
                         } header: {
                             abschnittsKopf(a.kategorie)
@@ -181,7 +181,7 @@ struct OrdnerSeite: View {
                 .listStyle(.insetGrouped)
                 .scrollContentBackground(.hidden)
                 .scrollVersatz($versatz)
-                .heimherzHintergrund(versatz: versatz)
+                .lumenHintergrund(versatz: versatz)
                 .refreshable {
                     Haptik.auswahl()
                     await startModell.lade()

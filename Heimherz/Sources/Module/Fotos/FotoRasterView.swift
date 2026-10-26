@@ -171,7 +171,7 @@ struct FotoLaufLeiste: View {
             }
         }
         .padding(Abstand.m)
-        .background(Color.karte, in: .heimherzFeld)
+        .background(Color.karte, in: .lumenFeld)
     }
 }
 
@@ -274,7 +274,7 @@ private struct FotoDetail: View {
                 }
                 .padding(Abstand.l)
             }
-            .heimherzHintergrund()
+            .lumenHintergrund()
             .navigationTitle("Bild")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Fertig") { schliesse() } } }
@@ -292,7 +292,7 @@ private struct FotoDetail: View {
             .overlay {
                 if let bild { Image(uiImage: bild).resizable().scaledToFit() } else { ProgressView() }
             }
-            .clipShape(.heimherzFeld)
+            .clipShape(.lumenFeld)
             .accessibilityHidden(true)
     }
 

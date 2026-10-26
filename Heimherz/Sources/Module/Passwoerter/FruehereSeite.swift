@@ -25,7 +25,7 @@ struct FruehereSeite: View {
         }
         .navigationTitle("Frühere Passwörter")
         .navigationBarTitleDisplayMode(.inline)
-        .heimherzHintergrund()
+        .lumenHintergrund()
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {

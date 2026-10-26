@@ -30,7 +30,7 @@ struct VergleichBlatt: View {
             }
             .navigationTitle("Doppelte Konten")
             .navigationBarTitleDisplayMode(.inline)
-            .heimherzHintergrund()
+            .lumenHintergrund()
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) { Button("Fertig") { schliessen() } }
             }

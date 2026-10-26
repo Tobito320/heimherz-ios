@@ -19,6 +19,7 @@ struct AppRootView: View {
             Tab(HeimherzTab.dateien.titel, systemImage: HeimherzTab.dateien.symbolName, value: HeimherzTab.dateien) { DateienTabView() }
             Tab(HeimherzTab.einstellungen.titel, systemImage: HeimherzTab.einstellungen.symbolName, value: HeimherzTab.einstellungen) { EinstellungenTabView() }
         }
+        .lumenWurzel()
         .tint(Color.knopf)
         .tabBarMinimizeBehavior(.onScrollDown)
         .fontDesign(.rounded)

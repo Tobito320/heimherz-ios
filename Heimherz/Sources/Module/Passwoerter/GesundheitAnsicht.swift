@@ -39,7 +39,7 @@ struct GesundheitAnsicht: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
-        .heimherzHintergrund()
+        .lumenHintergrund()
         .navigationTitle("Passwort-Gesundheit")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarVisibility(.hidden, for: .tabBar)

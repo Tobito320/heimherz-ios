@@ -122,7 +122,7 @@ struct PasswoerterListe: View {
             .overlay(alignment: .trailing) { leiste(proxy) }
             .overlay { leer }
         }
-        .heimherzHintergrund()
+        .lumenHintergrund()
         .environment(\.editMode, $bearbeiten)
         .navigationTitle(kategorie.titel)
         .navigationSubtitle(untertitel)

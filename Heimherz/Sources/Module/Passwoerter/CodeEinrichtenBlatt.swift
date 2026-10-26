@@ -13,7 +13,7 @@ struct CodeEinrichtenBlatt: View {
             Group {
                 if let fertig = modell.fertig { fertigListe(fertig) } else { auswahlListe }
             }
-            .heimherzEinstellungenListe()
+            .lumenEinstellungenListe()
             .navigationTitle(modell.fertig == nil ? "Code einrichten" : "Eingerichtet")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -46,14 +46,14 @@ struct CodeEinrichtenBlatt: View {
             Section {
                 ForEach(modell.vorschlaege) { e in
                     Button { Task { await modell.waehle(e) } } label: { zeile(e) }
-                        .heimherzZeile()
+                        .lumenZeile()
                 }
                 NavigationLink {
                     AnderesKontoListe(modell: modell)
                 } label: {
                     KachelTitel(titel: "Anderes Konto wählen", symbol: "magnifyingglass", ton: .grau)
                 }
-                .heimherzZeile()
+                .lumenZeile()
             } header: {
                 GruppenText(text: "Zu diesem Konto hinzufügen")
             } footer: {
@@ -63,7 +63,7 @@ struct CodeEinrichtenBlatt: View {
                 Button { Task { await modell.legeNeuAn() } } label: {
                     KachelTitel(titel: "Neuer Eintrag „\(modell.konto.anzeigeName)“", symbol: "plus", ton: .gruen)
                 }
-                .heimherzZeile()
+                .lumenZeile()
             } footer: {
                 if let fehler = modell.fehler { Text(fehler).font(.footnote).foregroundStyle(Color.schlecht) }
             }
@@ -84,7 +84,7 @@ struct CodeEinrichtenBlatt: View {
         }
         .padding(.vertical, Abstand.xs)
         .accessibilityElement(children: .combine)
-        .heimherzZeile()
+        .lumenZeile()
     }
 
     private func zeile(_ e: Eintrag) -> some View {
@@ -127,7 +127,7 @@ struct CodeEinrichtenBlatt: View {
                     }
                 }
                 .padding(.vertical, Abstand.xs)
-                .heimherzZeile()
+                .lumenZeile()
                 Button {
                     if let z = TOTPAnzeige.zustand(fertig.uri, datum: Date()) {
                         Zwischenablage.kopiere(z.code)
@@ -137,7 +137,7 @@ struct CodeEinrichtenBlatt: View {
                 } label: {
                     KachelTitel(titel: kopiert ? "Kopiert, 60 Sekunden" : "Kopieren", symbol: kopiert ? "checkmark" : "doc.on.doc", ton: .gruen)
                 }
-                .heimherzZeile()
+                .lumenZeile()
             } footer: {
                 GruppenText(text: "Gib diesen Code auf der Seite ein, um die Einrichtung zu bestätigen.", fuss: true)
             }
@@ -162,10 +162,10 @@ private struct AnderesKontoListe: View {
                     .frame(minHeight: Abstand.tippflaeche, alignment: .leading)
                     .contentShape(Rectangle())
                 }
-                .heimherzZeile()
+                .lumenZeile()
             }
         }
-        .heimherzEinstellungenListe()
+        .lumenEinstellungenListe()
         .searchable(text: $suche, prompt: "Konto suchen")
         .navigationTitle("Anderes Konto")
         .navigationBarTitleDisplayMode(.inline)

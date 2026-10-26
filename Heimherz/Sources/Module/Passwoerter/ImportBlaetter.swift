@@ -55,7 +55,7 @@ struct ImportAnleitungBlatt: View {
                 }
                 .padding(Abstand.l)
             }
-            .heimherzHintergrund()
+            .lumenHintergrund()
             .navigationTitle("Aus Apple Passwörter holen")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Fertig") { schliessen() } } }
@@ -104,7 +104,7 @@ struct ImportErgebnisBlatt: View {
                 }
                 .padding(Abstand.l)
             }
-            .heimherzHintergrund()
+            .lumenHintergrund()
             .navigationTitle("Import")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Fertig") { schliessen() } } }

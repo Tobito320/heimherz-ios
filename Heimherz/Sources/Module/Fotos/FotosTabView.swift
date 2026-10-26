@@ -15,8 +15,8 @@ struct FotosTabView: View {
                     ProgressView().padding(Abstand.xxl).frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
-            .heimherzHintergrund()
-            .heimherzGrossTitel("Fotos")
+            .lumenHintergrund()
+            .lumenGrossTitel("Fotos")
         }
         .task(id: umgebung.istGekoppelt) {
             let m = modell ?? (umgebung.istDemo ? FotosModell(istDemo: true) : FotosModell.geteilt)

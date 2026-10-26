@@ -20,24 +20,24 @@ struct PCEinstellungenSeite: View {
                 .listRowBackground(Color.clear)
             }
             Section {
-                LabeledContent("Server", value: umgebung.geraet?.url.host ?? "–").heimherzZeile()
+                LabeledContent("Server", value: umgebung.geraet?.url.host ?? "–").lumenZeile()
                 if let status = umgebung.status {
-                    LabeledContent("Dienst am PC", value: "Version \(status.version)").heimherzZeile()
-                    LabeledContent("Tresor-Stand", value: "Fassung \(status.rev)").heimherzZeile()
-                    LabeledContent("Fotos am PC", value: status.fotos.formatted()).heimherzZeile()
-                    if let frei = status.frei { LabeledContent("Frei am PC", value: frei.formatted(.byteCount(style: .file))).heimherzZeile() }
+                    LabeledContent("Dienst am PC", value: "Version \(status.version)").lumenZeile()
+                    LabeledContent("Tresor-Stand", value: "Fassung \(status.rev)").lumenZeile()
+                    LabeledContent("Fotos am PC", value: status.fotos.formatted()).lumenZeile()
+                    if let frei = status.frei { LabeledContent("Frei am PC", value: frei.formatted(.byteCount(style: .file))).lumenZeile() }
                 }
                 Button { Task { await umgebung.ladeStatus() } } label: {
                     KachelTitel(titel: umgebung.statusLaedt ? "Prüfe …" : "Neu prüfen", symbol: "arrow.clockwise", ton: .tuerkis)
                 }
                 .disabled(umgebung.statusLaedt)
-                .heimherzZeile()
+                .lumenZeile()
             }
             Section {
                 Button { zeigeKoppeln = true } label: {
                     KachelTitel(titel: "Mit anderem PC koppeln", symbol: "qrcode.viewfinder", ton: .gruen)
                 }
-                .heimherzZeile()
+                .lumenZeile()
                 Button(role: .destructive) { starteEntkoppeln() } label: {
                     HStack(spacing: Abstand.m) {
                         EinstellungsKachel(symbol: "xmark.circle.fill", ton: .rot)
@@ -45,10 +45,10 @@ struct PCEinstellungenSeite: View {
                     }
                 }
                 .disabled(pruefeEntkoppeln)
-                .heimherzZeile()
+                .lumenZeile()
             }
         }
-        .heimherzEinstellungenListe()
+        .lumenEinstellungenListe()
         .navigationTitle("PC")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $zeigeKoppeln) { KoppelBlatt() }

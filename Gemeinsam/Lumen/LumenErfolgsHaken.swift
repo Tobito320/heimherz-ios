@@ -1,13 +1,12 @@
+// Lumen-Kit: NICHT in der App ändern. Änderungen im Kit (80 System/Agents/lumen-kit/Sources), dann `lumen-sync APP_REPO`.
 import SwiftUI
-
-// Liegt in Gemeinsam/, weil HausherzView (auch in der AutoFill-Erweiterung) bei Erfolg den Haken zeigt.
 
 /// Der Haken im Kreis, der sich beim Erscheinen zeichnet (Kreis, dann Haken), mit Erfolgs-Haptik. Reduce Motion: sofort fertig.
 struct ErfolgsHaken: View {
     var groesse: CGFloat = 56
     var haptik = true
     @State private var fertig = false
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @LumenStill private var reduceMotion
 
     var body: some View {
         ZStack {
