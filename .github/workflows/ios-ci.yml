@@ -97,20 +97,26 @@ jobs:
               sleep 5
               xcrun simctl io "$IPHONE_ID" screenshot "screenshots/${modus}-${tab}.png"
             done
-            # Dateien (W-031): Liste, Suche mit Treffern, Unterordner, Suche im Unterordner (Bereichsleiste), Sortierung nach Datum
-            xcrun simctl launch --terminate-running-process "$IPHONE_ID" com.onlyus.heimherz -heimherzDemo YES -heimherzTab dateien -heimherzDateienAnsicht liste
+            # Dateien (W-031, T21): Startseite (oben, im Tab-Lauf als ${modus}-dateien.png), eingeklappter Abschnitt, Suche mit Treffern, Kategorie-Ordner als Raster (Vorbild "Dokumente"), Unterordner als Raster und Liste, Suche im Ordner (Bereichsleiste), Sortierung nach Datum
+            xcrun simctl launch --terminate-running-process "$IPHONE_ID" com.onlyus.heimherz -heimherzDemo YES -heimherzTab dateien -heimherzDateienEingeklappt Bürokratie
+            sleep 6
+            xcrun simctl io "$IPHONE_ID" screenshot "screenshots/${modus}-dateien-eingeklappt.png"
+            xcrun simctl launch --terminate-running-process "$IPHONE_ID" com.onlyus.heimherz -heimherzDemo YES -heimherzTab dateien -heimherzDateienOrdner "Bürokratie/4 Geld" -heimherzDateienAnsicht liste
             sleep 6
             xcrun simctl io "$IPHONE_ID" screenshot "screenshots/${modus}-dateien-liste.png"
             xcrun simctl launch --terminate-running-process "$IPHONE_ID" com.onlyus.heimherz -heimherzDemo YES -heimherzTab dateien -heimherzDateienSuche rechnung
             sleep 6
             xcrun simctl io "$IPHONE_ID" screenshot "screenshots/${modus}-dateien-suche.png"
-            xcrun simctl launch --terminate-running-process "$IPHONE_ID" com.onlyus.heimherz -heimherzDemo YES -heimherzTab dateien -heimherzDateienOrdner "Büro"
+            xcrun simctl launch --terminate-running-process "$IPHONE_ID" com.onlyus.heimherz -heimherzDemo YES -heimherzTab dateien -heimherzDateienOrdner "Bürokratie"
             sleep 6
             xcrun simctl io "$IPHONE_ID" screenshot "screenshots/${modus}-dateien-ordner.png"
-            xcrun simctl launch --terminate-running-process "$IPHONE_ID" com.onlyus.heimherz -heimherzDemo YES -heimherzTab dateien -heimherzDateienOrdner "Büro" -heimherzDateienAnsicht liste -heimherzDateienSuche rechnung
+            xcrun simctl launch --terminate-running-process "$IPHONE_ID" com.onlyus.heimherz -heimherzDemo YES -heimherzTab dateien -heimherzDateienOrdner "Weitere/Sonstiges"
+            sleep 6
+            xcrun simctl io "$IPHONE_ID" screenshot "screenshots/${modus}-dateien-ordner-dateien.png"
+            xcrun simctl launch --terminate-running-process "$IPHONE_ID" com.onlyus.heimherz -heimherzDemo YES -heimherzTab dateien -heimherzDateienOrdner "Bürokratie" -heimherzDateienAnsicht liste -heimherzDateienSuche rechnung
             sleep 6
             xcrun simctl io "$IPHONE_ID" screenshot "screenshots/${modus}-dateien-ordner-suche.png"
-            xcrun simctl launch --terminate-running-process "$IPHONE_ID" com.onlyus.heimherz -heimherzDemo YES -heimherzTab dateien -heimherzDateienAnsicht liste -heimherzDateienSortierung datum-ab
+            xcrun simctl launch --terminate-running-process "$IPHONE_ID" com.onlyus.heimherz -heimherzDemo YES -heimherzTab dateien -heimherzDateienOrdner "Bürokratie/4 Geld" -heimherzDateienAnsicht liste -heimherzDateienSortierung datum-ab
             sleep 6
             xcrun simctl io "$IPHONE_ID" screenshot "screenshots/${modus}-dateien-liste-datum.png"
             # Unterseiten der Passwörter (Demo springt per -heimherzPwSeite hinein)
@@ -149,9 +155,12 @@ jobs:
             xcrun simctl launch --terminate-running-process "$IPHONE_ID" com.onlyus.heimherz -heimherzDemo YES -heimherzTab dateien
             sleep 6
             xcrun simctl io "$IPHONE_ID" screenshot "screenshots/${modus}-dateien-xxl.png"
-            xcrun simctl launch --terminate-running-process "$IPHONE_ID" com.onlyus.heimherz -heimherzDemo YES -heimherzTab dateien -heimherzDateienAnsicht liste
+            xcrun simctl launch --terminate-running-process "$IPHONE_ID" com.onlyus.heimherz -heimherzDemo YES -heimherzTab dateien -heimherzDateienOrdner "Bürokratie/4 Geld" -heimherzDateienAnsicht liste
             sleep 6
             xcrun simctl io "$IPHONE_ID" screenshot "screenshots/${modus}-dateien-liste-xxl.png"
+            xcrun simctl launch --terminate-running-process "$IPHONE_ID" com.onlyus.heimherz -heimherzDemo YES -heimherzTab dateien -heimherzDateienOrdner "Bürokratie"
+            sleep 6
+            xcrun simctl io "$IPHONE_ID" screenshot "screenshots/${modus}-dateien-ordner-xxl.png"
             xcrun simctl launch --terminate-running-process "$IPHONE_ID" com.onlyus.heimherz -heimherzDemo YES -heimherzTab einstellungen
             sleep 5
             xcrun simctl io "$IPHONE_ID" screenshot "screenshots/${modus}-einstellungen-xxl.png"
