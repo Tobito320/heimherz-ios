@@ -64,7 +64,7 @@ struct StatusChip: View {
     }
 }
 
-/// Leerer Zustand: Haven-Zeichen, ein Satz, optional eine Handlung. Lädt zur nächsten Handlung ein statt "Keine Daten".
+/// Leerer Zustand: Cloud-Zeichen, ein Satz, optional eine Handlung. Lädt zur nächsten Handlung ein statt "Keine Daten".
 struct LeerZustand: View {
     var stimmung: HausherzStimmung = .wach
     let titel: String

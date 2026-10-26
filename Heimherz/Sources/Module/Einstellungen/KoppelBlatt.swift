@@ -56,7 +56,7 @@ struct KoppelBlatt: View {
     private var bestaetigungsText: String {
         let frage = "Der Code enthält den Schlüssel zu allen deinen Passwörtern. Koppel nur mit einem Code, den dein eigener PC gezeigt hat."
         guard let alt = umgebung.geraet else { return frage }
-        return "Dieses Handy ist schon mit \(alt.url.host ?? "einem PC") gekoppelt. Der alte Zugang, der Schlüssel und der Tresor auf diesem Handy werden ersetzt; vorher gleicht Haven noch einmal ab. \(frage)"
+        return "Dieses Handy ist schon mit \(alt.url.host ?? "einem PC") gekoppelt. Der alte Zugang, der Schlüssel und der Tresor auf diesem Handy werden ersetzt; vorher gleicht Cloud noch einmal ab. \(frage)"
     }
 
     /// Prüft den Text und fragt nach, bevor irgendetwas gespeichert wird.

@@ -194,7 +194,7 @@ struct EinstellungenTabView: View {
         } header: {
             GruppenText(text: "Sicherheit")
         } footer: {
-            GruppenText(text: "Solange füllt Haven ohne neue Abfrage aus.", fuss: true)
+            GruppenText(text: "Solange füllt Cloud ohne neue Abfrage aus.", fuss: true)
         }
     }
 
@@ -207,7 +207,7 @@ struct EinstellungenTabView: View {
             }
             .heimherzZeile()
             NavigationLink(value: EinstellungenSeite.codes) {
-                KachelTitel(titel: "Neue 2FA-Codes in Haven", symbol: "qrcode.viewfinder", ton: .gelb)
+                KachelTitel(titel: "Neue 2FA-Codes in Cloud", symbol: "qrcode.viewfinder", ton: .gelb)
             }
             .heimherzZeile()
             Button { zeigeImport = true } label: {
@@ -273,7 +273,7 @@ struct EinstellungenTabView: View {
 
     /// Eine Zeile, die gerade am meisten hilft: erst was einen Schalter wirkungslos macht, sonst die feste Regel für Videos.
     private func fotosFuss(_ m: FotosModell) -> String {
-        if fotoMitteilung, mitteilungErlaubt == false { return "Mitteilungen sind für Haven in den iOS-Einstellungen ausgeschaltet." }
+        if fotoMitteilung, mitteilungErlaubt == false { return "Mitteilungen sind für Cloud in den iOS-Einstellungen ausgeschaltet." }
         if m.erlaubnis != .voll { return "Hochladen im Hintergrund braucht vollen Zugriff auf deine Fotos." }
         return "Videos gehen immer nur im WLAN. Ist das Handy nicht im WLAN, hält der Abgleich an und wartet auf dich."
     }
