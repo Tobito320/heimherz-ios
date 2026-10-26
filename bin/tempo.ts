@@ -52,6 +52,10 @@ export function fasseTempo(alle: TempoZeile[], minuten = 10): string[] {
     `Durchgang: lokal ${neu.filter(x => x.durchgang === 'lokal').length}, icloud ${neu.filter(x => x.durchgang === 'icloud').length}`,
     `Arten: ${[...new Set(neu.map(x => x.art))].sort().map(a => `${a} ${neu.filter(x => x.art === a).length}`).join(', ')}`,
   );
+  // Zähler je Lauf: der höchste Wert im Fenster ist der Stand des letzten Laufs (fehlt bei älteren Builds).
+  const hoch = (w: (number | null | undefined)[]) => w.reduce<number | null>((m, v) => (typeof v === 'number' ? Math.max(m ?? 0, v) : m), null);
+  const aufg = hoch(neu.map(x => x.aufgeschoben)), haeng = hoch(neu.map(x => x.haenger));
+  if (aufg !== null || haeng !== null) aus.push(`Nach iCloud zurückgestellt: ${aufg ?? '-'}; Export hing und wurde abgebrochen: ${haeng ?? '-'}`);
   return aus;
 }
 

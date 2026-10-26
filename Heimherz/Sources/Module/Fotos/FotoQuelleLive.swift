@@ -39,6 +39,16 @@ final class EinmalFortsetzung<T: Sendable>: Sendable {
     }
 }
 
+/// Merkt, wann ein Export zuletzt Daten bekam. PhotoKit beendet `requestData` bei manchen Dateien nie (weder Daten noch Abschluss);
+/// ohne Grenze belegen solche Exporte alle Plätze, und der Abgleich steht still, obwohl er läuft (Ahmed 26.10.: "kommt nicht mehr voran").
+final class Stillstand: Sendable {
+    private let zuletzt = Mutex(ContinuousClock.now)
+
+    func regt() { zuletzt.withLock { $0 = .now } }
+    var ruhtSeit: Duration { zuletzt.withLock { ContinuousClock.now - $0 } }
+    func ruht(laengerAls grenze: Duration) -> Bool { ruhtSeit > grenze }
+}
+
 /// Was ein Lauf von der Mediathek schon gelesen hat: die Köpfe und die Dateilisten der Assets, die schon nachgeschlagen wurden.
 /// Ändert sich die Mediathek mitten im Lauf, sieht erst der nächste Lauf das (neue Aufnahmen kommen dann dran).
 final class PlanSpeicher: Sendable {
@@ -101,6 +111,9 @@ struct FotoQuelleLive: FotoQuelle {
         let treffer = PHAsset.fetchAssets(withLocalIdentifiers: [r.assetId], options: nil)
         guard let asset = treffer.firstObject,
               let objekt = FotoBibliothek.ressourcen(asset).first(where: { $0.ressource.name == r.name })?.objekt else { throw FotoFehler.nichtGefunden }
+        // Ursache des Stillstands (26.10.): ohne Netz bleibt `requestData` bei Dateien, die nur in iCloud liegen, einfach stehen (weder Daten noch Fehler).
+        // Bei Ahmed liegen die meisten noch offenen Originale nur in iCloud; jede belegte einen Platz für immer. Darum vorher fragen und sofort zurückstellen.
+        if !iCloud, Self.liegtAufDemHandy(objekt) == false { throw FotoFehler.nurInICloud }
         let ziel = FotoTemp.ordner.appending(path: "\(UUID().uuidString)-\(r.name)")
         guard FileManager.default.createFile(atPath: ziel.path, contents: nil) else { throw FotoFehler.speicherKnapp }
         let optionen = PHAssetResourceRequestOptions()
@@ -112,10 +125,18 @@ struct FotoQuelleLive: FotoQuelle {
         } catch {
             try? FileManager.default.removeItem(at: ziel)
             if Task.isCancelled { throw CancellationError() }
-            // Ist das Laden aus iCloud aus, heißt jeder Fehler hier: das Original liegt nicht auf dem Handy.
+            // Ist das Laden aus iCloud aus, heißt jeder Fehler hier: das Original liegt nicht auf dem Handy. Ein Hänger bleibt ein Hänger (Zählung).
+            if (error as? FotoFehler) == .haengt { throw FotoFehler.haengt }
             throw iCloud ? error : FotoFehler.nurInICloud
         }
         return ziel
+    }
+
+    /// Ob die Datei schon auf dem Handy liegt. PhotoKit sagt das nur über den Schlüssel `locallyAvailable` (nicht dokumentiert, seit iOS 9 da);
+    /// fehlt er, `nil`, dann entscheidet der Export selbst (mit `Stillstand` als Grenze).
+    static func liegtAufDemHandy(_ r: PHAssetResource) -> Bool? {
+        guard r.responds(to: NSSelectorFromString("locallyAvailable")) else { return nil }
+        return r.value(forKey: "locallyAvailable") as? Bool
     }
 
     private static func schreibe(_ objekt: PHAssetResource, in datei: FileHandle, optionen: PHAssetResourceRequestOptions) async throws {
@@ -123,15 +144,31 @@ struct FotoQuelleLive: FotoQuelle {
         // Die Rückrufe laufen laut Apple auf einer seriellen Warteschlange, die Anfrage-ID gehört zu dieser Instanz.
         let manager = PHAssetResourceManager()
         let fortsetzung = EinmalFortsetzung<Void>()
+        let wache = Stillstand()
+        // Lokal kommt das erste Byte sofort; aus iCloud darf es dauern.
+        let grenze: Duration = optionen.isNetworkAccessAllowed ? .seconds(120) : .seconds(30)
+        // Aus iCloud lädt PhotoKit erst herunter und liefert dann Daten: der Fortschritt des Downloads zählt auch als Lebenszeichen.
+        optionen.progressHandler = { _ in wache.regt() }
         let anfrage = Mutex<PHAssetResourceDataRequestID?>(nil)
         let zu = Mutex(false)
         let schreibFehler = Mutex<(any Error)?>(nil)
         defer { zu.withLock { $0 = true } }
+        let waechter = Task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(5))
+                guard wache.ruht(laengerAls: grenze) else { continue }
+                if let id = anfrage.withLock({ $0 }) { manager.cancelDataRequest(id) }
+                fortsetzung.wirf(FotoFehler.haengt)
+                return
+            }
+        }
+        defer { waechter.cancel() }
         try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { (c: CheckedContinuation<Void, any Error>) in
                 fortsetzung.setze(c)
                 let id = manager.requestData(for: objekt, options: optionen, dataReceivedHandler: { daten in
                     guard !zu.withLock({ $0 }) else { return }
+                    wache.regt()
                     do { try datei.write(contentsOf: daten) } catch { schreibFehler.withLock { $0 = error } }
                 }, completionHandler: { fehler in
                     let grund = schreibFehler.withLock { $0 } ?? fehler

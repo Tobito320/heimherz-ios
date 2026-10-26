@@ -221,40 +221,67 @@ final class DateienSucheModell {
     func warteAufEnde() async { await aufgabe?.value }
 }
 
-/// Erfundene Dateien für Screenshots (`-heimherzDemo YES`): Ordner mit Anzahl, PDFs, Bilder, Videos.
+/// Erfundene Dateien für Screenshots (`-heimherzDemo YES`) in derselben Ordnung wie am PC: Bürokratie, Projekte, Weitere, dazu Aboherz in der Wurzel.
 enum DateienDemo {
     private static func vor(_ tage: Double) -> String { Zeit.iso(Date(timeIntervalSinceNow: -tage * 86_400)) }
 
-    static func liste(ordner: [String]) -> [DateiInfo] {
-        if ordner.isEmpty {
-            return [
-                DateiInfo(name: "Büro", ordner: true, groesse: 0, geaendert: vor(2), anzahl: 12),
-                DateiInfo(name: "Fitness", ordner: true, groesse: 0, geaendert: vor(9), anzahl: 8),
-                DateiInfo(name: "Scans", ordner: true, groesse: 0, geaendert: vor(30), anzahl: 24),
-                DateiInfo(name: "Videos", ordner: true, groesse: 0, geaendert: vor(70), anzahl: 3),
-                DateiInfo(name: "Mietvertrag.pdf", ordner: false, groesse: 482_000, geaendert: vor(5)),
-                DateiInfo(name: "Rechnung Strom Oktober.pdf", ordner: false, groesse: 96_000, geaendert: vor(3)),
-                DateiInfo(name: "Urlaub Strand.jpg", ordner: false, groesse: 3_400_000, geaendert: vor(40)),
-                DateiInfo(name: "Grillabend.jpg", ordner: false, groesse: 2_100_000, geaendert: vor(12)),
-                DateiInfo(name: "Wanderung Film.mp4", ordner: false, groesse: 58_000_000, geaendert: vor(20)),
-                DateiInfo(name: "Budget 2026.xlsx", ordner: false, groesse: 31_000, geaendert: vor(1)),
-                DateiInfo(name: "Notizen.txt", ordner: false, groesse: 1_200, geaendert: vor(8)),
-            ]
-        }
-        return [
-            DateiInfo(name: "Rechnung Internet.pdf", ordner: false, groesse: 120_000, geaendert: vor(6)),
-            DateiInfo(name: "Rechnung Versicherung.pdf", ordner: false, groesse: 210_000, geaendert: vor(15)),
-            DateiInfo(name: "Kündigung Fitnessstudio.pdf", ordner: false, groesse: 64_000, geaendert: vor(50)),
-            DateiInfo(name: "Steuerbescheid 2025.pdf", ordner: false, groesse: 340_000, geaendert: vor(90)),
-        ]
+    private static func ordner(_ name: String, _ anzahl: Int, _ tage: Double) -> DateiInfo {
+        DateiInfo(name: name, ordner: true, groesse: 0, geaendert: vor(tage), anzahl: anzahl)
     }
 
-    /// Alles, was die Demo-Suche kennt (Pfade relativ zur Wurzel), Ordner zuerst.
+    private static func datei(_ name: String, _ groesse: Int64, _ tage: Double) -> DateiInfo {
+        DateiInfo(name: name, ordner: false, groesse: groesse, geaendert: vor(tage))
+    }
+
+    /// Inhalt eines Ordners; `[]` ist die Wurzel. Unbekannte Ordner sind leer.
+    static func liste(ordner pfad: [String]) -> [DateiInfo] {
+        switch pfad.joined(separator: "/") {
+        case "":
+            return [ordner("Bürokratie", 9, 2), ordner("Projekte", 3, 6), ordner("Weitere", 3, 9), ordner("Aboherz", 2, 1)]
+        case "Bürokratie":
+            return [
+                ordner("4 Geld", 6, 2), ordner("2 Jobcenter", 55, 3), ordner("_Archiv", 7, 30),
+                ordner("1 Ausweise", 5, 40), ordner("6 Gesundheit", 3, 12), ordner("7 Schule & Arbeit", 8, 20),
+                ordner("5 Wohnen", 5, 5), ordner("3 Behörden", 7, 8), ordner("_Alt vor 17.09.2026", 40, 70),
+            ]
+        case "Projekte":
+            return [ordner("Coding", 14, 1), ordner("Money Machine – Claude Business", 9, 4), ordner("Videos", 3, 70)]
+        case "Weitere":
+            return [ordner("Fitness", 8, 9), ordner("Sonstiges", 11, 3), ordner("iCloud Drive", 24, 30)]
+        case "Bürokratie/4 Geld":
+            return [
+                datei("Rechnung Internet.pdf", 120_000, 6), datei("Rechnung Strom Oktober.pdf", 96_000, 3),
+                datei("Rechnung Versicherung.pdf", 210_000, 15), datei("Kündigung Fitnessstudio.pdf", 64_000, 50),
+                datei("Budget 2026.xlsx", 31_000, 1), datei("Steuerbescheid 2025.pdf", 340_000, 90),
+            ]
+        case "Bürokratie/2 Jobcenter":
+            return [
+                datei("Bescheid Oktober.pdf", 182_000, 4), datei("Mietvertrag.pdf", 482_000, 5),
+                datei("Weiterbewilligungsantrag.pdf", 240_000, 20), datei("Notizen.txt", 1_200, 8),
+            ]
+        case "Weitere/Sonstiges":
+            return [
+                datei("Urlaub Strand.jpg", 3_400_000, 40), datei("Grillabend.jpg", 2_100_000, 12),
+                datei("Wanderung Film.mp4", 58_000_000, 20), datei("Notizen.txt", 1_200, 8),
+            ]
+        default:
+            return []
+        }
+    }
+
+    /// Die Startseite der Demo, gebaut wie am PC aus Wurzel und Kategorie-Ordnern.
+    static let abschnitte: [StartAbschnitt] = DateienStart.bilde(
+        wurzel: liste(ordner: []),
+        inhalte: Dictionary(uniqueKeysWithValues: DateiKategorie.allCases.map { ($0, liste(ordner: [$0.ordnerName])) })
+    )
+
+    /// Alles, was die Demo-Suche kennt (Pfade relativ zur Wurzel): die Ordner der Startseite, dann die Dateien der Demo-Ordner.
     static let treffer: [SuchTreffer] = {
-        let wurzel = liste(ordner: [])
-        let unten = liste(ordner: ["Büro"])
-        return wurzel.filter(\.ordner).map { SuchTreffer(pfad: $0.name, name: $0.name, ordner: true, groesse: 0, geaendert: $0.geaendert) }
-            + unten.map { SuchTreffer(pfad: "Büro/\($0.name)", name: $0.name, ordner: false, groesse: $0.groesse, geaendert: $0.geaendert) }
-            + wurzel.filter { !$0.ordner }.map { SuchTreffer(pfad: $0.name, name: $0.name, ordner: false, groesse: $0.groesse, geaendert: $0.geaendert) }
+        func als(_ e: DateiInfo, _ pfad: String) -> SuchTreffer { SuchTreffer(pfad: pfad, name: e.name, ordner: e.ordner, groesse: e.groesse, geaendert: e.geaendert) }
+        let ordnerZeilen = abschnitte.flatMap(\.zeilen).map { als($0.info, $0.pfad) }
+        let dateien = ["Bürokratie/4 Geld", "Bürokratie/2 Jobcenter", "Weitere/Sonstiges"].flatMap { pfad in
+            liste(ordner: DateiPfad.teile(pfad)).map { als($0, "\(pfad)/\($0.name)") }
+        }
+        return ordnerZeilen + dateien
     }()
 }

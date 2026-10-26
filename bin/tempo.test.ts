@@ -58,3 +58,9 @@ test('Ablegen danach = gesamtMs minus empfangMs', () => {
   const t = fasseTempo([zeile(1, { gesamtMs: 1300 }), zeile(2, { gesamtMs: 1500 })]).join('\n');
   expect(t).toContain('Ablegen danach (Server, gesamt minus Empfang): Ø 400 ms');
 });
+
+test('Zähler je Lauf: zurückgestellt und Hänger, höchster Wert im Fenster; ohne Werte keine Zeile', () => {
+  const t = fasseTempo([zeile(1, { aufgeschoben: 3, haenger: 0 }), zeile(2, { aufgeschoben: 40, haenger: 1 })], 10).join('\n');
+  expect(t).toContain('Nach iCloud zurückgestellt: 40; Export hing und wurde abgebrochen: 1');
+  expect(fasseTempo([zeile(1)], 10).join('\n')).not.toContain('zurückgestellt');
+});

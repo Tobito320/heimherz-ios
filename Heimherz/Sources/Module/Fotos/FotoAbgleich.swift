@@ -96,7 +96,7 @@ actor FotoAbgleich {
     /// Gleichzeitige Uploads (Messung am Gerät: nacheinander nur 2,6 MB/s bei 1 Gbit/s am PC, der Engpass war das Nacheinander).
     static let wlanParallel = 6
     static let mobilParallel = 2
-    static let iCloudParallel = 2
+    static let iCloudParallel = 4
     /// Bis zu so viele fertig exportierte Dateien warten auf einen freien Upload-Platz, und nur bis zu so vielen Bytes.
     static let standardVoraus = 12
     static let standardPuffer: Int64 = 1_000_000_000
@@ -132,6 +132,9 @@ actor FotoAbgleich {
     /// Für die Messung (`FotoMessung`): laufende Uploads und Exporte in diesem Moment.
     private var aktiveUploads = 0
     private var aktiveExporte = 0
+    /// In diesem Lauf in den iCloud-Durchgang zurückgestellt und vom `Stillstand` abgebrochen (gehen als Messung mit, `X-Heim-Aufgeschoben`, `X-Heim-Haenger`).
+    private var aufgeschoben = 0
+    private var haenger = 0
 
     private var stand = FotoStand()
     private var anzeige = FotoAnzeige()
@@ -201,7 +204,7 @@ actor FotoAbgleich {
         defer { takt.cancel() }
         erledigt = 0; gescheitert = 0; wartetAufWLAN = 0; exportFehler = nil; abbruch = nil; wlanStop = false
         uebersprungen = []; fehlend = [:]; gesendet = [:]; imFlug = [:]
-        zurueckgestellt = []; inICloudPhase = false; ladeSchranke = nil; puffer = 0
+        zurueckgestellt = []; inICloudPhase = false; ladeSchranke = nil; puffer = 0; aufgeschoben = 0; haenger = 0
         tempo = FotoTempo(start: jetzt())
         letzteSicherung = jetzt(); seitSicherung = 0
         // Zahlen vom letzten Mal, damit Überschrift und Balken beim Start nicht verschwinden (auch beim Einzel-Upload, der nicht neu zählt).
@@ -395,6 +398,7 @@ actor FotoAbgleich {
         case .stop(let f): abbruch = f
         case .abgebrochen(let r): uebersprungen.insert(r.schluessel)
         case .nachICloud(let r):
+            aufgeschoben += 1
             zurueckgestellt.insert(r.schluessel)
             uebersprungen.insert(r.schluessel)
         }
@@ -425,8 +429,9 @@ actor FotoAbgleich {
         } catch is CancellationError {
             return .abgebrochen(r)
         } catch {
-            // Erster Durchgang: liegt das Original nicht auf dem Handy, kommt es in den iCloud-Durchgang (falls erlaubt).
-            if !iCloud, stand.iCloudErlaubt, (error as? FotoFehler) == .nurInICloud { return .nachICloud(r) }
+            if (error as? FotoFehler) == .haengt { haenger += 1 }
+            // Erster Durchgang: liegt das Original nicht auf dem Handy (oder hing der Export), kommt es in den iCloud-Durchgang (falls erlaubt).
+            if !iCloud, stand.iCloudErlaubt, [.nurInICloud, .haengt].contains(error as? FotoFehler) { return .nachICloud(r) }
             return .nichtLesbar(r, (error as? FotoFehler)?.nutzerText ?? "nicht lesbar")
         }
         let exportFertig = ContinuousClock.now
@@ -444,7 +449,8 @@ actor FotoAbgleich {
             puffer -= bytes
             imPuffer = false
             aktiveUploads += 1
-            FotoMessung(exportMs: exportMs, warteMs: FotoMessung.ms(seit: exportFertig), aktiv: aktiveUploads, exporte: aktiveExporte, iCloud: iCloud).setze(in: &anfrage)
+            FotoMessung(exportMs: exportMs, warteMs: FotoMessung.ms(seit: exportFertig), aktiv: aktiveUploads, exporte: aktiveExporte, iCloud: iCloud,
+                        aufgeschoben: aufgeschoben, haenger: haenger).setze(in: &anfrage)
             // Ein Anhalten kann den Platz und den Abbruch gleichzeitig bringen: dann nicht mehr senden.
             if Task.isCancelled {
                 await gibPlatz()
@@ -514,12 +520,15 @@ enum FotoFehler: Error, Equatable {
     case speicherKnapp
     case nichtGefunden
     case nurInICloud
+    /// PhotoKit lieferte zu lange keine Daten (`Stillstand`); die Datei kommt beim nächsten Lauf wieder dran.
+    case haengt
 
     var nutzerText: String {
         switch self {
         case .speicherKnapp: return "zu wenig freier Speicher am Handy"
         case .nichtGefunden: return "nicht mehr in der Mediathek"
         case .nurInICloud: return "liegt nur in iCloud, und das Laden von iCloud ist aus"
+        case .haengt: return "Laden hing, kommt beim nächsten Mal dran"
         }
     }
 }

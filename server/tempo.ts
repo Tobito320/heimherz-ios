@@ -9,13 +9,14 @@ export type TempoZeile = {
   zeit: string; bytes: number; empfangMs: number; gesamtMs: number; ergebnis: 'neu' | 'schon' | 'abbruch'; art: string;
   exportMs: number | null; warteMs: number | null; aktiv: number | null; exporte: number | null;
   vordergrund: 0 | 1 | null; durchgang: 'lokal' | 'icloud' | null; session: 'vorder' | 'hinter' | null;
+  aufgeschoben?: number | null; haenger?: number | null;
 };
 
 const ARTEN = ['foto', 'video', 'live', 'alternative', 'ton'];
 const ganzzahl = (v: string | null) => (v !== null && /^\d{1,9}$/.test(v) ? Number(v) : null);
 const wahl = <T extends string>(v: string | null, erlaubt: readonly T[]): T | null => (erlaubt as readonly string[]).includes(v ?? '') ? (v as T) : null;
 
-export function tempoKopf(h: Headers, ressource: string): Pick<TempoZeile, 'art' | 'exportMs' | 'warteMs' | 'aktiv' | 'exporte' | 'vordergrund' | 'durchgang' | 'session'> {
+export function tempoKopf(h: Headers, ressource: string): Pick<TempoZeile, 'art' | 'exportMs' | 'warteMs' | 'aktiv' | 'exporte' | 'vordergrund' | 'durchgang' | 'session' | 'aufgeschoben' | 'haenger'> {
   const v = h.get('x-heim-vordergrund');
   return {
     art: ARTEN.find(a => ressource.startsWith(a + '-')) ?? 'andere',
@@ -23,6 +24,7 @@ export function tempoKopf(h: Headers, ressource: string): Pick<TempoZeile, 'art'
     aktiv: ganzzahl(h.get('x-heim-aktiv')), exporte: ganzzahl(h.get('x-heim-exporte')),
     vordergrund: v === '1' ? 1 : v === '0' ? 0 : null,
     durchgang: wahl(h.get('x-heim-durchgang'), ['lokal', 'icloud']), session: wahl(h.get('x-heim-session'), ['vorder', 'hinter']),
+    aufgeschoben: ganzzahl(h.get('x-heim-aufgeschoben')), haenger: ganzzahl(h.get('x-heim-haenger')),
   };
 }
 

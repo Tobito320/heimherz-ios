@@ -4,9 +4,62 @@ import UniformTypeIdentifiers
 
 // Bausteine des Dateien-Tabs. Nur Systemkomponenten und Systemfarben (SPEC 12): kein eigener Hintergrund, keine Karten.
 
-extension Color {
-    /// Das helle Blau der Ordner in Apples Dateien (Vorbild: Bildschirmfoto von Ahmed, iOS 26).
-    static let dateiOrdnerBlau = Color(red: 0.47, green: 0.72, blue: 0.93)
+/// Der Ordner wie in Apples Dateien (Vorbild: Bildschirmfoto von Ahmed, iOS 26), selbst gezeichnet: hinteres Blatt mit Reiter, ein weißer
+/// Papierstreifen, davor die Vorderseite mit leichtem Verlauf. Feste Farben, in Hell und Dunkel gleich; kein Schlitz, durch den der Hintergrund scheint.
+struct OrdnerSymbol: View {
+    static let seitenverhaeltnis: CGFloat = 1.24
+
+    private static let hinten = Color(red: 0.42, green: 0.70, blue: 0.89)
+    private static let vorneOben = Color(red: 0.53, green: 0.79, blue: 0.95)
+    private static let vorneUnten = Color(red: 0.39, green: 0.68, blue: 0.86)
+
+    var body: some View {
+        ZStack {
+            OrdnerRueckseite().fill(Self.hinten)
+            OrdnerPapier().fill(Color.white)
+            OrdnerVorderseite().fill(LinearGradient(colors: [Self.vorneOben, Self.vorneUnten], startPoint: .top, endPoint: .bottom))
+        }
+        .aspectRatio(Self.seitenverhaeltnis, contentMode: .fit)
+        .accessibilityHidden(true)
+    }
+}
+
+/// Hinteres Blatt: Reiter links, danach eine Stufe nach unten bis zur rechten Kante.
+private struct OrdnerRueckseite: Shape {
+    func path(in r: CGRect) -> Path {
+        let w = r.width, h = r.height
+        let stufe = h * 0.09
+        let ecke = w * 0.05
+        var p = Path()
+        p.move(to: CGPoint(x: r.minX, y: r.maxY))
+        p.addLine(to: CGPoint(x: r.minX, y: r.minY + ecke))
+        p.addQuadCurve(to: CGPoint(x: r.minX + ecke, y: r.minY), control: CGPoint(x: r.minX, y: r.minY))
+        p.addLine(to: CGPoint(x: r.minX + w * 0.33, y: r.minY))
+        p.addCurve(to: CGPoint(x: r.minX + w * 0.39, y: r.minY + stufe),
+                   control1: CGPoint(x: r.minX + w * 0.365, y: r.minY),
+                   control2: CGPoint(x: r.minX + w * 0.355, y: r.minY + stufe))
+        p.addLine(to: CGPoint(x: r.maxX - ecke, y: r.minY + stufe))
+        p.addQuadCurve(to: CGPoint(x: r.maxX, y: r.minY + stufe + ecke), control: CGPoint(x: r.maxX, y: r.minY + stufe))
+        p.addLine(to: CGPoint(x: r.maxX, y: r.maxY))
+        p.closeSubpath()
+        return p
+    }
+}
+
+/// Der weiße Papierstreifen zwischen hinterem Blatt und Vorderseite (unten von der Vorderseite verdeckt).
+private struct OrdnerPapier: Shape {
+    func path(in r: CGRect) -> Path {
+        Path(roundedRect: CGRect(x: r.minX + r.width * 0.03, y: r.minY + r.height * 0.13, width: r.width * 0.94, height: r.height * 0.2),
+             cornerRadius: r.width * 0.03, style: .continuous)
+    }
+}
+
+private struct OrdnerVorderseite: Shape {
+    func path(in r: CGRect) -> Path {
+        let oben = r.height * 0.185
+        return Path(roundedRect: CGRect(x: r.minX, y: r.minY + oben, width: r.width, height: r.height - oben),
+                    cornerRadius: r.width * 0.045, style: .continuous)
+    }
 }
 
 /// Ordner im Navigationsstapel: ein Wert je Stufe, `ordner` ist der ganze Weg von der Wurzel.
@@ -46,10 +99,7 @@ struct DateiBild: View {
     var body: some View {
         ZStack {
             if eintrag.ordner {
-                Image(systemName: "folder.fill")
-                    .resizable().scaledToFit()
-                    .foregroundStyle(Color.dateiOrdnerBlau)
-                    .padding(seite * 0.1)
+                OrdnerSymbol().padding(seite * 0.04)
             } else if let bild {
                 Image(uiImage: bild)
                     .resizable().scaledToFit()
@@ -161,10 +211,14 @@ struct DateiInfoBlatt: View {
             List {
                 Section {
                     HStack(spacing: 12) {
-                        Image(systemName: DateiAnzeige.symbol(name: e.name, ordner: e.ordner))
-                            .font(.largeTitle)
-                            .foregroundStyle(e.ordner ? Color.dateiOrdnerBlau : Color.secondary)
-                            .accessibilityHidden(true)
+                        if e.ordner {
+                            OrdnerSymbol().frame(width: 52)
+                        } else {
+                            Image(systemName: DateiAnzeige.symbol(name: e.name, ordner: false))
+                                .font(.largeTitle)
+                                .foregroundStyle(Color.secondary)
+                                .accessibilityHidden(true)
+                        }
                         Text(e.name).font(.headline).fixedSize(horizontal: false, vertical: true)
                     }
                 }

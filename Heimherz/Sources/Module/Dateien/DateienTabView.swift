@@ -12,7 +12,7 @@ struct DateienTabView: View {
 
     init() {
         #if DEBUG
-        // Nur Screenshots in CI: `-heimherzDateienOrdner "Büro"` öffnet den Ordner.
+        // Nur Screenshots in CI: `-heimherzDateienOrdner "Bürokratie/4 Geld"` öffnet den Ordner.
         if let name = UserDefaults.standard.string(forKey: "heimherzDateienOrdner") {
             _pfad = State(initialValue: DateiPfad.stufen(DateiPfad.teile(name)).map { OrdnerZiel(ordner: $0) })
         }
@@ -55,11 +55,13 @@ struct OrdnerSeite: View {
 
     @Environment(\.dynamicTypeSize) private var schriftgroesse
     @State private var modell: DateienModell
+    @State private var startModell: DateienStartModell
     @State private var suchModell: DateienSucheModell
     @State private var suchtext: String
     @State private var bereich = SuchBereich.alle
     @AppStorage("heimherzDateienAnsicht") private var ansicht = "symbole"
     @AppStorage("heimherzDateienSortierung") private var sortierungRoh = "name-auf"
+    @AppStorage("heimherzDateienEingeklappt") private var eingeklappt = EingeklappteAbschnitte()
     @State private var zeigeImport = false
     @State private var zeigeFotos = false
     @State private var fotoAuswahl: [PhotosPickerItem] = []
@@ -75,6 +77,7 @@ struct OrdnerSeite: View {
         _navigation = navigation
         let holeClient: @MainActor () throws -> HeimClient = { try umgebung.client() }
         _modell = State(initialValue: DateienModell(ordner: ordner, istDemo: umgebung.istDemo, holeClient: holeClient))
+        _startModell = State(initialValue: DateienStartModell(istDemo: umgebung.istDemo, holeClient: holeClient))
         _suchModell = State(initialValue: DateienSucheModell(demo: umgebung.istDemo ? DateienDemo.treffer : nil, holeClient: holeClient))
         _suchtext = State(initialValue: Self.startSuche)
     }
@@ -97,7 +100,7 @@ struct OrdnerSeite: View {
     var body: some View {
         hauptteil
             .navigationTitle(titel)
-            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarTitleDisplayMode(ordner.isEmpty ? .large : .inline)
             .searchable(text: $suchtext, placement: .navigationBarDrawer(displayMode: .always), prompt: "Suchen")
             .modifier(SuchBereiche(aktiv: !ordner.isEmpty, auswahl: $bereich, ordnerName: titel))
             .onChange(of: suchtext) { _, _ in starteSuche() }
@@ -131,7 +134,7 @@ struct OrdnerSeite: View {
                 Text("Am PC landet es im Papierkorb. Dort kannst du es zurückholen.")
             }
             .task {
-                await modell.lade()
+                if ordner.isEmpty { await startModell.lade() } else { await modell.lade() }
                 if istSuche { starteSuche() }
             }
     }
@@ -139,7 +142,79 @@ struct OrdnerSeite: View {
     // MARK: Aufbau
 
     @ViewBuilder private var hauptteil: some View {
-        if istSuche { ergebnisse } else { inhalt }
+        if istSuche { ergebnisse } else if ordner.isEmpty { startseite } else { inhalt }
+    }
+
+    // MARK: Startseite (wie "Durchsuchen" in Dateien)
+
+    @ViewBuilder private var startseite: some View {
+        switch startModell.zustand {
+        case .laedt where startModell.abschnitte.isEmpty:
+            ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+        case .fehler(let text, let offline) where startModell.abschnitte.isEmpty:
+            ContentUnavailableView {
+                Label(offline ? "PC nicht erreichbar" : "Das hat nicht geklappt", systemImage: offline ? "wifi.slash" : "exclamationmark.triangle")
+            } description: {
+                Text(text)
+            } actions: {
+                Button("Erneut versuchen") { Task { await startModell.lade() } }
+            }
+        default:
+            if startModell.abschnitte.isEmpty {
+                ContentUnavailableView("Noch keine Dateien", systemImage: "folder")
+            } else {
+                List {
+                    ForEach(startModell.abschnitte) { a in
+                        Section {
+                            if !eingeklappt.istEingeklappt(a.kategorie) {
+                                ForEach(a.zeilen) { startZeile($0) }
+                            }
+                        } header: {
+                            abschnittsKopf(a.kategorie)
+                        }
+                    }
+                }
+                .listStyle(.insetGrouped)
+                .refreshable { await startModell.lade() }
+            }
+        }
+    }
+
+    /// Fette Überschrift mit Pfeil rechts, der den Abschnitt ein- und ausklappt (wie "Speicherorte" im Vorbild).
+    private func abschnittsKopf(_ k: DateiKategorie) -> some View {
+        let zu = eingeklappt.istEingeklappt(k)
+        return Button {
+            withAnimation { eingeklappt.schalte(k) }
+        } label: {
+            HStack {
+                Text(k.titel).font(.title3.bold()).foregroundStyle(Color.primary)
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.down")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(Color.secondary)
+                    .rotationEffect(.degrees(zu ? -90 : 0))
+            }
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .textCase(nil)
+        .accessibilityAddTraits(.isHeader)
+        .accessibilityValue(zu ? "eingeklappt" : "ausgeklappt")
+    }
+
+    /// Eine Zeile: blaues Symbol, Name, Pfeil. Ordner öffnen die Rasteransicht, Dateien die Vorschau.
+    @ViewBuilder private func startZeile(_ z: StartZeile) -> some View {
+        let beschriftung = HStack(spacing: 12) {
+            Image(systemName: z.symbol).font(.title3).foregroundStyle(Color.blue).frame(width: 28).accessibilityHidden(true)
+            Text(z.info.name).foregroundStyle(Color.primary).fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(minHeight: 44)
+        if z.info.ordner {
+            NavigationLink(value: OrdnerZiel(ordner: DateiPfad.teile(z.pfad))) { beschriftung }
+        } else {
+            Button { Task { await oeffne(Gewaehlt(info: z.info, pfad: z.pfad)) } } label: { beschriftung }
+        }
     }
 
     @ViewBuilder private var inhalt: some View {
@@ -272,13 +347,15 @@ struct OrdnerSeite: View {
     /// Der runde Drei-Punkte-Knopf oben rechts (wie in Dateien): Ansicht, Sortieren, Hochladen.
     private var mehrMenue: some View {
         Menu {
-            Picker("Ansicht", selection: $ansicht) {
-                Label("Symbole", systemImage: "square.grid.2x2").tag("symbole")
-                Label("Liste", systemImage: "list.bullet").tag("liste")
-            }
-            .pickerStyle(.inline)
-            Section("Sortieren nach") {
-                ForEach(SortierKriterium.allCases, id: \.self) { k in sortierKnopf(k) }
+            if !ordner.isEmpty {
+                Picker("Ansicht", selection: $ansicht) {
+                    Label("Symbole", systemImage: "square.grid.2x2").tag("symbole")
+                    Label("Liste", systemImage: "list.bullet").tag("liste")
+                }
+                .pickerStyle(.inline)
+                Section("Sortieren nach") {
+                    ForEach(SortierKriterium.allCases, id: \.self) { k in sortierKnopf(k) }
+                }
             }
             Section {
                 Button("Aus Dateien …", systemImage: "folder") { zeigeImport = true }
@@ -308,7 +385,9 @@ struct OrdnerSeite: View {
 
     /// Meldungen, Upload-Stand und Offline-Hinweis oben, über dem Inhalt; ohne etwas davon 0 pt hoch.
     private var warnung: (text: String, offline: Bool)? {
-        guard case .fehler(let text, let offline) = modell.zustand, !modell.eintraege.isEmpty else { return nil }
+        let zustand = ordner.isEmpty ? startModell.zustand : modell.zustand
+        let hatDaten = ordner.isEmpty ? !startModell.abschnitte.isEmpty : !modell.eintraege.isEmpty
+        guard case .fehler(let text, let offline) = zustand, hatDaten else { return nil }
         return (offline ? "Offline: \(text)" : text, offline)
     }
 
@@ -385,7 +464,10 @@ struct OrdnerSeite: View {
     }
 
     private func papierkorb(_ g: Gewaehlt) async {
-        if await modell.inPapierkorb(pfad: g.pfad, name: g.info.name), istSuche { suchModell.wiederhole() }
+        if await modell.inPapierkorb(pfad: g.pfad, name: g.info.name) {
+            if ordner.isEmpty { await startModell.lade() }
+            if istSuche { suchModell.wiederhole() }
+        }
     }
 
     // MARK: Hochladen
@@ -398,6 +480,7 @@ struct OrdnerSeite: View {
             dateien.append((u, u.lastPathComponent))
         }
         await modell.hochladen(dateien)
+        if ordner.isEmpty { await startModell.lade() }
         zugriff.forEach { $0.stopAccessingSecurityScopedResource() }
     }
 
@@ -410,6 +493,7 @@ struct OrdnerSeite: View {
             dateien.append((datei.url, name))
         }
         await modell.hochladen(dateien)
+        if ordner.isEmpty { await startModell.lade() }
         for d in dateien { try? FileManager.default.removeItem(at: d.url.deletingLastPathComponent()) }
     }
 }

@@ -17,6 +17,8 @@ private struct FakeQuelle: FotoQuelle {
     let versuche = Kasten<[String]>([])
     /// Diese Dateien liegen nur in iCloud: ohne iCloud-Erlaubnis scheitert der Export.
     var nurInICloud: Set<String> = []
+    /// Diese Dateien hängen ohne iCloud (wie PhotoKit bei Originalen, die nur in iCloud liegen): der Export wirft `haengt`.
+    var haengtLokal: Set<String> = []
 
     func plane(stand: FotoStand, hoechstens: Int, nur: [String]?, uebersprungen: Set<String>) async -> FotoPlan.Ergebnis {
         plaene.mit { $0 += 1 }
@@ -32,6 +34,7 @@ private struct FakeQuelle: FotoQuelle {
         iCloudWerte.mit { $0.append(iCloud) }
         versuche.mit { $0.append("\(r.dateiname):\(iCloud)") }
         if !iCloud, nurInICloud.contains(r.dateiname) { throw FotoFehler.nurInICloud }
+        if !iCloud, haengtLokal.contains(r.dateiname) { throw FotoFehler.haengt }
         try await beimExport?(r)
         let u = ordner.appending(path: "\(UUID().uuidString)-\(r.name)")
         try Data("inhalt \(r.name)".utf8).write(to: u)
@@ -78,7 +81,7 @@ final class FotoAbgleichTests: XCTestCase {
 
     private func baue(assets: [(kopf: FotoKopf, teile: [(art: FotoArt, dateiname: String)])], bekannt: String = "[]", bekanntStatus: Int = 200,
                       wlan: Bool = true, nurWLAN: Bool? = nil, sender: FakeSender = FakeSender(), gleichzeitig: Int = 2, voraus: Int = 0, stueck: Int = 20,
-                      ablage vorhanden: FotoStandAblage? = nil, aktiv: Kasten<Int>? = nil, nurInICloud: Set<String> = [], beimExport: (@Sendable (FotoRessource) async throws -> Void)? = nil) throws -> Umgebung {
+                      ablage vorhanden: FotoStandAblage? = nil, aktiv: Kasten<Int>? = nil, nurInICloud: Set<String> = [], haengtLokal: Set<String> = [], beimExport: (@Sendable (FotoRessource) async throws -> Void)? = nil) throws -> Umgebung {
         let temp = try tempOrdner()
         let ablage = try vorhanden ?? FotoStandAblage(ordner: try tempOrdner())
         if let nurWLAN { ablage.aendere { $0.nurWLAN = nurWLAN } }
@@ -90,6 +93,7 @@ final class FotoAbgleichTests: XCTestCase {
         let anzeigen = Kasten<[FotoAnzeige]>([])
         var quelle = FakeQuelle(assets: assets, ordner: temp, beimExport: beimExport)
         quelle.nurInICloud = nurInICloud
+        quelle.haengtLokal = haengtLokal
         quelle.aktiv = aktiv
         let a = FotoAbgleich(client: client, quelle: quelle, sender: sender, netz: FakeNetzart(wlan: wlan), ablage: ablage,
                              gleichzeitig: gleichzeitig, voraus: voraus, stueck: stueck, jetzt: { Date(timeIntervalSince1970: 1_800_000_000) }) { neu in anzeigen.mit { $0.append(neu) } }
@@ -381,6 +385,18 @@ final class FotoAbgleichTests: XCTestCase {
         XCTAssertNil(anfragen[0].value(forHTTPHeaderField: "X-Heim-Vordergrund"), "das setzt erst der Sender")
     }
 
+    func testHaengenderExportKommtInDenICloudDurchgangUndWirdGezaehlt() async throws {
+        let assets = viele(3)
+        let u = try baue(assets: assets, gleichzeitig: 1, haengtLokal: ["x2.heic"])
+        await u.abgleich.abgleichen()
+        let anfragen = u.sender.anfragen.mit { $0 }
+        XCTAssertEqual(anfragen.map { $0.value(forHTTPHeaderField: "X-Heim-Durchgang") }, ["lokal", "lokal", "icloud"], "x2 kommt nach dem Hänger im zweiten Durchgang")
+        XCTAssertEqual(anfragen.last?.value(forHTTPHeaderField: "X-Heim-Haenger"), "1")
+        XCTAssertEqual(anfragen.last?.value(forHTTPHeaderField: "X-Heim-Aufgeschoben"), "1")
+        XCTAssertEqual(anfragen.first?.value(forHTTPHeaderField: "X-Heim-Haenger"), "0")
+        XCTAssertEqual(u.ablage.lade().fertig.count, 3)
+    }
+
     func testErstAllesLokalDannDieICloudOriginale() async throws {
         let assets = viele(3)
         let u = try baue(assets: assets, gleichzeitig: 1, nurInICloud: ["x2.heic"])
@@ -403,18 +419,19 @@ final class FotoAbgleichTests: XCTestCase {
         XCTAssertEqual(u.ablage.lade().fehler, "1 Datei konnte nicht übertragen werden (liegt nur in iCloud, und das Laden von iCloud ist aus).")
     }
 
-    func testHoechstensZweiICloudDownloadsGleichzeitig() async throws {
+    func testHoechstensICloudParallelDownloadsGleichzeitig() async throws {
         let jetzt = Kasten<Int>(0), hoechstens = Kasten<Int>(0)
-        let namen = Set((1...6).map { "x\($0).heic" })
-        let u = try baue(assets: viele(6), gleichzeitig: 6, nurInICloud: namen) { _ in
+        let namen = Set((1...8).map { "x\($0).heic" })
+        let u = try baue(assets: viele(8), gleichzeitig: 6, voraus: 2, nurInICloud: namen) { _ in
             let n = jetzt.mit { $0 += 1; return $0 }
             hoechstens.mit { $0 = max($0, n) }
             try await Task.sleep(for: .milliseconds(40))
             jetzt.mit { $0 -= 1 }
         }
         await u.abgleich.abgleichen()
-        XCTAssertEqual(u.sender.pfade.count, 6)
-        XCTAssertEqual(hoechstens.mit { $0 }, 2, "zwei Downloads zugleich, nie mehr")
+        XCTAssertEqual(u.sender.pfade.count, 8)
+        XCTAssertEqual(FotoAbgleich.iCloudParallel, 4)
+        XCTAssertEqual(hoechstens.mit { $0 }, FotoAbgleich.iCloudParallel, "genau so viele Downloads zugleich, nie mehr")
     }
 
     func testPufferGrenzeHaeltDenExportAnWennZuvielWartet() async throws {
