@@ -98,7 +98,7 @@ jobs:
               xcrun simctl io "$IPHONE_ID" screenshot "screenshots/${modus}-${tab}.png"
             done
             # Dateien (W-031, T21): Startseite (oben, im Tab-Lauf als ${modus}-dateien.png), eingeklappter Abschnitt, Suche mit Treffern, Kategorie-Ordner als Raster (Vorbild "Dokumente"), Unterordner als Raster und Liste, Suche im Ordner (Bereichsleiste), Sortierung nach Datum
-            xcrun simctl launch --terminate-running-process "$IPHONE_ID" com.onlyus.heimherz -heimherzDemo YES -heimherzTab dateien -heimherzDateienEingeklappt Projekte
+            xcrun simctl launch --terminate-running-process "$IPHONE_ID" com.onlyus.heimherz -heimherzDemo YES -heimherzTab dateien -heimherzDateienEingeklappt Bürokratie
             sleep 6
             xcrun simctl io "$IPHONE_ID" screenshot "screenshots/${modus}-dateien-eingeklappt.png"
             xcrun simctl launch --terminate-running-process "$IPHONE_ID" com.onlyus.heimherz -heimherzDemo YES -heimherzTab dateien -heimherzDateienOrdner "Bürokratie/4 Geld" -heimherzDateienAnsicht liste

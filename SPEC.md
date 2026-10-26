@@ -308,7 +308,7 @@ Startseite wie "Durchsuchen" (T21, Ahmed 26.10.2026: "a view like dateien on iph
 - Laden (`DateienStartModell`): `GET /v1/dateien?pfad=` für die Wurzel, danach gleichzeitig für jede Kategorie, die die Wurzel wirklich hat (keine neue Route). Scheitert eine Liste, bleiben die letzten Abschnitte stehen und der Offline-Hinweis erscheint; ein Ordner, der in der Wurzel steht aber nicht ladbar ist, verschwindet nie stillschweigend.
 - Menü an der Wurzel: nur Hochladen (landet in der Wurzel, also unter Weitere); Ansicht und Sortieren gibt es erst in Ordnern. Keine Fußzeile an der Wurzel (das Vorbild hat keine).
 - Ordnersymbol (`OrdnerSymbol`, Shapes statt `folder.fill`): hinteres Blatt mit Reiter (Hellblau), weißer Papierstreifen, Vorderseite mit Verlauf (oben `0.53/0.79/0.95`, unten `0.39/0.68/0.86`), Seitenverhältnis 1,24, feste Farben in Hell und Dunkel gleich (Farben aus dem Vorbild gemessen). Grund: `folder.fill` zeigte im Schlitz den schwarzen Hintergrund. Gleiches Symbol im Raster, in der Liste (40 pt) und in "Informationen".
-- Debug für Screenshots: `-heimherzDateienEingeklappt Projekte` startet mit eingeklapptem Abschnitt; die Demo hat die neue Ordnung (Bürokratie, Projekte, Weitere, Aboherz).
+- Debug für Screenshots: `-heimherzDateienEingeklappt Bürokratie` startet mit eingeklapptem Abschnitt; die Demo hat die neue Ordnung (Bürokratie, Projekte, Weitere, Aboherz).
 
 Runde 3 (W-007): Der Zwischenspeicher der Vorschauen (`VorschauCache`, `Caches/Heimherz/Dateien`) wird in den Einstellungen mit Größe angezeigt und mit Rückfrage geleert (`VorschauCache.groesse`, `leere`). Im Hauptordner entfallen die Brotkrumen.
 
