@@ -10,7 +10,11 @@ export const LOGIN_EXIT: Record<Ergebnis, number> = { eingeloggt: 0, 'falsches-p
 export type Rolle = 'benutzer' | 'passwort' | 'code' | 'absenden';
 export type Selektoren = Partial<Record<Rolle, string>>;
 export type Gedaechtnis = Selektoren & { erfolgPfad?: string; zuletzt?: string };
-export type Zustand = Selektoren & { url: string; captcha: boolean; fehler: boolean };
+export type Zustand = Selektoren & { url: string; captcha: boolean; fehler: boolean; kauf: boolean; wartet: boolean };
+
+// Dieselbe Kauf-Sperre wie in claude-chrome (KAUF_RE/KAUF_FORM, 16.10.: "ai darf niemals kaufen"): ein Absende-Knopf, der kauft, wird nie geklickt.
+export const KAUF_RE = /\b(?:(?:jetzt |sofort )?kaufen|(?:jetzt )?bezahlen|zur kasse|checkout|purchase|buy(?: now)?|pay(?: now)?|(?:kosten|zahlungs)pflichtig bestellen|bestellung (?:abschicken|aufgeben|abschlie(?:ß|ss)en)|place (?:your )?order|complete (?:your )?(?:order|purchase)|guthaben aufladen|(?:add|buy) credits|top[- ]?up|abo abschlie(?:ß|ss)en|(?:jetzt )?abonnieren|subscribe)\b/i;
+export const KAUF_FORM = /(?:checkout|payment|purchase|bezahl|kasse)/i;
 
 // Läuft in der Seite. Erst gemerkte Selektoren (müssen noch zur Rolle passen), dann Suche nach Typ, autocomplete und Beschriftung.
 // shortcut: nur das Hauptdokument, kein Shadow-DOM und keine iframes; dann Felder von Hand mit `heimherz fuell --rahmen`.
@@ -38,11 +42,15 @@ export const SCAN_JS = (bekannt: Selektoren) => `(()=>{
   const knopfText=e=>((e.innerText||e.value||e.getAttribute('aria-label')||'')+'').trim().toLowerCase();
   const abB=ok(B.absenden);
   const ab=(abB&&anker?abB:null)||knoepfe.find(e=>e.type==='submit')||knoepfe.find(e=>/anmelden|einloggen|login|log in|sign in|weiter|continue|next|senden|bestätigen|verify|submit|absenden/.test(knopfText(e)))||null;
+  const KAUF=new RegExp(${JSON.stringify(KAUF_RE.source)},'i'),KAUF_FORM=new RegExp(${JSON.stringify(KAUF_FORM.source)},'i');
+  const lbl=ab?knopfText(ab).replace(/\\s+/g,' '):'';
+  const kauf=!!ab&&((lbl.length>0&&lbl.length<=80&&KAUF.test(lbl))||(!lbl&&!!ab.form&&KAUF_FORM.test(ab.form.action||'')));
+  const wartet=/(bestätige|bestätigen|genehmige|approve|check your (phone|device)|prüfe dein (handy|gerät)|auf deinem (handy|gerät)).{0,80}(app|handy|gerät|phone|device|benachrichtigung|notification)/i.test((document.body?document.body.innerText:'').slice(0,3000));
   const captcha=!![...document.querySelectorAll('iframe[src*=recaptcha],iframe[src*=hcaptcha],iframe[src*=turnstile],iframe[src*=captcha],.g-recaptcha,.h-captcha,.cf-turnstile')].find(e=>!e.closest('.grecaptcha-badge')&&sichtbar(e))
     ||/captcha|ich bin kein roboter|not a robot|verify you are human|bist du ein mensch/i.test((document.body?document.body.innerText:'').slice(0,3000));
   const fehler=[...document.querySelectorAll('[role=alert],[class*=error],[class*=fehler],[id*=error],[id*=fehler],.alert,[aria-invalid=true]')]
     .some(e=>sichtbar(e)&&/falsch|ungültig|ungueltig|incorrect|invalid|wrong|fehlgeschlagen|nicht korrekt|stimmt nicht|failed|denied|nicht erkannt|gesperrt|locked/i.test(e.innerText||''));
-  return {url:location.origin+location.pathname,captcha,fehler,benutzer:ben?sel(ben):undefined,passwort:pw?sel(pw):undefined,code:code?sel(code):undefined,absenden:ab?sel(ab):undefined};
+  return {url:location.origin+location.pathname,captcha,fehler,kauf,wartet,benutzer:ben?sel(ben):undefined,passwort:pw?sel(pw):undefined,code:code?sel(code):undefined,absenden:ab?sel(ab):undefined};
 })()`;
 
 type C = Awaited<ReturnType<typeof cdp>>;
@@ -64,37 +72,50 @@ export type LoginOpt = {
   port: number; tabId: string; mitCode: boolean; bekannt?: Gedaechtnis;
   wert: (was: Was) => Promise<string>;   // holt den Wert erst, wenn das Feld da ist (TOTP wartet sonst unnötig)
   warteMs?: number;                      // so lange auf eine Änderung der Seite nach dem Absenden warten
+  beruhigtMs?: number;                   // so lange muss eine Seite ohne Felder so bleiben, bevor sie als fertig gilt
 };
-export type LoginAntwort = { ergebnis: Ergebnis; hinweis: string; benutzt: Selektoren; erfolgPfad?: string; passwortFeld?: string };
+export type LoginAntwort = { ergebnis: Ergebnis; hinweis: string; benutzt: Selektoren; url?: string; erfolgPfad?: string; passwortFeld?: string };
 
 export async function loginAblauf(o: LoginOpt): Promise<LoginAntwort> {
   const c = await cdp(o.port, o.tabId), benutzt: Selektoren = {}, gefuellt = new Set<Was>();
-  const ende = (ergebnis: Ergebnis, hinweis: string, z?: Zustand): LoginAntwort => ({ ergebnis, hinweis, benutzt, passwortFeld: z?.passwort ?? benutzt.passwort, ...(ergebnis === 'eingeloggt' && z ? { erfolgPfad: z.url } : {}) });
+  const ende = (ergebnis: Ergebnis, hinweis: string, z?: Zustand): LoginAntwort => ({ ergebnis, hinweis, benutzt, url: z?.url, passwortFeld: z?.passwort ?? benutzt.passwort, ...(ergebnis === 'eingeloggt' && z ? { erfolgPfad: z.url } : {}) });
+  const keineFelder = (z: Zustand) => !z.benutzer && !z.passwort && !z.code && !z.captcha;
+  // Ohne Felder kann die Seite noch laden (mehrstufige Logins holen Schritt 2 oft erst per XHR): erst entscheiden, wenn sie eine Sekunde so bleibt.
+  const beruhigt = async (z: Zustand) => { if (!keineFelder(z)) return z; await Bun.sleep(o.beruhigtMs ?? 1000); return scanne(c, { ...o.bekannt, ...benutzt }); };
   try {
-    await c.send('Page.bringToFront');   // Mausklicks in Hintergrund-Tabs bleiben sonst hängen
-    let z = await scanne(c, o.bekannt ?? {}), letztes = '';
+    let z = await beruhigt(await scanne(c, o.bekannt ?? {})), letztes = '';
     for (let runde = 0; runde < 5; runde++) {
       if (z.captcha) return ende('captcha', 'Captcha sichtbar, das macht Ahmed', z);
+      if (z.kauf) return ende('unbekannt', 'Absende-Knopf sieht nach Kaufen aus: nie, Ahmed klickt selbst', z);
       if (runde > 0 && z.fehler && gefuellt.has('passwort')) return ende('falsches-passwort', 'Seite zeigt eine Fehlermeldung', z);
       let neu = false;
       for (const was of ['benutzer', 'passwort', 'code'] as const) {
         const css = z[was];
         if (!css || gefuellt.has(was)) continue;
         if (was === 'code' && !o.mitCode) return ende('2fa', `Code-Feld ${css}: mit --code wiederholen (Eintrag braucht TOTP)`, z);
-        await fuelleFeld({ port: o.port, tabId: o.tabId, css }, await o.wert(was));
+        const wert = await o.wert(was);
+        if (!wert) throw new FuellFehler(`Eintrag hat keinen Wert für ${was}, die Seite verlangt ihn (${css}); nichts gefüllt`);   // sonst meldet die Seite "falsch" und Ahmed bekommt eine unnötige Karte
+        await fuelleFeld({ port: o.port, tabId: o.tabId, css }, wert);
         gefuellt.add(was); benutzt[was] = css; letztes = css; neu = true;
       }
       if (!neu) {
-        if (!z.passwort && !z.code && (!z.benutzer || o.bekannt?.erfolgPfad === z.url)) return ende('eingeloggt', z.benutzer ? 'bekannter Erfolgspfad' : 'keine Anmeldefelder mehr', z);
+        if (z.wartet) return ende('unbekannt', 'Seite wartet auf eine Bestätigung am Handy oder in einer App', z);
+        if (keineFelder(z)) {
+          if (!gefuellt.size && o.bekannt?.erfolgPfad !== z.url) return ende('unbekannt', 'keine Anmeldefelder und nichts gefüllt: Seite lädt, ist schon eingeloggt oder fremd (claude-chrome sieh)', z);
+          return ende('eingeloggt', 'keine Anmeldefelder mehr', z);
+        }
+        if (!z.passwort && !z.code && o.bekannt?.erfolgPfad === z.url) return ende('eingeloggt', 'bekannter Erfolgspfad', z);
         if (z.passwort && gefuellt.has('passwort') && !z.code) return ende('falsches-passwort', 'Passwortfeld ist nach dem Absenden noch da', z);
         return ende('unbekannt', z.code ? 'Code abgelehnt oder Seite wartet noch' : 'Seite bleibt auf dem Anmeldefeld', z);
       }
       z = await scanne(c, { ...o.bekannt, ...benutzt });   // Absende-Knopf erst nach dem Füllen (wird oft erst dann aktiv)
+      if (z.kauf) return ende('unbekannt', 'Absende-Knopf sieht nach Kaufen aus: nie, Ahmed klickt selbst', z);
       if (z.absenden) benutzt.absenden = z.absenden;
       const vorher = unterschrift(z);
       await absenden(c, z, letztes);
       const bis = Date.now() + (o.warteMs ?? 8000);
       do { await Bun.sleep(300); z = await scanne(c, { ...o.bekannt, ...benutzt }); } while (unterschrift(z) === vorher && Date.now() < bis);
+      z = await beruhigt(z);
     }
     return ende('unbekannt', 'mehr als 5 Schritte', z);
   } finally { c.close(); }

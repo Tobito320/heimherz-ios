@@ -69,6 +69,11 @@ const SEITEN = {
     g.onsubmit=e=>{e.preventDefault();w.innerHTML=g.otp.value==='123456'?'<h1>Willkommen</h1>':'<input name=otp>'}}</script>`,
   enter: `<div id=w><input id=u autocomplete=username><input id=pw type=password></div><script>pw.onkeydown=e=>{if(e.key==='Enter')w.innerHTML='<h1>Willkommen</h1>'}</script>`,
   captcha: `<form><input id=u><input id=pw type=password><div class=g-recaptcha style="width:80px;height:40px"></div><button>Los</button></form>`,
+  spaet: `<div id=w><form id=f1><input id=u type=email autocomplete=username><button type=submit>Weiter</button></form></div><script>
+    f1.onsubmit=e=>{e.preventDefault();w.innerHTML='<p>Einen Moment ...</p>';setTimeout(()=>{w.innerHTML='<form id=f2><input id=pw type=password><button type=submit>Anmelden</button></form>';
+    f2.onsubmit=e=>{e.preventDefault();w.innerHTML=pw.value==='richtig'?'<h1>Willkommen</h1>':'<p class=error>falsch</p>'}},500)}</script>`,
+  kauf: `<form><input id=u><input id=pw type=password><button>Jetzt kaufen</button></form>`,
+  wartet: `<meta charset=utf-8><h1>Bestätige die Anmeldung in der App auf deinem Handy</h1>`,
   drin: `<h1>Willkommen</h1><input id=suche placeholder=Suche>`,
   feld: `<input id=neu type=password value="Handy-Passwort-9"><input id=leer type=password>`,
 };
@@ -76,7 +81,8 @@ const WERT: Record<Was, string> = { benutzer: 'tobi@beispiel.de', passwort: 'ric
 
 test.skipIf(!chrome)('Login gegen Wegwerf-Chrome: zweistufig, falsches Passwort, 2FA, Enter, Captcha, schon drin, Gedächtnis, merke', async () => {
   const port = 9558, profil = join(ordner, 'chrome');
-  const p = Bun.spawn([chrome!, '--headless=new', `--remote-debugging-port=${port}`, `--user-data-dir=${profil}`, '--no-first-run', '--disable-gpu', '--disable-extensions', '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows', '--disable-background-timer-throttling', 'about:blank'], { stdout: 'ignore', stderr: 'ignore' });
+  const p = Bun.spawn([chrome!, '--headless=new', `--remote-debugging-port=${port}`, `--user-data-dir=${profil}`, '--no-first-run', '--disable-extensions', 'about:blank']   // --disable-extensions: die Richtlinie /etc/opt/chrome/policies installiert sonst eine Erweiterung, die im frischen Profil Kern und Test ausbremst
+  , { stdout: 'ignore', stderr: 'ignore' });
   const alle = async () => ((await (await fetch(`http://127.0.0.1:${port}/json`)).json()) as any[]).filter(t => t.type === 'page');
   const oeffne = async (html: string) => {
     const vor = new Set((await alle()).map(t => t.id));
@@ -111,8 +117,23 @@ test.skipIf(!chrome)('Login gegen Wegwerf-Chrome: zweistufig, falsches Passwort,
     expect((await lauf(SEITEN.enter)).ergebnis).toBe('eingeloggt');
     expect((await lauf(SEITEN.captcha)).ergebnis).toBe('captcha');
     holte.length = 0;
-    expect((await lauf(SEITEN.drin)).ergebnis).toBe('eingeloggt');   // keine Anmeldefelder
-    expect(holte).toEqual([]);                                       // und nichts gefüllt
+    const drin = await lauf(SEITEN.drin);
+    expect(drin.ergebnis).toBe('unbekannt');                         // keine Felder und nichts gefüllt: kann Laden sein, nicht raten
+    expect(holte).toEqual([]);
+    expect((await lauf(SEITEN.drin, false, WERT, { erfolgPfad: drin.url })).ergebnis).toBe('eingeloggt');   // bekannter Erfolgspfad
+    expect((await lauf(SEITEN.wartet)).ergebnis).toBe('unbekannt');
+    expect((await lauf(SEITEN.wartet)).hinweis).toContain('Bestätigung');
+    // Schritt 2 kommt erst nach 500 ms: die leere Zwischenseite ist kein Erfolg
+    holte.length = 0;
+    expect((await lauf(SEITEN.spaet)).ergebnis).toBe('eingeloggt');
+    expect(holte).toEqual(['benutzer', 'passwort']);
+    expect((await lauf(SEITEN.spaet, false, { ...WERT, passwort: 'verkehrt' })).ergebnis).toBe('falsches-passwort');
+    // Kauf-Knopf wird nie geklickt, und nichts wird vorher gefüllt
+    holte.length = 0;
+    const kauf = await lauf(SEITEN.kauf);
+    expect(kauf.ergebnis).toBe('unbekannt'); expect(kauf.hinweis).toContain('Kaufen'); expect(holte).toEqual([]);
+    // Eintrag ohne Benutzer: Fehler statt "falsches Passwort"
+    await expect(lauf(SEITEN.zweistufig, false, { ...WERT, benutzer: '' })).rejects.toThrow('keinen Wert für benutzer');
 
     // veraltete gemerkte Selektoren fallen auf die Suche zurück; gültige werden benutzt
     expect((await lauf(SEITEN.zweistufig, false, WERT, { benutzer: '#gibtsnicht', passwort: '#auch-nicht' })).ergebnis).toBe('eingeloggt');
