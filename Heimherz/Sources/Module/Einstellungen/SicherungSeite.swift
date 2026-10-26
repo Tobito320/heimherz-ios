@@ -111,8 +111,8 @@ struct SicherungSeite: View {
     private func drucke(_ code: String) {
         let info = UIPrintInfo(dictionary: nil)
         info.outputType = .general
-        info.jobName = "Cloud Wiederherstellungsschlüssel"
-        let formatter = UISimpleTextPrintFormatter(text: "Cloud Wiederherstellungsschlüssel\n\n\(code)\n\nOhne PC und Handy öffnet dieser Code eine Sicherung des Tresors. Getrennt vom Handy aufbewahren.")
+        info.jobName = "Lumen Wiederherstellungsschlüssel"
+        let formatter = UISimpleTextPrintFormatter(text: "Lumen Wiederherstellungsschlüssel\n\n\(code)\n\nOhne PC und Handy öffnet dieser Code eine Sicherung des Tresors. Getrennt vom Handy aufbewahren.")
         formatter.perPageContentInsets = UIEdgeInsets(top: 72, left: 72, bottom: 72, right: 72)
         let druck = UIPrintInteractionController.shared
         druck.printInfo = info

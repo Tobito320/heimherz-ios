@@ -21,7 +21,7 @@ struct Hintergrund: View {
 }
 
 extension View {
-    /// Setzt den Cloud-Hintergrund hinter die Ansicht.
+    /// Setzt den Lumen-Hintergrund hinter die Ansicht.
     func heimherzHintergrund() -> some View {
         background { Hintergrund() }
     }

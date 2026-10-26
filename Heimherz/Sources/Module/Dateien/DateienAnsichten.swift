@@ -293,7 +293,7 @@ struct OrdnerBlatt: View {
                     }
                     Button("Ordner verbinden …", systemImage: "plus") { waehle = true }
                 } footer: {
-                    Text("Neue Dateien gehen an den PC, wenn Cloud geöffnet wird oder Fotos abgleicht.")
+                    Text("Neue Dateien gehen an den PC, wenn Lumen geöffnet wird oder Fotos abgleicht.")
                 }
             }
             .navigationTitle("Ordner vom Handy")

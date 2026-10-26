@@ -99,7 +99,7 @@ final class AppSperre {
         var fehler: NSError?
         guard kontext.canEvaluatePolicy(.deviceOwnerAuthentication, error: &fehler) else { return .nichtMoeglich }
         do {
-            let ok = try await kontext.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: "Cloud entsperren")
+            let ok = try await kontext.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: "Lumen entsperren")
             return ok ? .ok : .abgelehnt
         } catch {
             return .abgelehnt
@@ -115,7 +115,7 @@ struct SperrAnsicht: View {
         VStack(spacing: Abstand.l) {
             Spacer()
             HausherzView(stimmung: .schlaeft, groesse: 140)
-            Text("Cloud ist gesperrt")
+            Text("Lumen ist gesperrt")
                 .font(.title2.weight(.bold))
                 .foregroundStyle(Color.tinte)
             if let meldung = sperre.meldung {

@@ -267,11 +267,11 @@ struct PasswoerterListe: View {
         switch kategorie {
         case .sicherheit:
             HinweisKarte(text: GeteilteEinstellungen().leckPruefung
-                         ? "Cloud prüft auf diesem Handy, ob Passwörter mehrfach vorkommen oder leicht zu erraten sind. Für Datenlecks geht nur ein kurzer Teil einer Prüfsumme ins Netz, nie ein Passwort."
-                         : "Cloud prüft auf diesem Handy, ob Passwörter mehrfach vorkommen oder leicht zu erraten sind. Die Prüfung auf Datenlecks ist ausgeschaltet.",
+                         ? "Lumen prüft auf diesem Handy, ob Passwörter mehrfach vorkommen oder leicht zu erraten sind. Für Datenlecks geht nur ein kurzer Teil einer Prüfsumme ins Netz, nie ein Passwort."
+                         : "Lumen prüft auf diesem Handy, ob Passwörter mehrfach vorkommen oder leicht zu erraten sind. Die Prüfung auf Datenlecks ist ausgeschaltet.",
                          symbol: "lock.shield")
         case .passkeys:
-            HinweisKarte(text: "Anmelden mit Passkey: auf der Seite \"Mit Passkey anmelden\" wählen, dann Cloud. Neue Passkeys landen auch hier.", symbol: "info.circle")
+            HinweisKarte(text: "Anmelden mit Passkey: auf der Seite \"Mit Passkey anmelden\" wählen, dann Lumen. Neue Passkeys landen auch hier.", symbol: "info.circle")
         case .codes:
             Button { Task { if await GeraeteAbfrage.pruefe(grund: "Einmalcodes anzeigen") { store.gebeCodesFrei() } } } label: {
                 Label("Codes mit Face ID anzeigen", systemImage: "faceid")

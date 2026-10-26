@@ -70,7 +70,7 @@ struct LeckAbfrage: Sendable {
         var anfrage = URLRequest(url: basis.appending(path: "range/\(vorwahl)"))
         anfrage.httpMethod = "GET"
         anfrage.setValue("true", forHTTPHeaderField: "Add-Padding")
-        anfrage.setValue("Cloud", forHTTPHeaderField: "User-Agent")
+        anfrage.setValue("Lumen", forHTTPHeaderField: "User-Agent")
         let (daten, antwort) = try await sitzung.data(for: anfrage)
         let status = (antwort as? HTTPURLResponse)?.statusCode ?? 0
         guard status == 200 else { throw Fehler(status: status) }
