@@ -1,6 +1,5 @@
 // Heimherz-Dienst am PC (SPEC 6). Nur Loopback; nach außen macht das `tailscale serve`.
 import { join } from 'node:path';
-import { Analyse, Entprellt, type Optionen as AnalyseOptionen } from './analyse';
 import { Dateien } from './dateien';
 import { Fotos } from './fotos';
 import { Geraete } from './geraete';
@@ -16,7 +15,6 @@ export type Optionen = {
   papierkorb?: string[]; verlaufMax?: number; mindestFrei?: number;
   symbole?: SymbolOptionen; // Tests: Auflöser und Holer austauschen
   vorschau?: VorschauOptionen; // Tests: Erzeuger austauschen (kein echtes magick nötig)
-  analyse?: AnalyseOptionen & { entprellMs?: number; beiStart?: boolean }; // Standard: 60 s nach dem letzten Upload und einmal nach dem Start
 };
 
 const FOTO_OPTIONS = /^\/v1\/fotos\/([A-Za-z0-9_-]{1,128})\/([A-Za-z0-9_-]{1,128})$/;
@@ -27,10 +25,6 @@ export function starte(o: Optionen) {
   const geraete = new Geraete(o.daten);
   const tresor = new Tresor(o.daten, o.verlaufMax);
   const fotos = new Fotos(o.fotos, o.daten, o.mindestFrei);
-  const analyse = new Analyse(o.daten, o.fotos, { papierkorb: o.papierkorb, ...o.analyse });
-  const entprellt = new Entprellt(o.analyse?.entprellMs ?? 60_000, () => analyse.rechne());
-  fotos.beiNeu = () => entprellt.ausloesen();
-  if (o.analyse?.beiStart ?? true) entprellt.ausloesen();
   const symbole = new Symbole(o.daten, o.symbole);
   const dateien = new Dateien(o.dateien, o.papierkorb ?? ['trash-put'], o.mindestFrei, join(o.daten, 'vorschau'), o.vorschau);
 
@@ -45,8 +39,6 @@ export function starte(o: Optionen) {
       if (m === 'PUT') return tresor.speichern(req);
     }
     if (p === '/v1/fotos/bekannt' && m === 'GET') return fotos.bekannt();
-    if (p === '/v1/fotos/analyse' && m === 'GET') return analyse.antworte();
-    if (p === '/v1/fotos/papierkorb' && m === 'POST') return analyse.papierkorbRoute(req);
     const f = /^\/v1\/fotos\/([^/]+)\/([^/]+)$/.exec(p);
     // PUT: Heimherz-App; POST: so zeigt es Apples Beispiel für Upload-Jobs. Teil-Uploads (Resumable Upload) gibt es hier nicht.
     if (f && (m === 'PUT' || m === 'POST')) {
@@ -84,7 +76,5 @@ export function starte(o: Optionen) {
       }
     },
   });
-  const stop = server.stop.bind(server);
-  server.stop = (f?: boolean) => { entprellt.stoppe(); return stop(f); };
   return server;
 }

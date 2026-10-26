@@ -33,7 +33,7 @@ export async function fuehreAus(argv: string[], zeitlimitMs: number, stdin: Blob
 }
 
 // magick liest aus stdin mit ausdrücklichem Format: kein Dateiname wird als Option, Muster oder Bildbereich gedeutet, Inhalt, der nicht zum Format passt, scheitert.
-export const MAGICK_FORMAT: Record<string, string> = { jpg: 'jpeg', jpeg: 'jpeg', png: 'png', gif: 'gif', webp: 'webp', heic: 'heic', heif: 'heif', tif: 'tiff', tiff: 'tiff', bmp: 'bmp' };
+const MAGICK_FORMAT: Record<string, string> = { jpg: 'jpeg', jpeg: 'jpeg', png: 'png', gif: 'gif', webp: 'webp', heic: 'heic', heif: 'heif', tif: 'tiff', tiff: 'tiff', bmp: 'bmp' };
 
 export const echterErzeuger = (zeitlimitMs = 10_000): Erzeuger => async ({ art, quelle, endung, ziel, px, qualitaet }) => {
   if (art === 'bild') {

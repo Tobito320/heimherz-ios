@@ -1,7 +1,6 @@
 // Die Befehle des CLI (SPEC 7). Alles Äußere (Schlüssel-Ablage, bw, qrencode, Anzeige, Ausgabe) kommt als Parameter herein.
 import { ausCsv, uebernimm } from './apple';
 import { Database } from 'bun:sqlite';
-import { Analyse } from '../server/analyse';
 import { closeSync, existsSync, openSync, writeSync } from 'node:fs';
 import { join } from 'node:path';
 import { zusammenfuehren, type Tresor } from '../lib/zusammenfuehren';
@@ -129,32 +128,3 @@ export function geraetWeg(a: Abh, id: string) {
   schreibeGeraete(a.daten, alle.filter(x => x.id !== id));
   a.ausgabe(`Gerät ${g.name} entfernt, sein Token gilt nicht mehr`);
 }
-
-// ---------- Fotos aufräumen (SPEC 25 A) ----------
-const zahl = (n: number) => n.toLocaleString('de-DE');
-const mitAnalyse = async <T>(a: Abh, tu: (an: Analyse) => Promise<T> | T): Promise<T> => {
-  const an = new Analyse(a.daten, a.fotos);
-  try { return await tu(an); } finally { an.schliesse(); }
-};
-
-export const fotosAnalyse = (a: Abh) => mitAnalyse(a, async an => {
-  const r = await an.rechne(), x = an.antwort();
-  const gleich = x.gruppen.filter(g => g.art === 'gleich'), aehnlich = x.gruppen.filter(g => g.art === 'aehnlich');
-  a.ausgabe(`${zahl(an.assets())} Assets, ${zahl(gleich.length)} Gruppen gleich (${zahl(gleich.reduce((s, g) => s + g.kennungen.length, 0))} Fotos), ${zahl(aehnlich.length)} ähnlich, ${zahl(x.unscharf.length)} unscharf`);
-  a.ausgabe(`neu gerechnet: ${zahl(r.gerechnet)} in ${r.sekunden} s, nicht lesbar: ${zahl(r.nichtLesbar)}, Datei fehlt: ${zahl(r.fehlt)}, noch offen: ${zahl(r.offen)}`);
-});
-
-export const fotosGruppen = (a: Abh, alsJson: boolean) => mitAnalyse(a, an => {
-  const g = an.gruppenDetails();
-  if (alsJson) { a.ausgabe(JSON.stringify(g)); return; }
-  for (const x of g) {
-    a.ausgabe(`${x.art}\tbehalten=${x.behalten}\t${x.grund}`);
-    for (const f of x.assets) a.ausgabe(`  ${f.kennung}\t${f.bytes}\t${f.pfad}\t${f.breite ?? '?'}x${f.hoehe ?? '?'}`);
-  }
-});
-
-// Setzt den Vorschlag der Gruppe, zu der KENNUNG gehört (irgendein Mitglied). Ein Agent sieht die Bilder über die Pfade aus `gruppen` an und entscheidet.
-export const fotosVorschlag = (a: Abh, kennung: string, behalten: string, grund: string) => mitAnalyse(a, an => {
-  if (!an.setzeVorschlag(kennung, behalten, grund)) throw new Meldung('Gruppe nicht gefunden oder BEHALTEN gehört nicht dazu, nichts geändert');
-  a.ausgabe(`Vorschlag gesetzt: ${behalten} bleibt`);
-});

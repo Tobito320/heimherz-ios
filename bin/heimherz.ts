@@ -2,7 +2,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
-import { Meldung, eintraege, fotosAnalyse, fotosGruppen, fotosVorschlag, einrichtenBefehl, exportBitwarden, geraetWeg, importBitwarden, importCsv, koppelnBefehl, liste, status, totpSetzen, type Abh } from './befehle';
+import { Meldung, eintraege, einrichtenBefehl, exportBitwarden, geraetWeg, importBitwarden, importCsv, koppelnBefehl, liste, status, totpSetzen, type Abh } from './befehle';
 import { urlAusTailscale } from './koppeln';
 import { systemdCreds } from './schluessel';
 import { eigenerTab, fuelleFeld, FuellFehler, handyHinweis, leseSchluessel, protokoll, waehle, wertVon, type Was } from './fuellen';
@@ -17,9 +17,6 @@ heimherz export bitwarden DATEI
 heimherz liste [SUCHE]
 heimherz status
 heimherz tempo [MINUTEN]    (Foto-Abgleich: wo hängt die Zeit, Standard 10)
-heimherz fotos analyse    (Duplikate, Ähnliche, Unscharfe rechnen, nur Zahlen)
-heimherz fotos gruppen [--json]
-heimherz fotos vorschlag KENNUNG BEHALTEN --grund TEXT   (KENNUNG = irgendein Mitglied der Gruppe)
 heimherz geraet weg ID
 heimherz fuell TAB CSS benutzer|passwort|code [--konto K] [--rahmen IFRAME-CSS] [--enter] [--auftrag DATEI]
 heimherz totp-setzen TAB --konto K [--feld CSS]   (Einrichtungsschlüssel der Seite in den Eintrag)
@@ -88,9 +85,6 @@ async function main(argv: string[]) {
   if (cmd === 'liste') return liste(a, r[0]);
   if (cmd === 'status') return status(a);
   if (cmd === 'tempo') { for (const z of fasseTempo(leseTempo(a.daten), Number(r[0]) > 0 ? Number(r[0]) : 10)) a.ausgabe(z); return; }
-  if (cmd === 'fotos' && r[0] === 'analyse') return fotosAnalyse(a);
-  if (cmd === 'fotos' && r[0] === 'gruppen') return fotosGruppen(a, r.includes('--json'));
-  if (cmd === 'fotos' && r[0] === 'vorschlag' && r[1] && r[2]) { const i = r.indexOf('--grund'); return fotosVorschlag(a, r[1], r[2], i > 0 ? r.slice(i + 1).join(' ') : ''); }
   if (cmd === 'geraet' && r[0] === 'weg' && r[1]) return geraetWeg(a, r[1]);
   if (cmd === 'fuell' || cmd === 'totp-setzen' || cmd === 'erlaubt' || cmd === 'stufen') return fuellen(a, cmd, r);
   console.error(HILFE);
