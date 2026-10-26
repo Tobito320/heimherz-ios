@@ -17,7 +17,7 @@ final class TeilenRegelnTests: XCTestCase {
     }
 
     func testFehlerTexte() {
-        XCTAssertEqual(TeilenRegeln.fehlerText(HeimFehler.nichtGekoppelt), "Lumen ist nicht gekoppelt")
+        XCTAssertEqual(TeilenRegeln.fehlerText(HeimFehler.nichtGekoppelt), "Lumen Cloud ist nicht gekoppelt")
         XCTAssertEqual(TeilenRegeln.fehlerText(HeimFehler.nichtErreichbar), "PC nicht erreichbar")
         XCTAssertEqual(TeilenRegeln.fehlerText(HeimFehler.zeitueberschreitung), "PC nicht erreichbar")
         XCTAssertEqual(TeilenRegeln.fehlerText(HeimFehler.zuGross), HeimFehler.zuGross.nutzerText)

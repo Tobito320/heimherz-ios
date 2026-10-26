@@ -8,7 +8,7 @@ struct AutoFillAnleitung: View {
     private let schritte = [
         "Einstellungen öffnen",
         "Allgemein, dann AutoFill & Passwörter",
-        "Unter „Ausfüllen von“ Lumen einschalten",
+        "Unter „Ausfüllen von“ Lumen Cloud einschalten",
         "Erst wenn alles sicher läuft: iCloud-Passwörter ausschalten"
     ]
 
@@ -30,7 +30,7 @@ struct AutoFillAnleitung: View {
                     .heimherzZeile()
                 }
             } header: {
-                GruppenText(text: "Damit füllt iOS Passwörter und Einmalcodes aus Lumen aus, in Safari und in Apps.", fuss: true)
+                GruppenText(text: "Damit füllt iOS Passwörter und Einmalcodes aus Lumen Cloud aus, in Safari und in Apps.", fuss: true)
             }
             Section {
                 Button {
@@ -47,8 +47,8 @@ struct AutoFillAnleitung: View {
     }
 }
 
-/// Unterseite "Neue 2FA-Codes in Lumen" (W-028). Belegt ist nur der Weg über den Link und den QR-Code in der App;
-/// ob iOS Lumen unter „Codes konfigurieren in“ anbietet, zeigt erst das Handy (SPEC 9), darum steht es hier als „sollte“.
+/// Unterseite "Neue 2FA-Codes in Lumen Cloud" (W-028). Belegt ist nur der Weg über den Link und den QR-Code in der App;
+/// ob iOS Lumen Cloud unter „Codes konfigurieren in“ anbietet, zeigt erst das Handy (SPEC 9), darum steht es hier als „sollte“.
 struct CodesAnleitung: View {
     @Environment(\.openURL) private var oeffne
     @State private var zeigeScanner = false
@@ -56,7 +56,7 @@ struct CodesAnleitung: View {
     private let schritte = [
         "Einstellungen öffnen",
         "Allgemein, dann AutoFill & Passwörter",
-        "Ganz unten bei „Codes konfigurieren in“ Lumen wählen"
+        "Ganz unten bei „Codes konfigurieren in“ Lumen Cloud wählen"
     ]
 
     var body: some View {
@@ -68,7 +68,7 @@ struct CodesAnleitung: View {
                     }
                     .heimherzZeile()
                 }
-                Text("Tippst du auf der Seite auf den Link zum Einrichten oder öffnest ihn aus einer Mail, nimmt Lumen den Code an. Oder scanne den QR-Code hier.")
+                Text("Tippst du auf der Seite auf den Link zum Einrichten oder öffnest ihn aus einer Mail, nimmt Lumen Cloud den Code an. Oder scanne den QR-Code hier.")
                     .font(.subheadline)
                     .foregroundStyle(Color.tinte2)
                     .fixedSize(horizontal: false, vertical: true)
@@ -100,7 +100,7 @@ struct CodesAnleitung: View {
             } header: {
                 GruppenText(text: "Direkt von iOS")
             } footer: {
-                GruppenText(text: "Dann sollen Links und QR-Codes zum Einrichten gleich in Lumen landen statt im Authenticator. Ob iOS Lumen dort anbietet, zeigt erst dein Handy.", fuss: true)
+                GruppenText(text: "Dann sollen Links und QR-Codes zum Einrichten gleich in Lumen Cloud landen statt im Authenticator. Ob iOS Lumen Cloud dort anbietet, zeigt erst dein Handy.", fuss: true)
             }
         }
         .heimherzEinstellungenListe()
@@ -115,7 +115,7 @@ struct SichernErklaerung: View {
     private let punkte: [(titel: String, text: String)] = [
         ("Start", "Mit „Abgleich starten“ geht es in kleinen Stücken los: erst alle Fotos, dann die Videos, jeweils die neuesten zuerst. Was lokal auf dem Handy liegt, kommt vor den iCloud-Originalen."),
         ("Anhalten", "Stoppt sofort. Was schon am PC liegt, zählt; die Datei dazwischen wird verworfen und beim nächsten Start neu gesendet."),
-        ("App geschlossen", "Schließt du die App oder sperrst das Handy, macht iOS mit einer Anzeige weiter, solange es das zulässt. Wischst du Lumen im App-Umschalter weg, endet der Abgleich, bis du ihn wieder startest."),
+        ("App geschlossen", "Schließt du die App oder sperrst das Handy, macht iOS mit einer Anzeige weiter, solange es das zulässt. Wischst du Lumen Cloud im App-Umschalter weg, endet der Abgleich, bis du ihn wieder startest."),
         ("Nachts", "Am Ladegerät im WLAN setzt iOS den Abgleich fort, wenn du ihn nicht angehalten hast. Wann, entscheidet iOS."),
         ("Im Hintergrund hochladen", "iOS lädt dann auch bei geschlossener App hoch, wenn es ihm passt. „Anhalten“ hält das nicht auf: Dafür schaltest du es aus."),
         ("Originale aus iCloud", "Mit „iPhone-Speicher optimieren“ liegen viele Originale nur in iCloud. iOS muss sie erst laden, das dauert und braucht Platz und Netz. Aus: Solche Dateien werden übersprungen und bleiben offen."),

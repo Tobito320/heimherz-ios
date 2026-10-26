@@ -7,8 +7,8 @@ struct ImportAnleitungBlatt: View {
     private let schritte = [
         "Öffne die App „Passwörter“ von Apple.",
         "Öffne das Menü (drei Punkte) und wähle „Daten an andere App exportieren“. Der Menüpunkt kann je nach iOS-Version etwas anders heißen.",
-        "Bestätige mit Face ID und wähle „Lumen“ in der Liste.",
-        "Lumen öffnet sich, nimmt alles auf und gleicht gleich mit deinem PC ab."
+        "Bestätige mit Face ID und wähle „Lumen Cloud“ in der Liste.",
+        "Lumen Cloud öffnet sich, nimmt alles auf und gleicht gleich mit deinem PC ab."
     ]
 
     var body: some View {
@@ -42,10 +42,10 @@ struct ImportAnleitungBlatt: View {
                     DisclosureGroup("Gut zu wissen") {
                         VStack(alignment: .leading, spacing: Abstand.s) {
                             punkt("Gleicher Benutzer und gleiche Seite mit gleichem Passwort: wird übersprungen.")
-                            punkt("Gleicher Benutzer und gleiche Seite mit neuerem Passwort: Lumen übernimmt das neue, das alte bleibt im Verlauf des Eintrags.")
+                            punkt("Gleicher Benutzer und gleiche Seite mit neuerem Passwort: Lumen Cloud übernimmt das neue, das alte bleibt im Verlauf des Eintrags.")
                             punkt("Passkeys werden gesichert (mit Seite, Konto und Schlüssel, nur im verschlüsselten Tresor). Anmelden damit geht über Automatisch ausfüllen.")
-                            punkt("WLAN-Passwörter, Karten und Ausweise kennt Lumen nicht und überspringt sie.")
-                            punkt("Lumen muss in den iPhone-Einstellungen unter Allgemein, AutoFill und Passwörter als Anbieter eingeschaltet sein, falls Apple die App sonst nicht anbietet.")
+                            punkt("WLAN-Passwörter, Karten und Ausweise kennt Lumen Cloud nicht und überspringt sie.")
+                            punkt("Lumen Cloud muss in den iPhone-Einstellungen unter Allgemein, AutoFill und Passwörter als Anbieter eingeschaltet sein, falls Apple die App sonst nicht anbietet.")
                         }
                         .padding(.top, Abstand.s)
                     }

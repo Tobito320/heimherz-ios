@@ -148,7 +148,7 @@ final class OrdnerAbgleich {
         return r
     }
 
-    /// Kopie in den Temp-Ordner. Der Zugriff über `NSFileCoordinator` lädt Dateien, die ein Datei-Anbieter (Adobe Scan, iCloud) nur in seiner Lumen hält, erst herunter.
+    /// Kopie in den Temp-Ordner. Der Zugriff über `NSFileCoordinator` lädt Dateien, die ein Datei-Anbieter (Adobe Scan, iCloud) nur in seiner Lumen Cloud hält, erst herunter.
     nonisolated private static func kopiere(_ quelle: URL) async -> URL? {
         await withCheckedContinuation { weiter in
             DispatchQueue.global().async {

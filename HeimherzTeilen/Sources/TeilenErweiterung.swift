@@ -3,7 +3,7 @@ import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
 
-/// Teilen-Erweiterung "Lumen" (W-045, SPEC 12): Dateien aus Adobe Scan und anderen Apps gehen nacheinander nach `Eingang/` am PC.
+/// Teilen-Erweiterung "Lumen Cloud" (W-045, SPEC 12): Dateien aus Adobe Scan und anderen Apps gehen nacheinander nach `Eingang/` am PC.
 /// Zugang wie die anderen Erweiterungen: Schlüsselbund und Adresse der App (`Schluesselbund.live`). Reine Regeln: `TeilenRegeln`.
 @MainActor @Observable
 final class TeilenModell {

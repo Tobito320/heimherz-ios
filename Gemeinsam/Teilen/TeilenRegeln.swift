@@ -31,7 +31,7 @@ enum TeilenRegeln {
     static func fehlerText(_ fehler: Error) -> String {
         if fehler as? TeilenFehler == .nichtLesbar { return "Die Datei konnte nicht gelesen werden" }
         guard let f = fehler as? HeimFehler else { return fehler.localizedDescription }
-        if f == .nichtGekoppelt { return "Lumen ist nicht gekoppelt" }
+        if f == .nichtGekoppelt { return "Lumen Cloud ist nicht gekoppelt" }
         if f.istNetzproblem { return "PC nicht erreichbar" }
         return f.nutzerText
     }

@@ -49,7 +49,7 @@ export function ipBytes(ip: string): number[] | null {
 function v4Oeffentlich([a, b, c]: number[]): boolean {
   if (a === 0 || a === 10 || a === 127) return false;
   if (a === 100 && b >= 64 && b <= 127) return false;     // CGNAT, Tailnet
-  if (a === 169 && b === 254) return false;               // Link-lokal, Lumen-Metadaten
+  if (a === 169 && b === 254) return false;               // Link-lokal, Lumen Cloud-Metadaten
   if (a === 172 && b >= 16 && b <= 31) return false;
   if (a === 192 && b === 168) return false;
   if (a === 192 && b === 0 && (c === 0 || c === 2)) return false;

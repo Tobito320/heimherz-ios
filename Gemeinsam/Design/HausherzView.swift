@@ -16,15 +16,15 @@ enum HausherzStimmung: String, CaseIterable, Sendable {
     /// Für VoiceOver, wenn das Maskottchen eine Aussage trägt.
     var beschreibung: String {
         switch self {
-        case .wach: return "Lumen ist bereit"
-        case .schlaeft: return "Lumen ist gesperrt"
-        case .jubelt: return "Lumen meldet Erfolg"
-        case .sorry: return "Lumen meldet ein Problem"
+        case .wach: return "Lumen Cloud ist bereit"
+        case .schlaeft: return "Lumen Cloud ist gesperrt"
+        case .jubelt: return "Lumen Cloud meldet Erfolg"
+        case .sorry: return "Lumen Cloud meldet ein Problem"
         }
     }
 }
 
-/// Das Lumen-Zeichen für leere Zustände, Sperre und Fehler: grauer Kreis mit einem Symbol (ersetzt das frühere Maskottchen).
+/// Das Lumen Cloud-Zeichen für leere Zustände, Sperre und Fehler: grauer Kreis mit einem Symbol (ersetzt das frühere Maskottchen).
 /// Größen: 40 (Liste), 96 (Leerzustand), 160 (Hero). Dekoration ist für VoiceOver versteckt, außer `beschriftet` ist wahr.
 struct HausherzView: View {
     var stimmung: HausherzStimmung = .wach

@@ -23,7 +23,7 @@ enum SchluesselbundFehler: Error, Equatable, LocalizedError {
     var nutzerText: String {
         switch self {
         case .entsperrenAbgebrochen: return "Entsperren abgebrochen."
-        case .abfrageNochNichtMoeglich: return "Lumen ist gesperrt."
+        case .abfrageNochNichtMoeglich: return "Lumen Cloud ist gesperrt."
         case .speichern(let s), .lesen(let s), .loeschen(let s): return "Der Schlüsselbund meldet einen Fehler (\(s))."
         }
     }

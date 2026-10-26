@@ -21,8 +21,8 @@ enum OtpFehler: Error, Equatable, LocalizedError {
         switch self {
         case .keinLink: return "Das ist kein Link zum Einrichten eines Codes (otpauth://)."
         case .zuLang: return "Der Link ist zu lang für einen Code."
-        case .hotp: return "Dieser Code zählt hoch (HOTP). Lumen kann nur Codes, die sich nach der Zeit ändern (TOTP)."
-        case .migration: return "Das ist ein Export aus Google Authenticator. Den kann Lumen noch nicht lesen. Richte den Code bei der Seite noch einmal ein."
+        case .hotp: return "Dieser Code zählt hoch (HOTP). Lumen Cloud kann nur Codes, die sich nach der Zeit ändern (TOTP)."
+        case .migration: return "Das ist ein Export aus Google Authenticator. Den kann Lumen Cloud noch nicht lesen. Richte den Code bei der Seite noch einmal ein."
         case .unbekannterTyp: return "Die Art des Codes im Link ist unbekannt."
         case .geheimnisFehlt: return "Im Link fehlt das Geheimnis (secret)."
         case .geheimnisUngueltig: return "Das Geheimnis im Link ist ungültig. Erlaubt sind die Buchstaben A bis Z und die Ziffern 2 bis 7."

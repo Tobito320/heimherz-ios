@@ -148,7 +148,7 @@ struct PasswoerterInhalt: View {
     /// Ohne Kopplung gibt es keinen Tresor: der Code wird verworfen und das gesagt.
     private func codeAnnehmen() {
         if !lage.gekoppelt, codes.nimm() != nil {
-            codes.zeigeFehler("Koppel Lumen zuerst mit dem PC (Tab Einstellungen). Danach öffne den Link oder den QR-Code noch einmal.")
+            codes.zeigeFehler("Koppel Lumen Cloud zuerst mit dem PC (Tab Einstellungen). Danach öffne den Link oder den QR-Code noch einmal.")
             return
         }
         guard store.zustand == .bereit, !lage.gesperrt, formular == nil, !zeigeGenerator, !zeigeAnleitung, codeModell == nil,
