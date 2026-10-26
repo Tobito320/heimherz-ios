@@ -1,6 +1,6 @@
 # SPEC: Heimherz
 
-Sichtbarer Name: **Heimcloud** (Ahmed 25.10.: erst "Ohne herz" → Heim, dann "Das name sollte zu der app passen zu was sie macht. Also wie icloud." → "Heimcloud ist gut"). Home-Bildschirm, Texte in der App und Rechte-Texte sagen "Heimcloud", App-Store-Connect-Name "Heimcloud". Intern bleibt alles `heimherz` (Bundle IDs, App Group, Repo, Typen, CLI, Dienst, Ordner `~/Heimherz`, AAD).
+Sichtbarer Name: **Haven** (Ahmed 26.10.: "Ich will nicht name heimherz. Bessere moderne name. Ohne herz. English. Besser. Und neue icon usw."; vorher "Heimcloud" seit Build 5). Home-Bildschirm, Erweiterungen ("Haven", "Haven Fotos"), Texte in der App und Rechte-Texte sagen "Haven". App-Store-Connect-Name "Haven" (ist er vergeben, "Haven Home Cloud"; der Anzeigename bleibt "Haven"). Neues Symbol: weißer offener Bogen und blauer Punkt auf Schwarz. Das frühere Maskottchen (Haus mit Herz) ist ein grauer Kreis mit Symbol (`HausherzView`, nur der Typname blieb). Intern bleibt alles `heimherz` (Bundle IDs, App Group, Repo, Typen, CLI, Dienst, Ordner `~/Heimherz`, AAD). Ältere SPEC-Abschnitte sagen noch "Heimcloud": gemeint ist Haven.
 
 Eigene Brücke zwischen Ahmeds PC und seinem iPhone für Passwörter, Fotos und Dateien. Ersetzt Bitwarden und iCloud (Passwörter, Fotos) am Handy. Stand 25.10.2026. Idee und Recherche: Vault `01 Inbox/Idee – Eigene Cloud (Passwörter, Fotos, Dateien).md`, `01 Inbox/Eigene Cloud – Recherche 25.10.2026.md`.
 

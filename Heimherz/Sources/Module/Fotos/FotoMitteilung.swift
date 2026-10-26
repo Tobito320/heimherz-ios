@@ -27,7 +27,7 @@ struct SystemMitteilungen: MitteilungsDienst {
 
     func zeige(text: String) async {
         let inhalt = UNMutableNotificationContent()
-        inhalt.title = "Heimcloud"
+        inhalt.title = "Haven"
         inhalt.body = text
         inhalt.sound = .default
         // Ohne Auslöser: sofort. Eine feste Kennung, damit ein zweiter Lauf die alte Mitteilung ersetzt statt sie zu stapeln.

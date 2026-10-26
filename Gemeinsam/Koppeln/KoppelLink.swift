@@ -18,7 +18,7 @@ enum KoppelFehler: Error, Equatable, LocalizedError {
 
     var nutzerText: String {
         switch self {
-        case .keinKoppelLink: return "Das ist kein Heimcloud-Koppel-Link."
+        case .keinKoppelLink: return "Das ist kein Haven-Koppel-Link."
         case .adresseFehlt: return "Im Link fehlt die Adresse des PCs."
         case .nurHttps: return "Die Adresse muss mit https:// beginnen."
         case .keinTailnet: return "Die Adresse muss ein Tailscale-Name sein (endet auf .ts.net)."

@@ -64,7 +64,7 @@ struct StatusChip: View {
     }
 }
 
-/// Leerer Zustand: Hausherz, ein Satz, optional eine Handlung. Lädt zur nächsten Handlung ein statt "Keine Daten".
+/// Leerer Zustand: Haven-Zeichen, ein Satz, optional eine Handlung. Lädt zur nächsten Handlung ein statt "Keine Daten".
 struct LeerZustand: View {
     var stimmung: HausherzStimmung = .wach
     let titel: String
@@ -97,7 +97,7 @@ struct LeerZustand: View {
     }
 }
 
-/// Fehlerkarte: trauriges Hausherz, ein verständlicher Satz, optional "Nochmal".
+/// Fehlerkarte: Fehlerzeichen, ein verständlicher Satz, optional "Nochmal".
 struct FehlerKarte: View {
     let text: String
     var wiederholen: (() -> Void)?

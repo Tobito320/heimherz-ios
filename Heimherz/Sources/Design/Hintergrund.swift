@@ -21,7 +21,7 @@ struct Hintergrund: View {
 }
 
 extension View {
-    /// Setzt den Heimcloud-Hintergrund hinter die Ansicht.
+    /// Setzt den Haven-Hintergrund hinter die Ansicht.
     func heimherzHintergrund() -> some View {
         background { Hintergrund() }
     }

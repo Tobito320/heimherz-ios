@@ -97,7 +97,7 @@ final class CredentialImportAdapterTests: XCTestCase {
     func testUebersetzungAllerArten() throws {
         let r = CredentialImportAdapter.konten(aus: try daten())
         XCTAssertEqual(r.konten.count, 3)
-        XCTAssertEqual(r.uebersprungen, 2, "API-Schlüssel und Führerschein kennt Heimcloud nicht")
+        XCTAssertEqual(r.uebersprungen, 2, "API-Schlüssel und Führerschein kennt Haven nicht")
 
         let github = r.konten[0]
         XCTAssertEqual([github.art, github.titel, github.benutzer, github.passwort], [Eintrag.artLogin, "GitHub", "mia", "demo-passwort-1"])

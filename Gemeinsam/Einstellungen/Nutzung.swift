@@ -6,6 +6,7 @@ struct Nutzung {
     let speicher: UserDefaults
     static let hoechstens = 200
     private static let schluessel = "nutzung.zuletzt"
+    private static let zaehlerSchluessel = "nutzung.anzahl"
 
     init(speicher: UserDefaults? = UserDefaults(suiteName: Kennungen.appGruppe)) {
         self.speicher = speicher ?? .standard
@@ -17,7 +18,13 @@ struct Nutzung {
         return roh.mapValues { Date(timeIntervalSince1970: $0) }
     }
 
+    /// id → wie oft benutzt (für die Reihenfolge der Vorschläge, W-030). Nur Zahlen je Konto-id, klein genug für die App Group.
+    var anzahl: [String: Int] { speicher.dictionary(forKey: Self.zaehlerSchluessel) as? [String: Int] ?? [:] }
+
     func merke(id: String, jetzt: Date = Date()) {
+        var zaehler = anzahl
+        zaehler[id, default: 0] += 1
+        speicher.set(zaehler, forKey: Self.zaehlerSchluessel)
         var roh = speicher.dictionary(forKey: Self.schluessel) as? [String: Double] ?? [:]
         roh[id] = jetzt.timeIntervalSince1970
         if roh.count > Self.hoechstens {
@@ -26,5 +33,8 @@ struct Nutzung {
         speicher.set(roh, forKey: Self.schluessel)
     }
 
-    func vergiss() { speicher.removeObject(forKey: Self.schluessel) }
+    func vergiss() {
+        speicher.removeObject(forKey: Self.schluessel)
+        speicher.removeObject(forKey: Self.zaehlerSchluessel)
+    }
 }

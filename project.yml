@@ -75,13 +75,13 @@ targets:
         SWIFT_OPTIMIZATION_LEVEL: "-O"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_CFBundleDisplayName: Heimcloud
+        INFOPLIST_KEY_CFBundleDisplayName: Haven
         INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
-        INFOPLIST_KEY_NSPhotoLibraryUsageDescription: "Heimcloud sichert deine Fotos und Videos auf deinen PC. Am Handy wird nie etwas gelöscht oder geändert."
-        INFOPLIST_KEY_NSCameraUsageDescription: "Heimcloud scannt damit den QR-Code vom PC, um das Handy zu koppeln, und QR-Codes für neue 2FA-Codes."
-        INFOPLIST_KEY_NSFaceIDUsageDescription: "Heimcloud entsperrt deinen Tresor mit Face ID."
+        INFOPLIST_KEY_NSPhotoLibraryUsageDescription: "Haven sichert deine Fotos und Videos auf deinen PC. Am Handy wird nie etwas gelöscht oder geändert."
+        INFOPLIST_KEY_NSCameraUsageDescription: "Haven scannt damit den QR-Code vom PC, um das Handy zu koppeln, und QR-Codes für neue 2FA-Codes."
+        INFOPLIST_KEY_NSFaceIDUsageDescription: "Haven entsperrt deinen Tresor mit Face ID."
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"   # wie Lovea und Bahnherz, sonst lehnt der Upload ab (90474)
         CODE_SIGN_ENTITLEMENTS: Heimherz/Heimherz.entitlements
@@ -125,8 +125,8 @@ targets:
         PRODUCT_NAME: HeimherzAutoFill
         SWIFT_OPTIMIZATION_LEVEL: "-O"
         GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_CFBundleDisplayName: Heimcloud
-        INFOPLIST_KEY_NSFaceIDUsageDescription: "Heimcloud entsperrt deinen Tresor mit Face ID."
+        INFOPLIST_KEY_CFBundleDisplayName: Haven
+        INFOPLIST_KEY_NSFaceIDUsageDescription: "Haven entsperrt deinen Tresor mit Face ID."
         SKIP_INSTALL: YES
         CODE_SIGN_ENTITLEMENTS: HeimherzAutoFill/HeimherzAutoFill.entitlements
       configs:
@@ -155,8 +155,8 @@ targets:
         PRODUCT_NAME: HeimherzFotos
         SWIFT_OPTIMIZATION_LEVEL: "-O"
         GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_CFBundleDisplayName: Heimcloud Fotos
-        INFOPLIST_KEY_NSPhotoLibraryUsageDescription: "Heimcloud sichert deine Fotos und Videos auf deinen PC. Am Handy wird nie etwas gelöscht oder geändert."
+        INFOPLIST_KEY_CFBundleDisplayName: Haven Fotos
+        INFOPLIST_KEY_NSPhotoLibraryUsageDescription: "Haven sichert deine Fotos und Videos auf deinen PC. Am Handy wird nie etwas gelöscht oder geändert."
         SKIP_INSTALL: YES
         CODE_SIGN_ENTITLEMENTS: HeimherzFotos/HeimherzFotos.entitlements
       configs:
@@ -164,7 +164,7 @@ targets:
           CODE_SIGN_STYLE: Manual
           CODE_SIGN_IDENTITY: "Apple Distribution"
           PROVISIONING_PROFILE_SPECIFIER: $(HEIMHERZ_FOTOS_PROFILE)
-  # Teilen-Erweiterung (W-045, SPEC 12): "Teilen > Heimcloud" schickt Dateien (Adobe Scan u. a.) nach Eingang/ am PC.
+  # Teilen-Erweiterung (W-045, SPEC 12): "Teilen > Haven" schickt Dateien (Adobe Scan u. a.) nach Eingang/ am PC.
   HeimherzTeilen:
     type: app-extension
     platform: iOS
@@ -180,7 +180,7 @@ targets:
           NSExtensionPointIdentifier: com.apple.share-services
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).TeilenController
           NSExtensionAttributes:
-            # Nur Dateien (PDF u. a.) und Bilder, bis 50; Text oder Links allein zeigen Heimcloud nicht im Teilen-Blatt.
+            # Nur Dateien (PDF u. a.) und Bilder, bis 50; Text oder Links allein zeigen Haven nicht im Teilen-Blatt.
             NSExtensionActivationRule:
               NSExtensionActivationSupportsFileWithMaxCount: 50
               NSExtensionActivationSupportsImageWithMaxCount: 50
@@ -190,7 +190,7 @@ targets:
         PRODUCT_NAME: HeimherzTeilen
         SWIFT_OPTIMIZATION_LEVEL: "-O"
         GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_CFBundleDisplayName: Heimcloud
+        INFOPLIST_KEY_CFBundleDisplayName: Haven
         SKIP_INSTALL: YES
         CODE_SIGN_ENTITLEMENTS: HeimherzTeilen/HeimherzTeilen.entitlements
       configs:

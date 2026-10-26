@@ -7,8 +7,8 @@ struct ImportAnleitungBlatt: View {
     private let schritte = [
         "Öffne die App „Passwörter“ von Apple.",
         "Öffne das Menü (drei Punkte) und wähle „Daten an andere App exportieren“. Der Menüpunkt kann je nach iOS-Version etwas anders heißen.",
-        "Bestätige mit Face ID und wähle „Heimcloud“ in der Liste.",
-        "Heimcloud öffnet sich, nimmt alles auf und gleicht gleich mit deinem PC ab."
+        "Bestätige mit Face ID und wähle „Haven“ in der Liste.",
+        "Haven öffnet sich, nimmt alles auf und gleicht gleich mit deinem PC ab."
     ]
 
     var body: some View {
@@ -42,10 +42,10 @@ struct ImportAnleitungBlatt: View {
                     DisclosureGroup("Gut zu wissen") {
                         VStack(alignment: .leading, spacing: Abstand.s) {
                             punkt("Gleicher Benutzer und gleiche Seite mit gleichem Passwort: wird übersprungen.")
-                            punkt("Gleicher Benutzer und gleiche Seite mit neuerem Passwort: Heimcloud übernimmt das neue, das alte bleibt im Verlauf des Eintrags.")
+                            punkt("Gleicher Benutzer und gleiche Seite mit neuerem Passwort: Haven übernimmt das neue, das alte bleibt im Verlauf des Eintrags.")
                             punkt("Passkeys werden gesichert (mit Seite, Konto und Schlüssel, nur im verschlüsselten Tresor). Anmelden damit geht über Automatisch ausfüllen.")
-                            punkt("WLAN-Passwörter, Karten und Ausweise kennt Heimcloud nicht und überspringt sie.")
-                            punkt("Heimcloud muss in den iPhone-Einstellungen unter Allgemein, AutoFill und Passwörter als Anbieter eingeschaltet sein, falls Apple die App sonst nicht anbietet.")
+                            punkt("WLAN-Passwörter, Karten und Ausweise kennt Haven nicht und überspringt sie.")
+                            punkt("Haven muss in den iPhone-Einstellungen unter Allgemein, AutoFill und Passwörter als Anbieter eingeschaltet sein, falls Apple die App sonst nicht anbietet.")
                         }
                         .padding(.top, Abstand.s)
                     }

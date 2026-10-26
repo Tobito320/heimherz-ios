@@ -74,15 +74,32 @@ final class AutoFillIdentitaetenTests: XCTestCase {
     }
 
     func testPasswortIdentitaetJeHostMitIdUndBenutzer() throws {
-        let t = Tresor(eintraege: [login("a", urls: ["https://github.com", "https://www.github.com"], favorit: true)])
+        let t = Tresor(eintraege: [login("a", urls: ["https://github.com", "https://www.github.com", "https://gitlab.com"], favorit: true)])
         let liste = AutoFillIdentitaeten.baue(aus: t)
-        XCTAssertEqual(liste.count, 2)
+        XCTAssertEqual(liste.count, 2)   // www.github.com fällt weg: github.com deckt die Unterdomain (W-030)
         let p = try XCTUnwrap(liste.first as? ASPasswordCredentialIdentity)
         XCTAssertEqual(p.serviceIdentifier.identifier, "github.com")
         XCTAssertEqual(p.serviceIdentifier.type, .domain)
         XCTAssertEqual(p.user, "mia")
         XCTAssertEqual(p.recordIdentifier, "a")
-        XCTAssertEqual(p.rank, 1)
+        XCTAssertEqual(p.rank, AutoFillIdentitaeten.rang(favorit: true, benutzungen: 0))
+    }
+
+    func testRangFavoritVorHaeufigkeit() {
+        XCTAssertGreaterThan(AutoFillIdentitaeten.rang(favorit: true, benutzungen: 0), AutoFillIdentitaeten.rang(favorit: false, benutzungen: 9_999))
+        XCTAssertGreaterThan(AutoFillIdentitaeten.rang(favorit: false, benutzungen: 5), AutoFillIdentitaeten.rang(favorit: false, benutzungen: 2))
+    }
+
+    func testRangAusNutzung() throws {
+        let t = Tresor(eintraege: [login("a", urls: ["https://x.org"]), login("b", urls: ["https://x.org"])])
+        let liste = AutoFillIdentitaeten.baue(aus: t, nutzung: ["b": 7]).compactMap { $0 as? ASPasswordCredentialIdentity }
+        XCTAssertEqual(liste.first { $0.recordIdentifier == "b" }?.rank, 7)
+        XCTAssertEqual(liste.first { $0.recordIdentifier == "a" }?.rank, 0)
+    }
+
+    func testUnterdomainenEinesEintragsNurEinmal() {
+        XCTAssertEqual(AutoFillIdentitaeten.ohneUnterdomains(["sso.web.x.de", "web.x.de", "y.de"]), ["web.x.de", "y.de"])
+        XCTAssertEqual(AutoFillIdentitaeten.ohneUnterdomains(["ax.de", "x.de"]), ["ax.de", "x.de"])   // kein Teilwort-Treffer
     }
 
     func testOhneTotpKeineEinmalcodeIdentitaet() {

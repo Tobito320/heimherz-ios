@@ -99,7 +99,7 @@ final class AppSperre {
         var fehler: NSError?
         guard kontext.canEvaluatePolicy(.deviceOwnerAuthentication, error: &fehler) else { return .nichtMoeglich }
         do {
-            let ok = try await kontext.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: "Heimcloud entsperren")
+            let ok = try await kontext.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: "Haven entsperren")
             return ok ? .ok : .abgelehnt
         } catch {
             return .abgelehnt
@@ -115,7 +115,7 @@ struct SperrAnsicht: View {
         VStack(spacing: Abstand.l) {
             Spacer()
             HausherzView(stimmung: .schlaeft, groesse: 140)
-            Text("Heimcloud ist gesperrt")
+            Text("Haven ist gesperrt")
                 .font(.title2.weight(.bold))
                 .foregroundStyle(Color.tinte)
             if let meldung = sperre.meldung {

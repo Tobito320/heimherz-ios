@@ -180,7 +180,7 @@ struct EintragDetailView: View {
                     .foregroundStyle(Color.tinte)
                     .frame(minHeight: Abstand.tippflaeche, alignment: .leading)
             }
-            Text("Gesichert im Tresor. Heimcloud meldet dich damit an.")
+            Text("Gesichert im Tresor. Haven meldet dich damit an.")
                 .font(.footnote)
                 .foregroundStyle(Color.tinte2)
         }

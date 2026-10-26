@@ -320,7 +320,7 @@ final class TresorStore {
     }
 
     private nonisolated static func setzeImSystem(_ tresor: Tresor) async {
-        _ = await AutoFillIdentitaeten.setze(tresor)
+        _ = await AutoFillIdentitaeten.setze(tresor, nutzung: Nutzung().anzahl)
     }
 
     private nonisolated static func setzeSpotlight(_ tresor: Tresor) async {
