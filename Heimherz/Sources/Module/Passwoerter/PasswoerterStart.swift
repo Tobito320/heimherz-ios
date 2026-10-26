@@ -11,9 +11,13 @@ enum PasswoerterZiel: Hashable {
 struct PasswoerterStart: View {
     let store: TresorStore
     @Binding var suche: String
+    var zoom: Namespace.ID
     var neu: (FormularZiel) -> Void
     var generator: () -> Void
     var anleitung: () -> Void
+
+    @State private var versatz: CGFloat = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var zaehler: [PasswoerterKategorie: Int] { store.zaehler }
 
@@ -29,13 +33,16 @@ struct PasswoerterStart: View {
         Group {
             if suchtext.isEmpty { start } else { ergebnisse }
         }
-        .heimherzHintergrund()
+        .heimherzHintergrund(versatz: versatz)
         .searchable(text: $suche, prompt: "Suchen")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) { mehrMenue }
             ToolbarItem(placement: .topBarTrailing) { neuMenue }
         }
-        .refreshable { await store.abgleichen() }
+        .refreshable {
+            Haptik.auswahl()
+            await store.abgleichen()
+        }
     }
 
     // MARK: Start
@@ -49,6 +56,7 @@ struct PasswoerterStart: View {
                         let k = item.element
                         NavigationLink(value: PasswoerterZiel.kategorie(k)) { KategorieKachel(kategorie: k, anzahl: zaehler[k] ?? 0) }
                             .buttonStyle(.federnd)
+                            .zoomQuelle(k, in: zoom)
                             .aufbau(item.offset + 2)
                     }
                 }
@@ -64,6 +72,7 @@ struct PasswoerterStart: View {
             .padding(.horizontal, Abstand.l)
             .padding(.bottom, Abstand.xl)
         }
+        .scrollVersatz($versatz)
     }
 
     // MARK: Hero
@@ -77,6 +86,7 @@ struct PasswoerterStart: View {
                 InfoPille(text: "Einträge im Tresor", symbol: "lock.fill")
             }
             .frame(maxWidth: .infinity)
+            .schrumpftBeimScrollen(versatz, reduceMotion: reduceMotion)
             .aufbau(0)
             HStack(alignment: .top, spacing: Abstand.s) {
                 RundeAktion(titel: "Neu", symbol: "plus") { Haptik.auswahl(); neu(.neu(Eintrag.artLogin)) }

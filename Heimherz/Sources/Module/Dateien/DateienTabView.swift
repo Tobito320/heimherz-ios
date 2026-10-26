@@ -93,6 +93,7 @@ struct OrdnerSeite: View {
     }
 
     private var titel: String { ordner.last ?? "Dateien" }
+    @State private var versatz: CGFloat = 0
     private var sortierung: DateiSortierung { DateiSortierung(rohwert: sortierungRoh) ?? .standard }
     private var sortiert: [DateiInfo] { sortierung.sortiere(modell.eintraege) }
     private var istSuche: Bool { !suchtext.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
@@ -100,7 +101,7 @@ struct OrdnerSeite: View {
 
     var body: some View {
         hauptteil
-            .heimherzHintergrund()
+            .heimherzHintergrund(versatz: versatz)
             .navigationTitle(titel)
             .navigationBarTitleDisplayMode(ordner.isEmpty ? .large : .inline)
             .searchable(text: $suchtext, placement: .navigationBarDrawer(displayMode: .always), prompt: "Suchen")
@@ -153,7 +154,7 @@ struct OrdnerSeite: View {
     @ViewBuilder private var startseite: some View {
         switch startModell.zustand {
         case .laedt where startModell.abschnitte.isEmpty:
-            ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+            ScrollView { VStack(spacing: Abstand.l) { SkelettKarte(zeilen: 5); SkelettKarte(zeilen: 3) }.padding(Abstand.l) }
         case .fehler(let text, let offline) where startModell.abschnitte.isEmpty:
             ContentUnavailableView {
                 Label(offline ? "PC nicht erreichbar" : "Das hat nicht geklappt", systemImage: offline ? "wifi.slash" : "exclamationmark.triangle")
@@ -179,8 +180,12 @@ struct OrdnerSeite: View {
                 }
                 .listStyle(.insetGrouped)
                 .scrollContentBackground(.hidden)
-                .heimherzHintergrund()
-                .refreshable { await startModell.lade() }
+                .scrollVersatz($versatz)
+                .heimherzHintergrund(versatz: versatz)
+                .refreshable {
+                    Haptik.auswahl()
+                    await startModell.lade()
+                }
             }
         }
     }

@@ -24,6 +24,7 @@ struct PasswoerterInhalt: View {
     @State private var formular: FormularZiel?
     @State private var zeigeGenerator = false
     @State private var zeigeAnleitung = false
+    @Namespace private var zoom
 
     init(umgebung: AppUmgebung) {
         _store = State(initialValue: TresorStore(umgebung: umgebung))
@@ -48,6 +49,7 @@ struct PasswoerterInhalt: View {
                     switch ziel {
                     case .kategorie(let k):
                         PasswoerterListe(store: store, kategorie: k, neu: { formular = $0 }, generator: { zeigeGenerator = true })
+                            .zoomZiel(k, in: zoom)
                     case .eintrag(let id):
                         EintragDetailView(store: store, id: id) { formular = .bearbeiten($0) }
                     case .gesundheit:
@@ -203,7 +205,7 @@ struct PasswoerterInhalt: View {
                         .padding(Abstand.l)
                 }
             case .bereit:
-                PasswoerterStart(store: store, suche: $suche, neu: { formular = $0 }, generator: { zeigeGenerator = true }, anleitung: { zeigeAnleitung = true })
+                PasswoerterStart(store: store, suche: $suche, zoom: zoom, neu: { formular = $0 }, generator: { zeigeGenerator = true }, anleitung: { zeigeAnleitung = true })
             }
         }
     }

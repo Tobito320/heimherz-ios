@@ -32,6 +32,16 @@ struct HausherzView: View {
     var beschriftet = false
 
     var body: some View {
+        if stimmung == .jubelt {
+            ErfolgsHaken(groesse: groesse, haptik: false)
+                .accessibilityHidden(!beschriftet)
+                .accessibilityLabel(beschriftet ? stimmung.beschreibung : "")
+        } else {
+            symbolKreis
+        }
+    }
+
+    private var symbolKreis: some View {
         Image(systemName: stimmung.symbol)
             .font(.system(size: groesse * 0.4, weight: .semibold, design: .rounded))
             .foregroundStyle(stimmung == .sorry ? Color.schlecht : Color.tinte)

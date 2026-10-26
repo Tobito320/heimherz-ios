@@ -109,10 +109,11 @@ private struct FotosInhalt: View {
             .pickerStyle(.segmented)
             .padding(.horizontal, Abstand.l)
             switch ansicht {
-            case .abgleich: seite { uebersicht }
-            case .fotos: FotoRasterView(modell: modell)
+            case .abgleich: seite { uebersicht }.transition(.opacity.combined(with: .offset(x: -24)))
+            case .fotos: FotoRasterView(modell: modell).transition(.opacity.combined(with: .offset(x: 24)))
             }
         }
+        .animation(Feder.tab, value: ansicht)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
