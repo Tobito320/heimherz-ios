@@ -38,10 +38,11 @@ export const SCAN_JS = (bekannt: Selektoren) => `(()=>{
   const bB=ok(B.benutzer),texte=ein.filter(e=>e!==code&&['text','email','tel','url','number',''].includes(e.type));
   const ben=(bB&&bB.type!=='password'&&bB!==code?bB:null)||texte.find(e=>/username|email/.test(e.autocomplete))||texte.find(e=>/user|mail|login|konto|benutzer|kennung|nutzer|account|identifier|uname/.test(txt(e)))||(pw?texte[0]:null)||null;
   const anker=pw||code||ben,wurzel=(anker&&anker.form)||document;
-  const knoepfe=[...wurzel.querySelectorAll('button,input[type=submit],[role=button]')].filter(e=>sichtbar(e)&&!e.disabled&&e.getAttribute('aria-disabled')!=='true');
   const knopfText=e=>((e.innerText||e.value||e.getAttribute('aria-label')||'')+'').trim().toLowerCase();
+  // "Mit Passkey anmelden" ist ein anderer Weg als Benutzer und Passwort: nie als Absende-Knopf nehmen (sso.arbeitsagentur.de).
+  const knoepfe=[...wurzel.querySelectorAll('button,input[type=submit],[role=button]')].filter(e=>sichtbar(e)&&!e.disabled&&e.getAttribute('aria-disabled')!=='true'&&!/passkey|webauthn|sicherheitsschlüssel|security key/.test(knopfText(e)));
   const abB=ok(B.absenden);
-  const ab=(abB&&anker?abB:null)||knoepfe.find(e=>e.type==='submit')||knoepfe.find(e=>/anmelden|einloggen|login|log in|sign in|weiter|continue|next|senden|bestätigen|verify|submit|absenden/.test(knopfText(e)))||null;
+  const ab=(abB&&anker&&!/passkey|webauthn/.test(knopfText(abB))?abB:null)||knoepfe.find(e=>e.type==='submit')||knoepfe.find(e=>/^(anmelden|einloggen|login|log in|sign in)$/.test(knopfText(e)))||knoepfe.find(e=>/anmelden|einloggen|login|log in|sign in|weiter|continue|next|senden|bestätigen|verify|submit|absenden/.test(knopfText(e)))||null;
   const KAUF=new RegExp(${JSON.stringify(KAUF_RE.source)},'i'),KAUF_FORM=new RegExp(${JSON.stringify(KAUF_FORM.source)},'i');
   const lbl=ab?knopfText(ab).replace(/\\s+/g,' '):'';
   const kauf=!!ab&&((lbl.length>0&&lbl.length<=80&&KAUF.test(lbl))||(!lbl&&!!ab.form&&KAUF_FORM.test(ab.form.action||'')));
@@ -83,7 +84,7 @@ export async function loginAblauf(o: LoginOpt): Promise<LoginAntwort> {
   // Ohne Felder kann die Seite noch laden (mehrstufige Logins holen Schritt 2 oft erst per XHR): erst entscheiden, wenn sie eine Sekunde so bleibt.
   const beruhigt = async (z: Zustand) => { if (!keineFelder(z)) return z; await Bun.sleep(o.beruhigtMs ?? 1000); return scanne(c, { ...o.bekannt, ...benutzt }); };
   try {
-    let z = await beruhigt(await scanne(c, o.bekannt ?? {})), letztes = '';
+    let z = await beruhigt(await scanne(c, o.bekannt ?? {})), letztes = '', urlVorSubmit = '';
     for (let runde = 0; runde < 5; runde++) {
       if (z.captcha) return ende('captcha', 'Captcha sichtbar, das macht Ahmed', z);
       if (z.kauf) return ende('unbekannt', 'Absende-Knopf sieht nach Kaufen aus: nie, Ahmed klickt selbst', z);
@@ -105,13 +106,27 @@ export async function loginAblauf(o: LoginOpt): Promise<LoginAntwort> {
           return ende('eingeloggt', 'keine Anmeldefelder mehr', z);
         }
         if (!z.passwort && !z.code && o.bekannt?.erfolgPfad === z.url) return ende('eingeloggt', 'bekannter Erfolgspfad', z);
-        if (z.passwort && gefuellt.has('passwort') && !z.code) return ende('falsches-passwort', 'Passwortfeld ist nach dem Absenden noch da', z);
+        if (z.passwort && gefuellt.has('passwort') && !z.code) {
+          // Der Erfolg kommt manchmal vor dem Abbau der Seite (Mark-E: schon /portal/dashboard, Passwortfeld noch kurz da): erst nachsehen, dann Exit 8.
+          const vorNachsicht = unterschrift(z);
+          for (let i = 0; i < 3; i++) {
+            await Bun.sleep(o.beruhigtMs ?? 1000);
+            z = await scanne(c, { ...o.bekannt, ...benutzt });
+            if (z.fehler) return ende('falsches-passwort', 'Seite zeigt eine Fehlermeldung', z);
+            if (keineFelder(z)) return ende('eingeloggt', 'Seite hat sich nach kurzer Wartezeit geleert', z);
+            if (o.bekannt?.erfolgPfad === z.url && !z.passwort) return ende('eingeloggt', 'bekannter Erfolgspfad', z);
+          }
+          if (unterschrift(z) !== vorNachsicht) continue;   // ein neuer Schritt (zum Beispiel Code) ist erschienen
+          if (z.url !== urlVorSubmit) return ende('unbekannt', `Adresse wechselte zu ${z.url}, das Passwortfeld steht noch: mit claude-chrome sieh prüfen`, z);
+          return ende('falsches-passwort', 'Passwortfeld ist nach dem Absenden noch da', z);
+        }
         return ende('unbekannt', z.code ? 'Code abgelehnt oder Seite wartet noch' : 'Seite bleibt auf dem Anmeldefeld', z);
       }
       z = await scanne(c, { ...o.bekannt, ...benutzt });   // Absende-Knopf erst nach dem Füllen (wird oft erst dann aktiv)
       if (z.kauf) return ende('unbekannt', 'Absende-Knopf sieht nach Kaufen aus: nie, Ahmed klickt selbst', z);
       if (z.absenden) benutzt.absenden = z.absenden;
       const vorher = unterschrift(z);
+      urlVorSubmit = z.url;
       await absenden(c, z, letztes);
       const bis = Date.now() + (o.warteMs ?? 8000);
       do { await Bun.sleep(300); z = await scanne(c, { ...o.bekannt, ...benutzt }); } while (unterschrift(z) === vorher && Date.now() < bis);

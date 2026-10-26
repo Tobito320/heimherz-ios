@@ -73,6 +73,12 @@ const SEITEN = {
     f1.onsubmit=e=>{e.preventDefault();w.innerHTML='<p>Einen Moment ...</p>';setTimeout(()=>{w.innerHTML='<form id=f2><input id=pw type=password><button type=submit>Anmelden</button></form>';
     f2.onsubmit=e=>{e.preventDefault();w.innerHTML=pw.value==='richtig'?'<h1>Willkommen</h1>':'<p class=error>falsch</p>'}},500)}</script>`,
   kauf: `<form><input id=u><input id=pw type=password><button>Jetzt kaufen</button></form>`,
+  // sso.arbeitsagentur.de: vor "Anmelden" steht "Mit Passkey anmelden"; der falsche Knopf zeigt eine Fehlermeldung
+  passkey: `<div id=w><input id=u autocomplete=username><input id=pw type=password><button type=button id=pk onclick="w.insertAdjacentHTML('beforeend','<p class=error>Passkey nicht verfügbar</p>')">Mit Passkey anmelden</button><button type=button id=ok>Anmelden</button></div><script>ok.onclick=()=>{w.innerHTML='<h1>Willkommen</h1>'}</script>`,
+  // Mark-E: Erfolg ist da, das Passwortfeld verschwindet erst nach rund 1,2 s
+  verzoegert: `<div id=w><input id=u autocomplete=username><input id=pw type=password><button id=b>Anmelden</button></div><script>b.onclick=()=>{setTimeout(()=>{w.innerHTML='<h1>Willkommen</h1>'},1200)}</script>`,
+  // Die Seite meldet nach dem Absenden nichts und behält das Feld: bleibt Exit 8
+  stumm: `<div id=w><input id=u autocomplete=username><input id=pw type=password><button id=b>Anmelden</button></div><script>b.onclick=()=>{b.textContent='Anmelden ...'}</script>`,
   wartet: `<meta charset=utf-8><h1>Bestätige die Anmeldung in der App auf deinem Handy</h1>`,
   drin: `<h1>Willkommen</h1><input id=suche placeholder=Suche>`,
   feld: `<input id=neu type=password value="Handy-Passwort-9"><input id=leer type=password>`,
@@ -93,7 +99,7 @@ test.skipIf(!chrome)('Login gegen Wegwerf-Chrome: zweistufig, falsches Passwort,
   const holte: Was[] = [];
   const lauf = async (html: string, mitCode = false, wert = WERT, bekannt?: any) => {
     const tabId = await oeffne(html);
-    try { return await loginAblauf({ port, tabId, mitCode, bekannt, warteMs: 1500, wert: async w => { holte.push(w); return wert[w]; } }); }
+    try { return await loginAblauf({ port, tabId, mitCode, bekannt, warteMs: 1500, beruhigtMs: 600, wert: async w => { holte.push(w); return wert[w]; } }); }
     finally { await fetch(`http://127.0.0.1:${port}/json/close/${tabId}`); }   // sonst bremsen die offenen Tabs den Wegwerf-Chrome
   };
   try {
@@ -115,6 +121,9 @@ test.skipIf(!chrome)('Login gegen Wegwerf-Chrome: zweistufig, falsches Passwort,
     expect((await lauf(SEITEN.zweifa, true, { ...WERT, code: '000000' })).ergebnis).toBe('unbekannt');   // Code abgelehnt
 
     expect((await lauf(SEITEN.enter)).ergebnis).toBe('eingeloggt');
+    expect((await lauf(SEITEN.passkey)).ergebnis).toBe('eingeloggt');   // "Anmelden", nicht "Mit Passkey anmelden"
+    expect((await lauf(SEITEN.verzoegert)).ergebnis).toBe('eingeloggt');   // nicht Exit 8, obwohl das Feld noch kurz da ist
+    expect((await lauf(SEITEN.stumm)).ergebnis).toBe('falsches-passwort');
     expect((await lauf(SEITEN.captcha)).ergebnis).toBe('captcha');
     holte.length = 0;
     const drin = await lauf(SEITEN.drin);
