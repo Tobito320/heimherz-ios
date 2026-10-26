@@ -36,9 +36,3 @@ Quelle: `SPEC.md`. Module und Reihenfolge: SPEC Abschnitt 3.
 4. Modell (`AutoFillModell`: Aufträge `.passkey`, `.passkeyNeu`, Phase `.passkeyWahl`) + Tests mit Attrappen. Prüfung: CI.
 5. Erweiterung (Controller, Ansicht Auswahl, Info.plist `ProvidesPasskeys`). Prüfung: CI grün inkl. Release-Bau.
 6. Merge nach main, TestFlight, Wunschliste/Übersicht, Bericht. Prüfung: Build in TestFlight; Gerät = Ahmed.
-
-## T23 fotos-aufraeumen (W-037, SPEC 25)
-1. SPEC 25, Plan, Todo. Prüfung: Abschnitt steht.
-2. A (PC, eigener Zweig `fotos-ki-pc`): `server/analyse.ts` + Tests zuerst (Hash, dHash, Gruppen, Schärfe, Vorschlag), Tabellen, Routen, Entprellen nach Upload, CLI `heimherz fotos …`. Prüfung: `bun test`, echte Analyse über Ahmeds Fotos (nur lesend, Zahlen). Parallel zu 3.
-3. B (App, eigener Zweig `fotos-ki-app`): Mediathek/Sammlungen, Medienarten, Aufräumen-Ansichten gegen den Vertrag aus SPEC 25 (Demo-Daten), Löschen. Prüfung: CI grün, Screenshots.
-4. Merge beider Zweige, Dienst neu starten, TestFlight. Prüfung: Ahmed sieht Duplikate und löscht eins.
