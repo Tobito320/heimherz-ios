@@ -6,8 +6,13 @@ import Foundation
 enum AutoFillIdentitaeten {
     /// Pro lebendigem Login mit Benutzer und je Host der URLs eine Passwort-Identität; zusätzlich je Host eine Einmalcode-Identität,
     /// wenn der Eintrag ein lesbares TOTP hat, und je lesbarem Passkey eine Passkey-Identität. Notizen und Grabsteine kommen nicht vor.
-    /// Reihenfolge der Vorschläge (W-030): Favoriten zuerst, innerhalb davon die am häufigsten benutzten. Höher = weiter vorn.
-    static func rang(favorit: Bool, benutzungen: Int) -> Int { (favorit ? 10_000 : 0) + min(benutzungen, 9_999) }
+    /// Reihenfolge der Vorschläge (W-030): automatisch nach Nutzung. Je Benutzung 10 Punkte, dazu bis 9 für Frische (zuletzt in 7 Tagen 9,
+    /// in 30 Tagen 5, sonst 0). Ein von Hand gesetzter Favorit gewinnt nur bei Gleichstand (+1). Höher = weiter vorn.
+    static func rang(favorit: Bool, benutzungen: Int, zuletzt: Date? = nil, jetzt: Date = Date()) -> Int {
+        let tage = zuletzt.map { jetzt.timeIntervalSince($0) / 86_400 }
+        let frische = tage.map { $0 <= 7 ? 9 : ($0 <= 30 ? 5 : 0) } ?? 0
+        return min(benutzungen, 9_999) * 10 + frische + (favorit ? 1 : 0)
+    }
 
     /// Ein Eintrag zeigt eine Seite nur einmal: ist ein Host Unterdomain eines anderen Hosts desselben Eintrags, genügt der obere
     /// (iOS gleicht Unterdomains mit der Domain ab; sonst erschien ein Konto mit sso.web.x.de und web.x.de doppelt).
@@ -15,11 +20,11 @@ enum AutoFillIdentitaeten {
         hosts.filter { h in !hosts.contains { $0 != h && h.hasSuffix("." + $0) } }
     }
 
-    static func baue(aus tresor: Tresor, nutzung: [String: Int] = [:]) -> [any ASCredentialIdentity] {
+    static func baue(aus tresor: Tresor, nutzung: [String: Int] = [:], zuletzt: [String: Date] = [:]) -> [any ASCredentialIdentity] {
         var liste: [any ASCredentialIdentity] = []
         for eintrag in tresor.lebendige where eintrag.art == Eintrag.artLogin {
             let hosts = ohneUnterdomains(EintragSuche.hosts(von: eintrag))
-            let rang = rang(favorit: eintrag.favorit, benutzungen: nutzung[eintrag.id] ?? 0)
+            let rang = rang(favorit: eintrag.favorit, benutzungen: nutzung[eintrag.id] ?? 0, zuletzt: zuletzt[eintrag.id])
             let hatCode = TOTP.einstellung(aus: eintrag.totp) != nil
             for host in hosts {
                 let dienst = ASCredentialServiceIdentifier(identifier: host, type: .domain)
@@ -47,8 +52,8 @@ enum AutoFillIdentitaeten {
     /// (noch) aus ist: dann lehnt das System ab, das ist kein Fehler der App.
     /// Läuft abseits des Hauptthreads: das System ruft den Abschluss auf einer eigenen Warteschlange.
     @concurrent
-    static func setze(_ tresor: Tresor, nutzung: [String: Int] = [:]) async -> Bool {
-        let identitaeten = baue(aus: tresor, nutzung: nutzung)
+    static func setze(_ tresor: Tresor, nutzung: [String: Int] = [:], zuletzt: [String: Date] = [:]) async -> Bool {
+        let identitaeten = baue(aus: tresor, nutzung: nutzung, zuletzt: zuletzt)
         return await withCheckedContinuation { weiter in
             ASCredentialIdentityStore.shared.replaceCredentialIdentities(identitaeten) { erfolg, _ in
                 weiter.resume(returning: erfolg)

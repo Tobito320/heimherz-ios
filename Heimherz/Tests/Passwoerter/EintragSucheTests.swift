@@ -82,18 +82,24 @@ final class AutoFillIdentitaetenTests: XCTestCase {
         XCTAssertEqual(p.serviceIdentifier.type, .domain)
         XCTAssertEqual(p.user, "mia")
         XCTAssertEqual(p.recordIdentifier, "a")
-        XCTAssertEqual(p.rank, AutoFillIdentitaeten.rang(favorit: true, benutzungen: 0))
+        XCTAssertEqual(p.rank, 1)   // Favorit ohne Nutzung: nur der Gleichstand-Punkt
     }
 
-    func testRangFavoritVorHaeufigkeit() {
-        XCTAssertGreaterThan(AutoFillIdentitaeten.rang(favorit: true, benutzungen: 0), AutoFillIdentitaeten.rang(favorit: false, benutzungen: 9_999))
-        XCTAssertGreaterThan(AutoFillIdentitaeten.rang(favorit: false, benutzungen: 5), AutoFillIdentitaeten.rang(favorit: false, benutzungen: 2))
+    func testRangNachNutzungFavoritNurBeiGleichstand() {
+        let jetzt = Date()
+        XCTAssertGreaterThan(AutoFillIdentitaeten.rang(favorit: false, benutzungen: 3), AutoFillIdentitaeten.rang(favorit: true, benutzungen: 2))
+        XCTAssertGreaterThan(AutoFillIdentitaeten.rang(favorit: true, benutzungen: 2), AutoFillIdentitaeten.rang(favorit: false, benutzungen: 2))
+        XCTAssertEqual(AutoFillIdentitaeten.rang(favorit: false, benutzungen: 0), 0)
+        let frisch = AutoFillIdentitaeten.rang(favorit: false, benutzungen: 4, zuletzt: jetzt.addingTimeInterval(-86_400), jetzt: jetzt)
+        let alt = AutoFillIdentitaeten.rang(favorit: false, benutzungen: 4, zuletzt: jetzt.addingTimeInterval(-90 * 86_400), jetzt: jetzt)
+        XCTAssertEqual(frisch - alt, 9)
+        XCTAssertLessThan(frisch, AutoFillIdentitaeten.rang(favorit: false, benutzungen: 5, zuletzt: nil, jetzt: jetzt))   // eine Benutzung mehr schlägt jede Frische
     }
 
     func testRangAusNutzung() throws {
         let t = Tresor(eintraege: [login("a", urls: ["https://x.org"]), login("b", urls: ["https://x.org"])])
         let liste = AutoFillIdentitaeten.baue(aus: t, nutzung: ["b": 7]).compactMap { $0 as? ASPasswordCredentialIdentity }
-        XCTAssertEqual(liste.first { $0.recordIdentifier == "b" }?.rank, 7)
+        XCTAssertEqual(liste.first { $0.recordIdentifier == "b" }?.rank, 70)
         XCTAssertEqual(liste.first { $0.recordIdentifier == "a" }?.rank, 0)
     }
 

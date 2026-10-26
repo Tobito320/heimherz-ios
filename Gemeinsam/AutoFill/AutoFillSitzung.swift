@@ -105,6 +105,6 @@ final class AutoFillSitzung {
     }
 
     private nonisolated static func setzeImSystem(_ tresor: Tresor) async {
-        _ = await AutoFillIdentitaeten.setze(tresor, nutzung: Nutzung().anzahl)
+        _ = await AutoFillIdentitaeten.setze(tresor, nutzung: Nutzung().anzahl, zuletzt: Nutzung().zuletzt)
     }
 }
