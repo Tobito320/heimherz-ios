@@ -21,6 +21,7 @@ jobs:
           APPSTORE_PROFILE_BASE64: ${{ secrets.APPSTORE_PROFILE_BASE64 }}
           APPSTORE_AUTOFILL_PROFILE_BASE64: ${{ secrets.APPSTORE_AUTOFILL_PROFILE_BASE64 }}
           APPSTORE_FOTOS_PROFILE_BASE64: ${{ secrets.APPSTORE_FOTOS_PROFILE_BASE64 }}
+          APPSTORE_TEILEN_PROFILE_BASE64: ${{ secrets.APPSTORE_TEILEN_PROFILE_BASE64 }}
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
@@ -28,7 +29,7 @@ jobs:
           HEIMHERZ_UPLOAD_URL_BASE: ${{ secrets.HEIMHERZ_UPLOAD_URL_BASE }}
         run: |
           missing=""
-          for name in APPLE_CERT_P12_BASE64 APPLE_CERT_PASSWORD APPSTORE_PROFILE_BASE64 APPSTORE_AUTOFILL_PROFILE_BASE64 APPSTORE_FOTOS_PROFILE_BASE64 ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8_BASE64 DEVELOPMENT_TEAM HEIMHERZ_UPLOAD_URL_BASE; do
+          for name in APPLE_CERT_P12_BASE64 APPLE_CERT_PASSWORD APPSTORE_PROFILE_BASE64 APPSTORE_AUTOFILL_PROFILE_BASE64 APPSTORE_FOTOS_PROFILE_BASE64 APPSTORE_TEILEN_PROFILE_BASE64 ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8_BASE64 DEVELOPMENT_TEAM HEIMHERZ_UPLOAD_URL_BASE; do
             if [ -z "${!name}" ]; then
               missing="$missing $name"
             fi
@@ -57,6 +58,7 @@ jobs:
           APPSTORE_PROFILE_BASE64: ${{ secrets.APPSTORE_PROFILE_BASE64 }}
           APPSTORE_AUTOFILL_PROFILE_BASE64: ${{ secrets.APPSTORE_AUTOFILL_PROFILE_BASE64 }}
           APPSTORE_FOTOS_PROFILE_BASE64: ${{ secrets.APPSTORE_FOTOS_PROFILE_BASE64 }}
+          APPSTORE_TEILEN_PROFILE_BASE64: ${{ secrets.APPSTORE_TEILEN_PROFILE_BASE64 }}
         run: |
           set -euo pipefail
           KEYCHAIN="$RUNNER_TEMP/heimherz.keychain-db"
@@ -71,7 +73,7 @@ jobs:
           rm "$RUNNER_TEMP/cert.p12"
 
           # Profil dekodieren, in beide Ordner kopieren (neuere Xcode-Versionen lesen nur UserData), Namen als Umgebungsvariable ablegen.
-          # Fehlt die App Group im Profil, bricht der Lauf hier ab: alle drei Entitlements verlangen sie.
+          # Fehlt die App Group im Profil, bricht der Lauf hier ab: alle vier Entitlements verlangen sie.
           installiere_profil() {
             local base64_inhalt="$1"
             local ziel="$2"
@@ -86,7 +88,7 @@ jobs:
               cp "$ziel" "$dir/$uuid.mobileprovision"
             done
             if ! grep -q 'group.com.onlyus.heimherz' "$ziel.plist"; then
-              echo "::error::Das Profil '$name' enthält die App Group group.com.onlyus.heimherz nicht. Im Apple-Portal die Gruppe allen drei App-IDs zuweisen, die Profile neu erzeugen und die Secrets neu setzen."
+              echo "::error::Das Profil '$name' enthält die App Group group.com.onlyus.heimherz nicht. Im Apple-Portal die Gruppe allen vier App-IDs zuweisen, die Profile neu erzeugen und die Secrets neu setzen."
               exit 1
             fi
             echo "Profil '$name': App Group da"
@@ -96,6 +98,7 @@ jobs:
           installiere_profil "$APPSTORE_PROFILE_BASE64" "$RUNNER_TEMP/profile-app.mobileprovision" HEIMHERZ_APP_PROFILE
           installiere_profil "$APPSTORE_AUTOFILL_PROFILE_BASE64" "$RUNNER_TEMP/profile-autofill.mobileprovision" HEIMHERZ_AUTOFILL_PROFILE
           installiere_profil "$APPSTORE_FOTOS_PROFILE_BASE64" "$RUNNER_TEMP/profile-fotos.mobileprovision" HEIMHERZ_FOTOS_PROFILE
+          installiere_profil "$APPSTORE_TEILEN_PROFILE_BASE64" "$RUNNER_TEMP/profile-teilen.mobileprovision" HEIMHERZ_TEILEN_PROFILE
 
       - name: API-Schlüssel ablegen
         env:
@@ -122,6 +125,7 @@ jobs:
             HEIMHERZ_APP_PROFILE="$HEIMHERZ_APP_PROFILE" \
             HEIMHERZ_AUTOFILL_PROFILE="$HEIMHERZ_AUTOFILL_PROFILE" \
             HEIMHERZ_FOTOS_PROFILE="$HEIMHERZ_FOTOS_PROFILE" \
+            HEIMHERZ_TEILEN_PROFILE="$HEIMHERZ_TEILEN_PROFILE" \
             HEIMHERZ_UPLOAD_URL_BASE="$HEIMHERZ_UPLOAD_URL_BASE" \
             HEIMHERZ_BUILD_DATUM="$(date -u +%Y-%m-%d)" \
             CURRENT_PROJECT_VERSION=${{ github.run_number }}
@@ -150,6 +154,8 @@ jobs:
               <string>$HEIMHERZ_AUTOFILL_PROFILE</string>
               <key>com.onlyus.heimherz.fotos</key>
               <string>$HEIMHERZ_FOTOS_PROFILE</string>
+              <key>com.onlyus.heimherz.teilen</key>
+              <string>$HEIMHERZ_TEILEN_PROFILE</string>
             </dict>
           </dict>
           </plist>

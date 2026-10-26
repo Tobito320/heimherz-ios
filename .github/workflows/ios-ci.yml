@@ -38,10 +38,10 @@ jobs:
               echo "::error::$datei: nur application-groups, keychain-access-groups und autofill-credential-provider erlaubt"; fail=1
             fi
           done < <(git ls-files '*.entitlements')
-          if git grep -n -E 'try!|fatalError\(' -- Heimherz/Sources HeimherzAutoFill/Sources HeimherzFotos/Sources Gemeinsam; then
+          if git grep -n -E 'try!|fatalError\(' -- Heimherz/Sources HeimherzAutoFill/Sources HeimherzFotos/Sources HeimherzTeilen/Sources Gemeinsam; then
             echo "::error::try! und fatalError sind im Produktionscode nicht erlaubt (CONSTRAINTS.md)"; fail=1
           fi
-          if git grep -n -E '@preconcurrency|nonisolated\(unsafe\)' -- Heimherz/Sources HeimherzAutoFill/Sources HeimherzFotos/Sources Gemeinsam | grep -v 'shortcut:'; then
+          if git grep -n -E '@preconcurrency|nonisolated\(unsafe\)' -- Heimherz/Sources HeimherzAutoFill/Sources HeimherzFotos/Sources HeimherzTeilen/Sources Gemeinsam | grep -v 'shortcut:'; then
             echo "::error::@preconcurrency und nonisolated(unsafe) nur mit Kommentar 'shortcut:' in derselben Zeile (CONSTRAINTS.md)"; fail=1
           fi
           exit "$fail"
@@ -193,7 +193,7 @@ jobs:
           path: screenshots
           if-no-files-found: ignore
           retention-days: 7
-      # Zuletzt, damit ein Fehler hier die Screenshots nicht verhindert. Baut App und beide Erweiterungen mit -O und ohne die
+      # Zuletzt, damit ein Fehler hier die Screenshots nicht verhindert. Baut App und alle Erweiterungen mit -O und ohne die
       # DEBUG-Zweige, ohne Signatur: so wird die Release-Konfiguration (inkl. ExtensionKit-Einbettung) vor dem ersten TestFlight-Lauf kompiliert.
       - name: Release-Bau ohne Signatur
         if: ${{ !cancelled() }}
@@ -213,3 +213,4 @@ jobs:
           find "$APP" -name '*.appex' -maxdepth 3
           test -d "$APP/Extensions/HeimherzFotos.appex"
           test -d "$APP/PlugIns/HeimherzAutoFill.appex"
+          test -d "$APP/PlugIns/HeimherzTeilen.appex"

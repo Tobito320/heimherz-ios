@@ -31,6 +31,9 @@ targets:
       - target: HeimherzFotos
         embed: true
         codeSign: true
+      - target: HeimherzTeilen
+        embed: true
+        codeSign: true
     info:
       path: Heimherz/Info.plist
       properties:
@@ -161,6 +164,40 @@ targets:
           CODE_SIGN_STYLE: Manual
           CODE_SIGN_IDENTITY: "Apple Distribution"
           PROVISIONING_PROFILE_SPECIFIER: $(HEIMHERZ_FOTOS_PROFILE)
+  # Teilen-Erweiterung (W-045, SPEC 12): "Teilen > Heimcloud" schickt Dateien (Adobe Scan u. a.) nach Eingang/ am PC.
+  HeimherzTeilen:
+    type: app-extension
+    platform: iOS
+    sources:
+      - HeimherzTeilen/Sources
+      - Gemeinsam
+    info:
+      path: HeimherzTeilen/Info.plist
+      properties:
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.share-services
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).TeilenController
+          NSExtensionAttributes:
+            # Nur Dateien (PDF u. a.) und Bilder, bis 50; Text oder Links allein zeigen Heimcloud nicht im Teilen-Blatt.
+            NSExtensionActivationRule:
+              NSExtensionActivationSupportsFileWithMaxCount: 50
+              NSExtensionActivationSupportsImageWithMaxCount: 50
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.onlyus.heimherz.teilen
+        PRODUCT_NAME: HeimherzTeilen
+        SWIFT_OPTIMIZATION_LEVEL: "-O"
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Heimcloud
+        SKIP_INSTALL: YES
+        CODE_SIGN_ENTITLEMENTS: HeimherzTeilen/HeimherzTeilen.entitlements
+      configs:
+        Release:
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: "Apple Distribution"
+          PROVISIONING_PROFILE_SPECIFIER: $(HEIMHERZ_TEILEN_PROFILE)
   HeimherzTests:
     type: bundle.unit-test
     platform: iOS
@@ -181,6 +218,7 @@ schemes:
         Heimherz: all
         HeimherzAutoFill: all
         HeimherzFotos: all
+        HeimherzTeilen: all
         HeimherzTests: [test]
     test:
       targets:

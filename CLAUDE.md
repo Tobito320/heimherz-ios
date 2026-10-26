@@ -5,7 +5,7 @@ Eigene Brücke PC ↔ iPhone für Passwörter (AutoFill), Fotos und Dateien. Nur
 ## Pfade
 - Repo `/home/tobi/projects/heimherz-ios` (Link `~/code/heimherz-ios`), GitHub `Tobito320/heimherz-ios`, privat.
 - PC-Teil: `lib/` (Tresor-Format TS), `server/` (Dienst), `bin/heimherz` (CLI), Tests mit `~/.bun/bin/bun test`.
-- iOS-Teil: `project.yml`, `Gemeinsam/`, `Heimherz/`, `HeimherzAutoFill/`, `HeimherzFotos/`. Gemeinsame Fixtures `fixtures/` lesen Bun und XCTest.
+- iOS-Teil: `project.yml`, `Gemeinsam/`, `Heimherz/`, `HeimherzAutoFill/`, `HeimherzFotos/`, `HeimherzTeilen/`. Gemeinsame Fixtures `fixtures/` lesen Bun und XCTest.
 - Jede Datei gehört einem Modul (SPEC 3). Fremde Modulordner nie ändern; Wünsche in den Abschlussbericht.
 
 ## Sicherheit (zuerst)

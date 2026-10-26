@@ -136,7 +136,7 @@ Pfade: nur relativ, normalisiert, `realpath` muss in `HEIMHERZ_DATEIEN` liegen (
 
 Wie Bahnherz (`~/projects/bahnherz-ios`): `project.yml`, `Gemeinsam/`, `Heimherz/Sources/Module/<Modul>`, Tests mit JSON-Fixtures, Design-System von Bahnherz übernommen (Farben eigenes Thema: warmes Grün statt Pink, Maskottchen ein kleines Haus mit Herz).
 
-Targets: `Heimherz` (App), `HeimherzAutoFill` (Credential Provider), `HeimherzFotos` (Photos Background Upload Extension). Bundle IDs `com.onlyus.heimherz`, `.autofill`, `.fotos`. App Group `group.com.onlyus.heimherz`. Schlüsselbund-Gruppe `$(AppIdentifierPrefix)com.onlyus.heimherz`.
+Targets: `Heimherz` (App), `HeimherzAutoFill` (Credential Provider), `HeimherzFotos` (Photos Background Upload Extension), `HeimherzTeilen` (Teilen-Erweiterung, W-045). Bundle IDs `com.onlyus.heimherz`, `.autofill`, `.fotos`, `.teilen`. App Group `group.com.onlyus.heimherz`. Schlüsselbund-Gruppe `$(AppIdentifierPrefix)com.onlyus.heimherz`.
 
 Gemeinsam/:
 - `Tresor/` Modelle, `Umschlag` (AES-GCM), `Zusammenfuehren`, `TOTP` (aus `tresor-format`).
@@ -149,7 +149,7 @@ Tabs: Passwörter, Fotos, Dateien, Einstellungen (vorher "Mehr"; PC, Sicherheit,
 
 ### Grundgerüst (gebaut, T4)
 
-Alle Typen sind `internal`: `Gemeinsam/` wird in App, `HeimherzAutoFill` und `HeimherzFotos` einkompiliert (je eigenes Modul), `@testable import Heimherz` in den Tests. Kein `public` nötig. Klartext (Passwörter, K) lebt nur im Speicher.
+Alle Typen sind `internal`: `Gemeinsam/` wird in App, `HeimherzAutoFill`, `HeimherzFotos` und `HeimherzTeilen` einkompiliert (je eigenes Modul), `@testable import Heimherz` in den Tests. Kein `public` nötig. Klartext (Passwörter, K) lebt nur im Speicher.
 
 | Datei in `Gemeinsam/` | Typen und Signaturen |
 |---|---|
@@ -314,12 +314,19 @@ Startseite wie "Durchsuchen" (T21, Ahmed 26.10.2026: "a view like dateien on iph
 
 Runde 3 (W-007): Der Zwischenspeicher der Vorschauen (`VorschauCache`, `Caches/Heimherz/Dateien`) wird in den Einstellungen mit Größe angezeigt und mit Rückfrage geleert (`VorschauCache.groesse`, `leere`). Im Hauptordner entfallen die Brotkrumen.
 
-Ordner verbinden (W-045, 26.10.): Ahmed: "wie kann ich nun auch Adobe Scan und sowas, was auf mein Handy lokal liegt, direkt vom Handy aus, sodass ich das nicht nirgendwo verschieben muss oder so, direkt synchron halten." Kleinste Lösung, kein Datei-Anbieter, keine Erweiterung.
+Ordner verbinden (W-045, 26.10.): Ahmed: "wie kann ich nun auch Adobe Scan und sowas, was auf mein Handy lokal liegt, direkt vom Handy aus, sodass ich das nicht nirgendwo verschieben muss oder so, direkt synchron halten." Kleinste Lösung, kein Datei-Anbieter, keine Erweiterung (die Erweiterung kam danach, siehe "Teilen an Heimcloud").
 - Menü (Drei-Punkte) > Hochladen > "Ordner vom Handy …" öffnet das Blatt "Ordner vom Handy" (`OrdnerBlatt`): Liste der verbundenen Ordner (Name, bei Rückstand eine Zeile "N Dateien noch nicht am PC"), Wischen "Trennen", Knopf "Ordner verbinden …" (`fileImporter`, `[.folder]`). Ganz unten: "Neue Dateien gehen an den PC, wenn Heimcloud geöffnet wird oder Fotos abgleicht."
 - Speicher: Lesezeichen je Ordner (`url.bookmarkData()`, auf iOS ohne `.withSecurityScope`; beim Lesen `startAccessingSecurityScopedResource`, veraltetes Lesezeichen wird neu gespeichert) plus Stand je Datei (relativer Pfad, Größe, Änderung in ganzen Sekunden) in `Application Support/Heimherz/ordner-abgleich.json` (`OrdnerAbgleich`).
 - Abgleich: beim Wechsel der App nach vorn, zu Beginn jedes Foto-Abgleichs (`FotosModell.beginne`) und gleich nach dem Verbinden. Je Ordner rekursiv lesen (ohne versteckte Dateien und Symlinks), Neues und Geändertes über `HeimClient.dateiHochladen` nach `Eingang/<Ordnername>/<relativer Pfad>`. Gelesen wird über `NSFileCoordinator` in eine Temp-Kopie (so lädt ein Datei-Anbieter wie Adobe Scan Dateien, die nur in seiner Cloud liegen, erst herunter); die Kopie wird danach gelöscht. Der Dienst legt unter `Eingang/` fehlende Ordner an (`legeEingangAn`, Symlinks nach draußen 403); anderswo bleibt es bei 404.
 - Geänderte Datei: der Dienst überschreibt nie, sie kommt als `name (2).ext`. Verschwindet etwas am Handy, passiert am PC nichts.
 - Grenzen: am Handy nie löschen oder verschieben. Fehler einer Datei brechen den Rest nicht ab, kein Dialog, nächstes Mal wieder; bei Netz-, Berechtigungs- oder Platzfehler hält der Lauf an und zählt den Rest als offen. Kein Hintergrund (BGTask), keine Erweiterung, kein PC zum Handy, kein Löschen spiegeln.
+
+Teilen an Heimcloud (W-045, 26.10.): Ahmed: "Es funktioniert leider nicht mit Adobe-Scan. Es lässt mich nicht connecten." Der Datei-Anbieter von Adobe Scan lässt sich nicht als Ordner wählen; darum zusätzlich (Ergänzung zu "Ordner verbinden", das bleibt) eine Teilen-Erweiterung. Kleinste vollständige Lösung.
+- Ziel `HeimherzTeilen` (app-extension, `com.apple.share-services`, Bundle-ID `com.onlyus.heimherz.teilen`, Anzeigename "Heimcloud"). Aktivierung: Dateien (PDF u. a.) und Bilder, bis 50 (`NSExtensionActivationSupportsFileWithMaxCount`, `…ImageWithMaxCount`); Text oder reine Links lösen sie nicht aus.
+- Ablauf: Teilen > Heimcloud, jede Datei per `NSItemProvider.loadFileRepresentation` in eine Temp-Kopie (die URL des Systems gilt nur im Handler), dann nacheinander `HeimClient.dateiHochladen(pfad: "Eingang/<Dateiname>")`, danach Temp-Kopie weg. Kein Ordner-Wählen. Der Dienst überschreibt nie (`name (2).ext`) und legt `Eingang/` selbst an. Zugang wie die Geschwister: Schlüsselbund-Gruppe und App Group der App (`Schluesselbund.live`), keine neue Kopplung.
+- Oberfläche: "N Dateien an den PC" mit Fortschritt (x von N), am Ende "Am PC" mit Haken und Schließen nach rund 1 s. Fehler: eine Zeile mit Grund ("Heimcloud ist nicht gekoppelt", "PC nicht erreichbar", sonst `HeimFehler.nutzerText`), bei Teilerfolg "x von N gesendet", Knopf "Schließen"; nichts wird still verworfen. Reine Logik (Dateiname, Zeilen, Fehlertext) liegt in `Gemeinsam/Teilen/TeilenRegeln.swift` und hat Tests.
+- Grenzen: am Handy nie löschen oder ändern; keine Wiederholung nach Fehler (nochmal Teilen); kein Hintergrund (die Erweiterung lebt nur, solange das Blatt offen ist); bei Platz- oder Berechtigungsfehler hält der Rest an. Nur am Gerät prüfbar: Erscheinen in Adobe Scan, große Dateien, Speicherlimit der Erweiterung.
+- Signieren: neue Bundle-ID mit App Group, Profil `Heimherz Teilen App Store`, Secret `APPSTORE_TEILEN_PROFILE_BASE64`; `testflight.yml` und `ios-ci.yml` kennen das Ziel.
 
 ## Einstellungen (W-008, Runde 3)
 
@@ -376,7 +383,7 @@ bin/heimherz         pc-werkzeug
 Gemeinsam/           Swift, von App und Erweiterungen geteilt
 Heimherz/Sources/    App (Module/Passwoerter, Fotos, Dateien, Mehr, Design)
 Heimherz/Tests/
-HeimherzAutoFill/ HeimherzFotos/
+HeimherzAutoFill/ HeimherzFotos/ HeimherzTeilen/
 signing/ scripts/ .github/workflows/ docs/ tasks/
 ```
 
