@@ -1,26 +1,18 @@
 import SwiftUI
 
-/// Grundfläche der Bildschirme: flaches `grund`, darüber ein statisches, sehr kontrastarmes Mesh. Bei erhöhtem Kontrast bleibt es flach.
+/// Grundfläche der Bildschirme (Revolut-Stil): flaches `grund` (Schwarz im Dunkeln), oben ein feines Topo-Linienmuster, das nach unten ausläuft.
+/// Bei erhöhtem Kontrast bleibt die Fläche glatt. Reicht unter Tab- und Navigationsleiste (keine Farbfläche unter Steuerung).
 struct Hintergrund: View {
     @Environment(\.colorSchemeContrast) private var kontrast
+    @Environment(\.colorScheme) private var schema
 
     var body: some View {
-        ZStack {
+        ZStack(alignment: .top) {
             Color.grund
             if kontrast != .increased {
-                MeshGradient(
-                    width: 3, height: 3,
-                    points: [
-                        [0, 0], [0.5, 0], [1, 0],
-                        [0, 0.5], [0.55, 0.45], [1, 0.5],
-                        [0, 1], [0.5, 1], [1, 1]
-                    ],
-                    colors: [
-                        .grund, .grundWarm.opacity(0.6), .grund,
-                        .heroZwei.opacity(0.5), .grund, .grundWarm.opacity(0.6),
-                        .grund, .heroDrei.opacity(0.5), .grund
-                    ]
-                )
+                TopoHintergrund(linie: .tinte, staerke: schema == .dark ? 0.16 : 0.09)
+                    .frame(height: 560)
+                    .mask(LinearGradient(colors: [.black, .black, .clear], startPoint: .top, endPoint: .bottom))
             }
         }
         .ignoresSafeArea()
@@ -29,8 +21,23 @@ struct Hintergrund: View {
 }
 
 extension View {
-    /// Setzt den Heimherz-Hintergrund hinter die Ansicht.
+    /// Setzt den Heimcloud-Hintergrund hinter die Ansicht.
     func heimherzHintergrund() -> some View {
         background { Hintergrund() }
+    }
+
+    /// Titel einer Tab-Wurzel: der System-Großtitel ist weder gerundet noch getönt, hier steht er in Rounded, kräftig und in
+    /// Tinte (iOS 26: `.largeTitle` ersetzt nur die große Darstellung, der kleine Titel beim Scrollen bleibt der Systemtitel).
+    func heimherzGrossTitel(_ titel: String) -> some View {
+        navigationTitle(titel)
+            .toolbar {
+                ToolbarItem(placement: .largeTitle) {
+                    Text(titel)
+                        .font(.largeTitle.weight(.heavy))
+                        .fontDesign(.rounded)
+                        .foregroundStyle(Color.tinte)
+                }
+                .sharedBackgroundVisibility(.hidden)   // sonst legt iOS 26 eine Glaskapsel um den Titel
+            }
     }
 }

@@ -19,7 +19,7 @@ struct AutoFillAnleitung: View {
                     HStack(alignment: .firstTextBaseline, spacing: Abstand.m) {
                         Text("\(i + 1)")
                             .font(.footnote.weight(.bold))
-                            .foregroundStyle(Color.gruen)
+                            .foregroundStyle(Color.akzent)
                             .frame(width: 26, height: 26)
                             .background(Color.chip, in: Circle())
                             .accessibilityHidden(true)
@@ -81,7 +81,7 @@ struct CodesAnleitung: View {
                     HStack(alignment: .firstTextBaseline, spacing: Abstand.m) {
                         Text("\(i + 1)")
                             .font(.footnote.weight(.bold))
-                            .foregroundStyle(Color.gruen)
+                            .foregroundStyle(Color.akzent)
                             .frame(width: 26, height: 26)
                             .background(Color.chip, in: Circle())
                             .accessibilityHidden(true)

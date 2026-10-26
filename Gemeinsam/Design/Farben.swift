@@ -23,40 +23,36 @@ struct FarbToken: Sendable, Hashable {
     }
 }
 
-/// Alle Farben der App, eigenes Thema "warmes Grün" (Wiese, Heimat) mit Korallrot für das Herz. Die Kontraste sind nachgerechnet,
+/// Alle Farben der App, Revolut-Stil (Skill revolut-stil): flaches Grau/Schwarz, Blau als Akzent, Korallrot nur für das Herz. Die Kontraste sind nachgerechnet,
 /// `FarbenKontrastTests` prüft sie hart (Text 4,5:1, Linien und Knopfflächen 3:1, hell und dunkel).
 enum Palette {
-    static let grund = FarbToken("grund", 0xF3F8EC, 0x10170F)
-    static let grundWarm = FarbToken("grundWarm", 0xE4EFD6, 0x1A2518)
-    static let karte = FarbToken("karte", 0xFFFFFF, 0x1C281A)
-    static let karteZart = FarbToken("karteZart", 0xF8FBF3, 0x243322)
-    static let chip = FarbToken("chip", 0xDCEACB, 0x2C3E28)
-    static let tinte = FarbToken("tinte", 0x15281A, 0xF0F7E8)
-    static let tinte2 = FarbToken("tinte2", 0x3F5A3A, 0xC3D7B8, hellHoch: 0x2B4528, dunkelHoch: 0xE2EED9)
-    static let tinte3 = FarbToken("tinte3", 0x52694B, 0xA8BF9B, hellHoch: 0x2B4528, dunkelHoch: 0xE2EED9)
-    /// Grün für Text und Symbole auf Karten und Grund.
-    static let gruen = FarbToken("gruen", 0x2A6B33, 0x86D98F, hellHoch: 0x1F5427, dunkelHoch: 0xA8EBB0)
+    static let grund = FarbToken("grund", 0xF7F7F7, 0x000000)
+    static let grundWarm = FarbToken("grundWarm", 0xEFEFF1, 0x0A0A0B)
+    static let karte = FarbToken("karte", 0xFFFFFF, 0x161618)
+    static let karteZart = FarbToken("karteZart", 0xF2F2F4, 0x1E1E20)
+    static let chip = FarbToken("chip", 0xEAEAEC, 0x2A2A2D)
+    static let tinte = FarbToken("tinte", 0x191C1F, 0xFFFFFF)
+    static let tinte2 = FarbToken("tinte2", 0x565B62, 0xB0B3B8, hellHoch: 0x3D4248, dunkelHoch: 0xD0D2D6)
+    static let tinte3 = FarbToken("tinte3", 0x5F656D, 0xA0A3A8, hellHoch: 0x3D4248, dunkelHoch: 0xD0D2D6)
+    /// Blau für Links, Symbole und Hervorhebung auf Karten und Grund.
+    static let akzent = FarbToken("akzent", 0x0058D6, 0x5B9DFF, hellHoch: 0x0046AD, dunkelHoch: 0x8DBBFF)
     /// Fläche des Hauptknopfs; Text darauf ist `aufKnopf`.
-    static let knopf = FarbToken("knopf", 0x2A6B33, 0x86D98F)
-    static let aufKnopf = FarbToken("aufKnopf", 0xFFFFFF, 0x0B2410)
+    static let knopf = FarbToken("knopf", 0x0A62E8, 0x3D8BFF)
+    static let aufKnopf = FarbToken("aufKnopf", 0xFFFFFF, 0x000000)
     /// Das Herz (Korall).
     static let herz = FarbToken("herz", 0xB93A2B, 0xFF9D8D, hellHoch: 0x9A2A1D, dunkelHoch: 0xFFB4A8)
-    static let linie = FarbToken("linie", 0x6E8A64, 0x7A9570, hellHoch: 0x4F6B46, dunkelHoch: 0xA3BC98)
-    static let haar = FarbToken("haar", 0xD3E3C2, 0x2C3E28)
-    static let ok = FarbToken("ok", 0x1B6A3C, 0x7BDDA0)
-    static let okGrund = FarbToken("okGrund", 0xDDF3E3, 0x183824)
-    static let warn = FarbToken("warn", 0x8A4B00, 0xFFC470)
-    static let warnGrund = FarbToken("warnGrund", 0xFFEBC9, 0x43300F)
-    static let schlecht = FarbToken("schlecht", 0xB3202F, 0xFF8A94)
-    static let schlechtGrund = FarbToken("schlechtGrund", 0xFFDADF, 0x4A1D24)
-    // Hero-Verlauf (genau einmal je Bildschirm): Stopps, auf denen tinte und tinte2 nachgerechnet lesbar sind.
-    static let heroEins = FarbToken("heroEins", 0xD3EAC1, 0x22391F)
-    static let heroZwei = FarbToken("heroZwei", 0xEAF3C6, 0x2C381C)
-    static let heroDrei = FarbToken("heroDrei", 0xCDEBDC, 0x1C3A2E)
+    static let linie = FarbToken("linie", 0x7A8088, 0x6B6E73, hellHoch: 0x565B62, dunkelHoch: 0xA0A3A8)
+    static let haar = FarbToken("haar", 0xE0E0E3, 0x2A2A2D)
+    static let ok = FarbToken("ok", 0x066B4B, 0x2BD99A)
+    static let okGrund = FarbToken("okGrund", 0xDDF5E8, 0x0F2A22)
+    static let warn = FarbToken("warn", 0x8F4B00, 0xFFB84D)
+    static let warnGrund = FarbToken("warnGrund", 0xFFEACB, 0x3A2A0A)
+    static let schlecht = FarbToken("schlecht", 0xC4122F, 0xFF6B7A)
+    static let schlechtGrund = FarbToken("schlechtGrund", 0xFFDADF, 0x3F1118)
 
     static let alle: [FarbToken] = [
-        grund, grundWarm, karte, karteZart, chip, tinte, tinte2, tinte3, gruen, knopf, aufKnopf, herz, linie, haar,
-        ok, okGrund, warn, warnGrund, schlecht, schlechtGrund, heroEins, heroZwei, heroDrei
+        grund, grundWarm, karte, karteZart, chip, tinte, tinte2, tinte3, akzent, knopf, aufKnopf, herz, linie, haar,
+        ok, okGrund, warn, warnGrund, schlecht, schlechtGrund
     ]
 }
 
@@ -77,7 +73,7 @@ extension Color {
     static let tinte = token(Palette.tinte)
     static let tinte2 = token(Palette.tinte2)
     static let tinte3 = token(Palette.tinte3)
-    static let gruen = token(Palette.gruen)
+    static let akzent = token(Palette.akzent)
     static let knopf = token(Palette.knopf)
     static let aufKnopf = token(Palette.aufKnopf)
     static let herz = token(Palette.herz)
@@ -89,7 +85,4 @@ extension Color {
     static let warnGrund = token(Palette.warnGrund)
     static let schlecht = token(Palette.schlecht)
     static let schlechtGrund = token(Palette.schlechtGrund)
-    static let heroEins = token(Palette.heroEins)
-    static let heroZwei = token(Palette.heroZwei)
-    static let heroDrei = token(Palette.heroDrei)
 }

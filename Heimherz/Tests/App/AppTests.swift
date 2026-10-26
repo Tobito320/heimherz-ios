@@ -297,10 +297,10 @@ final class FarbenKontrastTests: XCTestCase {
 
     func testPaare() {
         let text: [(FarbToken, [FarbToken])] = [
-            (Palette.tinte, [Palette.grund, Palette.karte, Palette.grundWarm, Palette.chip, Palette.karteZart, Palette.heroEins, Palette.heroZwei, Palette.heroDrei]),
-            (Palette.tinte2, [Palette.grund, Palette.karte, Palette.grundWarm, Palette.chip, Palette.heroEins, Palette.heroZwei, Palette.heroDrei]),
+            (Palette.tinte, [Palette.grund, Palette.karte, Palette.grundWarm, Palette.chip, Palette.karteZart]),
+            (Palette.tinte2, [Palette.grund, Palette.karte, Palette.grundWarm, Palette.chip]),
             (Palette.tinte3, [Palette.grund, Palette.karte]),
-            (Palette.gruen, [Palette.grund, Palette.karte, Palette.chip]),
+            (Palette.akzent, [Palette.grund, Palette.karte, Palette.chip]),
             (Palette.herz, [Palette.grund, Palette.karte]),
             (Palette.ok, [Palette.okGrund, Palette.karte]),
             (Palette.warn, [Palette.warnGrund, Palette.karte]),

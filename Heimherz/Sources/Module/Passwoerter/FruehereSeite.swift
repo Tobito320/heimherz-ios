@@ -71,7 +71,7 @@ struct FruehereSeite: View {
                 Image(systemName: "doc.on.doc").frame(minWidth: Abstand.tippflaeche, minHeight: Abstand.tippflaeche)
             }
             .buttonStyle(.plain)
-            .foregroundStyle(Color.gruen)
+            .foregroundStyle(Color.akzent)
             .accessibilityLabel("Früheres Passwort kopieren")
         }
         .accessibilityElement(children: .contain)

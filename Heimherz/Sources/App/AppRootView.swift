@@ -20,6 +20,7 @@ struct AppRootView: View {
             Tab(HeimherzTab.einstellungen.titel, systemImage: HeimherzTab.einstellungen.symbolName, value: HeimherzTab.einstellungen) { EinstellungenTabView() }
         }
         .tint(Color.knopf)
+        .tabBarMinimizeBehavior(.onScrollDown)
         .fontDesign(.rounded)
         .accessibilityHidden(umgebung.sperre.verdeckt)
         .overlay {

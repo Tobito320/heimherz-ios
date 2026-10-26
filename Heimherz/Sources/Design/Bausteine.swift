@@ -2,24 +2,15 @@ import SwiftUI
 
 // Wiederverwendbare Bausteine. Module (Passwörter, Fotos, Dateien, AutoFill) benutzen sie, bauen sie nicht nach.
 
-/// Die eine mutige Karte je Bildschirm: Grün-Verlauf, der einzige weiche Schatten. Bei erhöhtem Kontrast flach.
+/// Die eine große Karte je Bildschirm (Revolut-Stil): massiv, flach, ohne Schatten und ohne Verlauf.
 struct HeroKarte<Inhalt: View>: View {
     @ViewBuilder var inhalt: () -> Inhalt
-
-    @Environment(\.colorSchemeContrast) private var kontrast
-    @Environment(\.colorScheme) private var schema
 
     var body: some View {
         VStack(alignment: .leading, spacing: Abstand.m) { inhalt() }
             .padding(Abstand.l)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(hintergrund, in: .heimherzKarte)
-            .shadow(color: schema == .dark ? Color.black.opacity(0.35) : Color.knopf.opacity(0.14), radius: 16, y: 8)
-    }
-
-    private var hintergrund: AnyShapeStyle {
-        if kontrast == .increased { return AnyShapeStyle(Color.grundWarm) }
-        return AnyShapeStyle(LinearGradient(colors: [.heroEins, .heroZwei, .heroDrei], startPoint: .topLeading, endPoint: .bottomTrailing))
+            .background(Color.karte, in: .heimherzKarte)
     }
 }
 
@@ -150,25 +141,12 @@ struct WertZeile: View {
     }
 }
 
-/// Farbe einer Symbolkachel (wie in den iOS-Einstellungen). Feste, kräftige Töne mit weißem Symbol, in Hell und Dunkel gleich lesbar
-/// (dieselben Werte wie die Kacheln der Passwörter-Startseite).
+/// Ton einer Symbolkachel. Im Revolut-Stil sind alle Kacheln grau; der Ton bleibt nur, damit Aufrufer nicht ändern müssen.
 enum KachelTon {
     case gruen, tuerkis, gelb, rot, orange, rosa, grau
-
-    var farbe: Color {
-        switch self {
-        case .gruen: return Color(red: 0.16, green: 0.55, blue: 0.27)
-        case .tuerkis: return Color(red: 0.12, green: 0.62, blue: 0.68)
-        case .gelb: return Color(red: 0.90, green: 0.68, blue: 0.10)
-        case .rot: return Color(red: 0.88, green: 0.27, blue: 0.22)
-        case .orange: return Color(red: 0.93, green: 0.55, blue: 0.14)
-        case .rosa: return Color(red: 0.93, green: 0.36, blue: 0.45)
-        case .grau: return Color(red: 0.45, green: 0.50, blue: 0.45)
-        }
-    }
 }
 
-/// Die kleine farbige Kachel vor einer Einstellungszeile.
+/// Der kleine graue Kreis vor einer Einstellungszeile.
 struct EinstellungsKachel: View {
     let symbol: String
     var ton: KachelTon = .gruen
@@ -176,9 +154,9 @@ struct EinstellungsKachel: View {
     var body: some View {
         Image(systemName: symbol)
             .font(.system(size: 15, weight: .semibold))
-            .foregroundStyle(Color.white)
-            .frame(width: 30, height: 30)
-            .background(ton.farbe, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+            .foregroundStyle(Color.tinte)
+            .frame(width: 32, height: 32)
+            .background(Color.chip, in: Circle())
             .accessibilityHidden(true)
     }
 }
@@ -198,7 +176,7 @@ struct KachelTitel: View {
 }
 
 extension View {
-    /// Gruppierte Liste im Stil der iOS-Einstellungen mit dem Heim-Hintergrund und weißen Karten (Hell) beziehungsweise dunkelgrünen (Dunkel).
+    /// Gruppierte Liste im Stil der iOS-Einstellungen mit dem Heim-Hintergrund und flachen Karten.
     func heimherzEinstellungenListe() -> some View {
         self
             .listStyle(.insetGrouped)

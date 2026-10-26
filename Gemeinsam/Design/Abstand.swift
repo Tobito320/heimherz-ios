@@ -14,7 +14,7 @@ enum Abstand {
 
 enum Rundung {
     static let klein: CGFloat = 12
-    static let karte: CGFloat = 24
+    static let karte: CGFloat = 28
 }
 
 extension Shape where Self == RoundedRectangle {

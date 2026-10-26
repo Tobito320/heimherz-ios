@@ -165,7 +165,7 @@ struct EintragDetailView: View {
             if let url = PasswoerterLogik.passwortAendernURL(von: e) {
                 Button("Passwort ändern …") { oeffneURL(url) }
                     .font(.subheadline)
-                    .foregroundStyle(Color.gruen)
+                    .foregroundStyle(Color.akzent)
                     .frame(minHeight: Abstand.tippflaeche, alignment: .leading)
             }
         }
@@ -264,7 +264,7 @@ struct EintragDetailView: View {
                         Label("Anzeigen", systemImage: "faceid").frame(minHeight: Abstand.tippflaeche)
                     }
                     .buttonStyle(.plain)
-                    .foregroundStyle(Color.gruen)
+                    .foregroundStyle(Color.akzent)
                     .accessibilityLabel("Einmalcode mit Face ID anzeigen")
                 }
             } else if let z = TOTPAnzeige.zustand(e.totp, datum: zeit.date) {
@@ -327,7 +327,7 @@ struct EintragDetailView: View {
                 .frame(minWidth: Abstand.tippflaeche, minHeight: Abstand.tippflaeche)
         }
         .buttonStyle(.plain)
-        .foregroundStyle(Color.gruen)
+        .foregroundStyle(Color.akzent)
         .accessibilityLabel(beschriftung)
     }
 

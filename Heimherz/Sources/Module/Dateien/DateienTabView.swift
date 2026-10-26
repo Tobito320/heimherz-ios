@@ -24,7 +24,7 @@ struct DateienTabView: View {
             Group {
                 if !umgebung.istGekoppelt {
                     ScrollView { LeerZustand(stimmung: .schlaeft, titel: "Dateien", text: "Koppel zuerst dein Handy mit dem PC (Tab Einstellungen).") }
-                        .navigationTitle("Dateien")
+                        .heimherzGrossTitel("Dateien")
                 } else if let lader {
                     OrdnerSeite(ordner: [], umgebung: umgebung, lader: lader, navigation: $pfad)
                 } else {
@@ -100,6 +100,7 @@ struct OrdnerSeite: View {
 
     var body: some View {
         hauptteil
+            .heimherzHintergrund()
             .navigationTitle(titel)
             .navigationBarTitleDisplayMode(ordner.isEmpty ? .large : .inline)
             .searchable(text: $suchtext, placement: .navigationBarDrawer(displayMode: .always), prompt: "Suchen")
@@ -169,7 +170,7 @@ struct OrdnerSeite: View {
                     ForEach(startModell.abschnitte) { a in
                         Section {
                             if !eingeklappt.istEingeklappt(a.kategorie) {
-                                ForEach(a.zeilen) { startZeile($0) }
+                                ForEach(a.zeilen) { startZeile($0).heimherzZeile() }
                             }
                         } header: {
                             abschnittsKopf(a.kategorie)
@@ -177,6 +178,8 @@ struct OrdnerSeite: View {
                     }
                 }
                 .listStyle(.insetGrouped)
+                .scrollContentBackground(.hidden)
+                .heimherzHintergrund()
                 .refreshable { await startModell.lade() }
             }
         }
@@ -186,14 +189,14 @@ struct OrdnerSeite: View {
     private func abschnittsKopf(_ k: DateiKategorie) -> some View {
         let zu = eingeklappt.istEingeklappt(k)
         return Button {
-            withAnimation { eingeklappt.schalte(k) }
+            withAnimation(Feder.schnell) { eingeklappt.schalte(k) }
         } label: {
             HStack {
-                Text(k.titel).font(.title3.bold()).foregroundStyle(Color.primary)
+                Text(k.titel).font(.title3.weight(.heavy)).foregroundStyle(Color.tinte)
                 Spacer(minLength: 0)
                 Image(systemName: "chevron.down")
                     .font(.footnote.weight(.semibold))
-                    .foregroundStyle(Color.secondary)
+                    .foregroundStyle(Color.tinte2)
                     .rotationEffect(.degrees(zu ? -90 : 0))
             }
             .frame(minHeight: 44)
@@ -209,7 +212,7 @@ struct OrdnerSeite: View {
     @ViewBuilder private func startZeile(_ z: StartZeile) -> some View {
         let beschriftung = HStack(spacing: 12) {
             Image(systemName: z.symbol).font(.title3).foregroundStyle(Color.blue).frame(width: 28).accessibilityHidden(true)
-            Text(z.info.name).foregroundStyle(Color.primary).fixedSize(horizontal: false, vertical: true)
+            Text(z.info.name).foregroundStyle(Color.tinte).fixedSize(horizontal: false, vertical: true)
         }
         .frame(minHeight: 44)
         if z.info.ordner {
@@ -245,8 +248,8 @@ struct OrdnerSeite: View {
     /// Wie im Vorbild unter dem Inhalt, mittig: "9 Objekte" fett, darunter der Stand.
     private var fusszeile: some View {
         VStack(spacing: 6) {
-            Text(DateiAnzeige.objekte(modell.eintraege.count)).font(.subheadline.weight(.semibold)).foregroundStyle(Color.primary)
-            Text(warnung == nil ? DateiAnzeige.synchron : DateiAnzeige.getrennt).font(.subheadline).foregroundStyle(Color.secondary)
+            Text(DateiAnzeige.objekte(modell.eintraege.count)).font(.subheadline.weight(.semibold)).foregroundStyle(Color.tinte)
+            Text(warnung == nil ? DateiAnzeige.synchron : DateiAnzeige.getrennt).font(.subheadline).foregroundStyle(Color.tinte2)
         }
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .combine)
@@ -275,6 +278,7 @@ struct OrdnerSeite: View {
             fusszeile.listRowSeparator(.hidden)
         }
         .listStyle(.plain)
+        .scrollContentBackground(.hidden)
         .refreshable { await modell.lade() }
     }
 
@@ -410,7 +414,7 @@ struct OrdnerSeite: View {
                 HStack(spacing: 8) {
                     ProgressView()
                     Text(modell.uebertragungen == 1 ? "Lade 1 Datei hoch …" : "Lade \(modell.uebertragungen) Dateien hoch …")
-                        .font(.subheadline).foregroundStyle(Color.secondary)
+                        .font(.subheadline).foregroundStyle(Color.tinte2)
                     Spacer(minLength: 0)
                 }
                 .accessibilityElement(children: .combine)

@@ -104,11 +104,11 @@ struct DateiBild: View {
                 Image(uiImage: bild)
                     .resizable().scaledToFit()
                     .clipShape(RoundedRectangle(cornerRadius: seite * 0.08, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: seite * 0.08, style: .continuous).strokeBorder(Color.primary.opacity(0.12), lineWidth: 0.5))
+                    .overlay(RoundedRectangle(cornerRadius: seite * 0.08, style: .continuous).strokeBorder(Color.tinte.opacity(0.12), lineWidth: 0.5))
             } else {
                 Image(systemName: DateiAnzeige.symbol(name: eintrag.name, ordner: false))
                     .font(.system(size: seite * 0.5))
-                    .foregroundStyle(Color.secondary)
+                    .foregroundStyle(Color.tinte2)
             }
         }
         .frame(width: seite, height: seite)
@@ -131,8 +131,8 @@ struct ListenZeile: View {
         HStack(spacing: 12) {
             DateiBild(eintrag: eintrag, pfad: pfad, seite: 40, px: 120, lader: lader)
             VStack(alignment: .leading, spacing: 2) {
-                Text(eintrag.name).font(.body).foregroundStyle(Color.primary).fixedSize(horizontal: false, vertical: true)
-                Text(DateiAnzeige.listenUntertitel(eintrag)).font(.footnote).foregroundStyle(Color.secondary)
+                Text(eintrag.name).font(.body).foregroundStyle(Color.tinte).fixedSize(horizontal: false, vertical: true)
+                Text(DateiAnzeige.listenUntertitel(eintrag)).font(.footnote).foregroundStyle(Color.tinte2)
             }
             Spacer(minLength: 0)
         }
@@ -152,9 +152,9 @@ struct RasterZelle: View {
         VStack(spacing: 4) {
             DateiBild(eintrag: eintrag, pfad: pfad, seite: 96, px: 300, lader: lader)
                 .padding(.bottom, 4)
-            Text(eintrag.name).font(.body).foregroundStyle(Color.primary).multilineTextAlignment(.center).lineLimit(2)
+            Text(eintrag.name).font(.body).foregroundStyle(Color.tinte).multilineTextAlignment(.center).lineLimit(2)
             ForEach(Array(DateiAnzeige.rasterZeilen(eintrag).enumerated()), id: \.offset) { _, zeile in
-                Text(zeile).font(.subheadline).foregroundStyle(Color.secondary)
+                Text(zeile).font(.subheadline).foregroundStyle(Color.tinte2)
             }
         }
         .frame(maxWidth: .infinity)
@@ -172,8 +172,8 @@ struct TrefferZeile: View {
         HStack(spacing: 12) {
             DateiBild(eintrag: treffer.info, pfad: treffer.pfad, seite: 40, px: 120, lader: lader)
             VStack(alignment: .leading, spacing: 2) {
-                Text(treffer.name).font(.body).foregroundStyle(Color.primary).fixedSize(horizontal: false, vertical: true)
-                Text(DateiAnzeige.ort(treffer.uebergeordnet)).font(.footnote).foregroundStyle(Color.secondary)
+                Text(treffer.name).font(.body).foregroundStyle(Color.tinte).fixedSize(horizontal: false, vertical: true)
+                Text(DateiAnzeige.ort(treffer.uebergeordnet)).font(.footnote).foregroundStyle(Color.tinte2)
             }
             Spacer(minLength: 0)
         }
@@ -216,7 +216,7 @@ struct DateiInfoBlatt: View {
                         } else {
                             Image(systemName: DateiAnzeige.symbol(name: e.name, ordner: false))
                                 .font(.largeTitle)
-                                .foregroundStyle(Color.secondary)
+                                .foregroundStyle(Color.tinte2)
                                 .accessibilityHidden(true)
                         }
                         Text(e.name).font(.headline).fixedSize(horizontal: false, vertical: true)

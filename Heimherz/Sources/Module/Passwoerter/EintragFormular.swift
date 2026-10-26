@@ -139,13 +139,13 @@ struct EintragFormular: View {
                 Image(systemName: zeigePasswort ? "eye.slash" : "eye").frame(minWidth: Abstand.tippflaeche, minHeight: Abstand.tippflaeche)
             }
             .buttonStyle(.plain)
-            .foregroundStyle(Color.gruen)
+            .foregroundStyle(Color.akzent)
             .accessibilityLabel(zeigePasswort ? "Passwort verbergen" : "Passwort zeigen")
             Button { zeigeGenerator = true } label: {
                 Image(systemName: "wand.and.stars").frame(minWidth: Abstand.tippflaeche, minHeight: Abstand.tippflaeche)
             }
             .buttonStyle(.plain)
-            .foregroundStyle(Color.gruen)
+            .foregroundStyle(Color.akzent)
             .accessibilityLabel("Passwort erzeugen")
         }
     }

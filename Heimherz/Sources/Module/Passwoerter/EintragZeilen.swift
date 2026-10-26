@@ -138,7 +138,7 @@ struct HinweisKarte: View {
             if let symbol {
                 Image(systemName: symbol)
                     .font(.title3)
-                    .foregroundStyle(Color.gruen)
+                    .foregroundStyle(Color.akzent)
                     .accessibilityHidden(true)
             }
             Text(text)
@@ -150,19 +150,5 @@ struct HinweisKarte: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.karte, in: .heimherzKarte)
         .accessibilityElement(children: .combine)
-    }
-}
-
-/// Die Farben der Kacheln der Startseite. Nur Schmuck (Titel und Zahl tragen die Aussage); weißes Symbol darauf wie bei Apple.
-enum KachelFarbe {
-    static func farbe(_ k: PasswoerterKategorie) -> Color {
-        switch k {
-        case .alle: return Color(red: 0.16, green: 0.55, blue: 0.27)
-        case .favoriten: return Color(red: 0.93, green: 0.36, blue: 0.45)
-        case .passkeys: return Color(red: 0.12, green: 0.62, blue: 0.68)
-        case .codes: return Color(red: 0.90, green: 0.68, blue: 0.10)
-        case .sicherheit: return Color(red: 0.88, green: 0.27, blue: 0.22)
-        case .geloescht: return Color(red: 0.93, green: 0.55, blue: 0.14)
-        }
     }
 }

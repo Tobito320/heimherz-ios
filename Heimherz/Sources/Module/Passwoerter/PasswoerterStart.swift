@@ -43,10 +43,13 @@ struct PasswoerterStart: View {
     private var start: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Abstand.l) {
+                hero
                 LazyVGrid(columns: [GridItem(.flexible(), spacing: Abstand.m), GridItem(.flexible(), spacing: Abstand.m)], spacing: Abstand.m) {
-                    ForEach(kacheln, id: \.self) { k in
+                    ForEach(Array(kacheln.enumerated()), id: \.element) { item in
+                        let k = item.element
                         NavigationLink(value: PasswoerterZiel.kategorie(k)) { KategorieKachel(kategorie: k, anzahl: zaehler[k] ?? 0) }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.federnd)
+                            .aufbau(item.offset + 2)
                     }
                 }
                 if store.eintraege.isEmpty {
@@ -61,6 +64,29 @@ struct PasswoerterStart: View {
             .padding(.horizontal, Abstand.l)
             .padding(.bottom, Abstand.xl)
         }
+    }
+
+    // MARK: Hero
+
+    /// Revolut-Kopf: große Zahl (zählt hoch), graue Pille, vier runde Schnellaktionen.
+    private var hero: some View {
+        VStack(spacing: Abstand.m) {
+            VStack(spacing: Abstand.s) {
+                ZaehltHoch(wert: store.eintraege.count)
+                    .foregroundStyle(Color.tinte)
+                InfoPille(text: "Einträge im Tresor", symbol: "lock.fill")
+            }
+            .frame(maxWidth: .infinity)
+            .aufbau(0)
+            HStack(alignment: .top, spacing: Abstand.s) {
+                RundeAktion(titel: "Neu", symbol: "plus") { Haptik.auswahl(); neu(.neu(Eintrag.artLogin)) }
+                RundeAktion(titel: "Notiz", symbol: "note.text") { Haptik.auswahl(); neu(.neu(Eintrag.artNotiz)) }
+                RundeAktion(titel: "Generator", symbol: "wand.and.stars") { Haptik.auswahl(); generator() }
+                RundeAktion(titel: "Holen", symbol: "square.and.arrow.down") { Haptik.auswahl(); anleitung() }
+            }
+            .aufbau(1)
+        }
+        .padding(.top, Abstand.s)
     }
 
     // MARK: Suche
@@ -125,9 +151,9 @@ struct KategorieKachel: View {
             HStack(alignment: .top) {
                 Image(systemName: kategorie.symbol)
                     .font(.system(size: 17, weight: .bold))
-                    .foregroundStyle(Color.white)
-                    .frame(width: 36, height: 36)
-                    .background(KachelFarbe.farbe(kategorie), in: Circle())
+                    .foregroundStyle(Color.tinte)
+                    .frame(width: 40, height: 40)
+                    .background(Color.chip, in: Circle())
                     .accessibilityHidden(true)
                 Spacer(minLength: Abstand.s)
                 Text("\(anzahl)")
@@ -145,7 +171,7 @@ struct KategorieKachel: View {
         }
         .padding(Abstand.m)
         .frame(maxWidth: .infinity, minHeight: 84, alignment: .leading)
-        .background(Color.karte, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .background(Color.karte, in: .heimherzKarte)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(kategorie.titel), \(anzahl)")
     }

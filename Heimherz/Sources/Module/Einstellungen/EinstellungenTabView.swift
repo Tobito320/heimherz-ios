@@ -66,7 +66,7 @@ struct EinstellungenTabView: View {
                 ueberGruppe
             }
             .heimherzEinstellungenListe()
-            .navigationTitle("Einstellungen")
+            .heimherzGrossTitel("Einstellungen")
             .navigationDestination(for: EinstellungenSeite.self) { seite in
                 switch seite {
                 case .pc: PCEinstellungenSeite()

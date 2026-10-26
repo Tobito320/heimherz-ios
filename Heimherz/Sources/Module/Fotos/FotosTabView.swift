@@ -16,7 +16,7 @@ struct FotosTabView: View {
                 }
             }
             .heimherzHintergrund()
-            .navigationTitle("Fotos")
+            .heimherzGrossTitel("Fotos")
         }
         .task(id: umgebung.istGekoppelt) {
             let m = modell ?? (umgebung.istDemo ? FotosModell(istDemo: true) : FotosModell.geteilt)
@@ -135,8 +135,8 @@ private struct FotosInhalt: View {
 
     private var uebersicht: some View {
         VStack(alignment: .leading, spacing: Abstand.l) {
-            hero
-            zahlen
+            hero.aufbau(0)
+            zahlen.aufbau(1)
         }
     }
 
@@ -146,6 +146,13 @@ private struct FotosInhalt: View {
 
     private var hero: some View {
         HeroKarte {
+            if let z = modell.anzeige.zahlen {
+                VStack(alignment: .leading, spacing: Abstand.xs) {
+                    ZaehltHoch(wert: max(0, z.gesamt - z.offen), groesse: 44)
+                        .foregroundStyle(Color.tinte)
+                    InfoPille(text: "von \(z.gesamt.formatted()) gesichert", symbol: "photo.on.rectangle")
+                }
+            }
             HStack(alignment: .center, spacing: Abstand.m) {
                 HausherzView(stimmung: stimmung, groesse: 72)
                 Text(titel)
@@ -169,6 +176,7 @@ private struct FotosInhalt: View {
             if modell.laeuft, let f = modell.anzeige.fortschritt {
                 ProgressView(value: f)
                     .tint(Color.knopf)
+                    .animation(Feder.weich, value: f)
                     .accessibilityLabel("Fortschritt")
                     .accessibilityValue(f.formatted(.percent.precision(.fractionLength(0))))
             }

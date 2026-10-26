@@ -15,7 +15,7 @@ struct AlphabetLeiste: View {
                 ForEach(buchstaben, id: \.self) { b in
                     Text(b)
                         .font(.system(size: min(12, max(7, hoehe * 0.7)), weight: .semibold))
-                        .foregroundStyle(Color.gruen)
+                        .foregroundStyle(Color.akzent)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }

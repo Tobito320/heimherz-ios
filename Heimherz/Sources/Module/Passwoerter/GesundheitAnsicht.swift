@@ -56,7 +56,7 @@ struct GesundheitZeile: View {
         HStack(spacing: Abstand.m) {
             Image(systemName: "heart.text.square")
                 .font(.title3)
-                .foregroundStyle(Color.gruen)
+                .foregroundStyle(Color.akzent)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text("Passwort-Gesundheit").font(.headline).foregroundStyle(Color.tinte)
