@@ -41,44 +41,36 @@ enum Haptik {
     static func auswahl() { UISelectionFeedbackGenerator().selectionChanged() }
 }
 
-/// Zahl, die beim Erscheinen von 0 hochzählt (und bei neuem Wert weiterzählt). Reduce Motion: sofort der Endwert.
+/// Zahl, die beim Erscheinen von 0 hochzählt (und bei neuem Wert weiterzählt, ausgebremst am Ende). Reduce Motion: sofort der Endwert.
 /// Der Text kommt fertig formatiert aus `format`, damit Aufrufer Tausenderpunkte, Einheiten oder Cent selbst bestimmen.
+/// Zählt per Aufgabe in 30 Schritten statt per `Animatable`: Swift 6 lässt `Animatable` auf einer View nicht zu (Hauptakteur).
 struct ZaehltHoch: View {
     let wert: Int
     var groesse: CGFloat = 52
     var format: (Int) -> String = { $0.formatted(.number.locale(Locale(identifier: "de_DE"))) }
 
-    @State private var angezeigt: Double = 0
-    @State private var gestartet = false
+    @State private var angezeigt = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        ZaehlerText(wert: angezeigt, groesse: groesse, format: format)
+        BetragGross(text: format(angezeigt), groesse: groesse)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(format(wert))
-            .onAppear {
-                guard !gestartet else { return }
-                gestartet = true
-                if reduceMotion { angezeigt = Double(wert) } else { withAnimation(.easeOut(duration: 0.9)) { angezeigt = Double(wert) } }
-            }
-            .onChange(of: wert) { _, neu in
-                if reduceMotion { angezeigt = Double(neu) } else { withAnimation(.easeOut(duration: 0.6)) { angezeigt = Double(neu) } }
-            }
-    }
-}
-
-/// Zeichnet die gerade animierte Zahl; SwiftUI ruft `body` je Bild mit dem Zwischenwert.
-private struct ZaehlerText: View, Animatable {
-    var wert: Double
-    let groesse: CGFloat
-    let format: (Int) -> String
-
-    var animatableData: Double {
-        get { wert }
-        set { wert = newValue }
+            .task(id: wert) { await zaehle(auf: wert) }
     }
 
-    var body: some View { BetragGross(text: format(Int(wert.rounded())), groesse: groesse) }
+    private func zaehle(auf ziel: Int) async {
+        let start = angezeigt
+        guard !reduceMotion, start != ziel else { angezeigt = ziel; return }
+        let schritte = 30
+        for i in 1...schritte {
+            try? await Task.sleep(for: .milliseconds(30))
+            if Task.isCancelled { return }
+            let t = Double(i) / Double(schritte)
+            angezeigt = start + Int((Double(ziel - start) * (1 - pow(1 - t, 3))).rounded())
+        }
+        angezeigt = ziel
+    }
 }
 
 /// Baut ein Element beim ersten Erscheinen auf: von unten, leicht kleiner, versetzt nach `index` (höchstens 8 Stufen). Reduce Motion: sofort da.
