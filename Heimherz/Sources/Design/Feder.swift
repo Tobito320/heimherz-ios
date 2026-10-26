@@ -42,14 +42,6 @@ private struct FederKnopfInhalt: View {
     }
 }
 
-/// Haptik mit fester Bedeutung, nur bei klarer Ursache.
-@MainActor
-enum Haptik {
-    static func erfolg() { UINotificationFeedbackGenerator().notificationOccurred(.success) }
-    static func fehler() { UINotificationFeedbackGenerator().notificationOccurred(.error) }
-    static func auswahl() { UISelectionFeedbackGenerator().selectionChanged() }
-}
-
 /// Zahl, die beim Erscheinen von 0 hochzählt (und bei neuem Wert weiterzählt, ausgebremst am Ende). Reduce Motion: sofort der Endwert.
 /// Der Text kommt fertig formatiert aus `format`, damit Aufrufer Tausenderpunkte, Einheiten oder Cent selbst bestimmen.
 /// Zählt per Aufgabe in 30 Schritten statt per `Animatable`: Swift 6 lässt `Animatable` auf einer View nicht zu (Hauptakteur).
