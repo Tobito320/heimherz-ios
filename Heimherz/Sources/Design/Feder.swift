@@ -5,6 +5,15 @@ import UIKit
 enum Feder {
     static let schnell: Animation = .snappy(duration: 0.28)
     static let weich: Animation = .smooth(duration: 0.38)
+    /// Tab-Wechsel und Umschalter.
+    static let tab: Animation = .snappy(duration: 0.32, extraBounce: 0.08)
+    /// Sheets, Karten, die aufgehen: etwas Schwung, kaum Überschwinger.
+    static let sheet: Animation = .spring(response: 0.42, dampingFraction: 0.82)
+    /// Zahlen-Ticker (ZaehltHoch) und Zeichen-Animationen.
+    static let ticker: Animation = .easeOut(duration: 0.9)
+    /// Abstand zwischen zwei Elementen beim gestaffelten Aufbau (s) und höchste Stufe.
+    static let staffel: Double = 0.05
+    static let staffelMax = 8
     static var jelly: Animation {
         ProcessInfo.processInfo.isLowPowerModeEnabled ? schnell : .spring(response: 0.32, dampingFraction: 0.55)
     }
@@ -87,7 +96,7 @@ struct Aufbau: ViewModifier {
             .scaleEffect(sichtbar ? 1 : 0.96)
             .onAppear {
                 guard !da else { return }
-                withAnimation(Feder.weich.delay(Double(min(index, 8)) * 0.05)) { da = true }
+                withAnimation(Feder.weich.delay(Double(min(index, Feder.staffelMax)) * Feder.staffel)) { da = true }
             }
     }
 }
