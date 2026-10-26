@@ -511,3 +511,18 @@ Annahmen: Die Originale bleiben auf dem iPhone ("Laden und Originale behalten", 
 - XCTest: Sammlungen-Modell (Zahlen, Vorschlag ändern, Favoriten ausgenommen, Löschen erst nach Erfolg Papierkorb), Medienarten-Zählung mit Attrappe.
 - CI-Screenshots: Sammlungen, Duplikate, Größte Videos (hell, dunkel, XXL), mit Demo-Daten.
 - Am Gerät: echtes Löschen mit iOS-Rückfrage, Zahlen gegen Apple Fotos.
+
+### Gebaut A (PC, 26.10.2026) – Entscheidungen
+- `server/analyse.ts` (Klasse `Analyse`, eigene Verbindung zu `fotos.db`, WAL), Routen in `server/dienst.ts`, CLI in `bin/befehle.ts`. Die Analyse fasst `Fotos` nicht an (dessen Konstruktor räumt `.teil` im Fotos-Ordner), das CLI liest nur Dateien.
+- Tabellen: `analyse` wie im Vertrag (sha256, dhash, schaerfe, breite, hoehe dürfen NULL sein: scheitert die Dekodierung, steht die Zeile trotzdem da, sonst bliebe `offen` für immer über 0); `geloescht (kennung, ressource, groesse, pfad, empfangen, geloescht)`; `vorschlag (behalten, grund, zeit)`; `analyse_meta` (Schlüssel `stand`).
+- Hauptdatei: `foto-0`, sonst `video-0`. Assets ohne beides (z. B. nur `live-0`) werden nicht analysiert, zählen nur zur Größe.
+- RAW (DNG) liest `magick` (Delegate vorhanden), Dekodierung ohne Erfolg lässt dHash/Schärfe leer. Videos: ein Bild bei 1 s (unter 1 s: erstes Bild), Maße per `ffprobe`. Alle Programme mit `nice -n 19`, 4 Dateien zugleich, nie über eine Shell.
+- "Gleiche gehören nicht zusätzlich in Ähnliche": wörtlich, Mitglieder einer Gleich-Gruppe sind aus dem Ähnlich-Pool ausgenommen.
+- dHash mit weniger als 8 oder mehr als 56 gesetzten Bits (`MIN_BITS`, fast einfarbig) zählt nicht als Beleg für "ähnlich" (Union-Find kettet sonst alle dunklen/leeren Bilder).
+- Unscharf: nur `foto-0`, Dateien mit Endung `.png` (Screenshots) nie. `UNSCHARF_SCHWELLE = 30` (Varianz auf 256 px), an Ahmeds Fotos geschätzt (7 von 1.356 Nicht-PNG-Fotos darunter, Lücke in der Verteilung bei 30 bis 40); nach seinem Feedback nachstellen.
+- Vorschlag: Auflösung (Pixel), `alternative-*` vorhanden = bearbeitet, Schärfe (5 % Spielraum), älteste Aufnahme (Zeitstempel im Dateinamen), zuletzt die Kennung (damit der Vorschlag bei jedem Lauf gleich ist). `grund` ist der erste Schritt, der die Auswahl eingeengt hat; bei völlig gleichen Dateien "gleich gut, Kopie".
+- Überschreiben: `heimherz fotos vorschlag KENNUNG BEHALTEN --grund TEXT`; KENNUNG ist irgendein Mitglied der Gruppe (Gruppen haben keine eigene Kennung, sie ändern sich mit neuen Uploads), BEHALTEN muss Mitglied sein. Gespeichert unter BEHALTEN; je Gruppe gilt nur der letzte Vorschlag. Das Löschen eines Assets entfernt seinen Vorschlag.
+- `GET /v1/fotos/analyse`: `stand` ist die Zeit des letzten fertigen Laufs (`null` vor dem ersten), `gerechnet` die Zahl der Assets mit passender Analysezeile, `offen` was noch fehlt. Gruppen sind nach eingesparten Bytes sortiert, `kennungen[0]` ist immer `behalten`. `unscharf` ist nach Schärfe aufsteigend sortiert.
+- `POST /v1/fotos/papierkorb`: Antwort `{verschoben, fehler}` (`fehler` ist die Zahl der Assets, deren Papierkorb-Befehl scheiterte oder deren Pfad außerhalb von `HEIMHERZ_FOTOS` lag; ihre Zeilen und Dateien bleiben). Eine Datei, die schon fehlt, lässt die Zeile trotzdem wandern. Höchstens 20.000 Kennungen je Aufruf.
+- Läuft 60 s nach dem letzten Upload (entprellt, ein Lauf zugleich, Auslöser im Lauf ergeben genau einen weiteren) und einmal 60 s nach dem Dienststart.
+- Gemessen (26.10., Kopie von `fotos.db`, Fotos nur gelesen): 2.868 Assets in 196 s mit `nice -n 19` beim ersten Lauf, danach 0,06 s; `GET` rechnet die Gruppen in 57 ms.

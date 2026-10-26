@@ -42,6 +42,7 @@ export class Fotos {
   private teil: string;
   private laeuft = new Set<string>();
   private tempo: TempoLog;
+  beiNeu: (() => void) | null = null; // Analyse anstoßen (entprellt, SPEC 25)
 
   constructor(private ordner: string, daten: string, private mindestFrei = MINDEST_FREI) {
     mkdirSync(ordner, { recursive: true, mode: 0o700 });
@@ -51,6 +52,7 @@ export class Fotos {
     this.tempo = new TempoLog(daten);
     this.db = new Database(join(daten, 'fotos.db'), { create: true });
     this.db.run('PRAGMA journal_mode = WAL');
+    this.db.run('PRAGMA busy_timeout = 5000'); // das CLI (analyse) schreibt aus einem zweiten Prozess
     this.db.run('CREATE TABLE IF NOT EXISTS fotos (kennung TEXT NOT NULL, ressource TEXT NOT NULL, groesse INTEGER NOT NULL, pfad TEXT NOT NULL, empfangen TEXT NOT NULL, PRIMARY KEY (kennung, ressource))');
   }
 
@@ -98,6 +100,7 @@ export class Fotos {
       }
       this.db.query('INSERT OR REPLACE INTO fotos (kennung, ressource, groesse, pfad, empfangen) VALUES (?, ?, ?, ?, ?)').run(kennung, ressource, n, ziel, new Date().toISOString());
       messe('neu', n, empfangMs);
+      this.beiNeu?.();
       return json({ gespeichert: true });
     } finally {
       this.laeuft.delete(schluessel);
