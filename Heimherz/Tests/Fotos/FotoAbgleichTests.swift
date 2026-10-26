@@ -419,18 +419,19 @@ final class FotoAbgleichTests: XCTestCase {
         XCTAssertEqual(u.ablage.lade().fehler, "1 Datei konnte nicht übertragen werden (liegt nur in iCloud, und das Laden von iCloud ist aus).")
     }
 
-    func testHoechstensZweiICloudDownloadsGleichzeitig() async throws {
+    func testHoechstensICloudParallelDownloadsGleichzeitig() async throws {
         let jetzt = Kasten<Int>(0), hoechstens = Kasten<Int>(0)
-        let namen = Set((1...6).map { "x\($0).heic" })
-        let u = try baue(assets: viele(6), gleichzeitig: 6, nurInICloud: namen) { _ in
+        let namen = Set((1...8).map { "x\($0).heic" })
+        let u = try baue(assets: viele(8), gleichzeitig: 6, voraus: 2, nurInICloud: namen) { _ in
             let n = jetzt.mit { $0 += 1; return $0 }
             hoechstens.mit { $0 = max($0, n) }
             try await Task.sleep(for: .milliseconds(40))
             jetzt.mit { $0 -= 1 }
         }
         await u.abgleich.abgleichen()
-        XCTAssertEqual(u.sender.pfade.count, 6)
-        XCTAssertEqual(hoechstens.mit { $0 }, 2, "zwei Downloads zugleich, nie mehr")
+        XCTAssertEqual(u.sender.pfade.count, 8)
+        XCTAssertEqual(FotoAbgleich.iCloudParallel, 4)
+        XCTAssertEqual(hoechstens.mit { $0 }, FotoAbgleich.iCloudParallel, "genau so viele Downloads zugleich, nie mehr")
     }
 
     func testPufferGrenzeHaeltDenExportAnWennZuvielWartet() async throws {
