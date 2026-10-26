@@ -92,6 +92,18 @@ test('Upload legt an, überschreibt nie (2), (3)', async () => {
   expect((await put('', 'x')).status).toBe(403);
 });
 
+test('Upload unter Eingang/ legt fehlende Ordner an, anderswo bleibt es bei 404, Symlink nach draußen 403', async () => {
+  const put = (p: string, body: string) => t.f(`/v1/datei?pfad=${q(p)}`, { method: 'PUT', body });
+  expect(await (await put('Eingang/Adobe Scan/2026/okt/scan 1.pdf', 'pdf')).json()).toEqual({ name: 'scan 1.pdf' });
+  expect(readFileSync(join(t.dateien, 'Eingang/Adobe Scan/2026/okt/scan 1.pdf'), 'utf8')).toBe('pdf');
+  expect(await (await put('Eingang/Adobe Scan/2026/okt/scan 1.pdf', 'neu')).json()).toEqual({ name: 'scan 1 (2).pdf' });
+  expect((await put('Anderswo/neu/x.txt', 'x')).status).toBe(404);
+  expect((await put('Eingang/../x/y.txt', 'x')).status).toBe(403);
+  symlinkSync(aussen(), join(t.dateien, 'Eingang/raus'));
+  expect((await put('Eingang/raus/neu/x.txt', 'x')).status).toBe(403);
+  expect(existsSync(join(aussen(), 'neu'))).toBe(false);
+});
+
 test('Ausbrüche beim Hochladen: .., absolut, Symlink-Ordner, Symlink als Zielname', async () => {
   const put = (p: string) => t.f(`/v1/datei?pfad=${p}`, { method: 'PUT', body: 'BOESE' });
   for (const p of ['../aussen/x.txt', '/tmp/heimherz-boese.txt', '%2e%2e%2faussen%2fx.txt', q('ordner/../../aussen/x.txt'), q('link-ordner/x.txt'), q('link-ordner/geheim.txt')])

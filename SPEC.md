@@ -314,6 +314,13 @@ Startseite wie "Durchsuchen" (T21, Ahmed 26.10.2026: "a view like dateien on iph
 
 Runde 3 (W-007): Der Zwischenspeicher der Vorschauen (`VorschauCache`, `Caches/Heimherz/Dateien`) wird in den Einstellungen mit Größe angezeigt und mit Rückfrage geleert (`VorschauCache.groesse`, `leere`). Im Hauptordner entfallen die Brotkrumen.
 
+Ordner verbinden (W-045, 26.10.): Ahmed: "wie kann ich nun auch Adobe Scan und sowas, was auf mein Handy lokal liegt, direkt vom Handy aus, sodass ich das nicht nirgendwo verschieben muss oder so, direkt synchron halten." Kleinste Lösung, kein Datei-Anbieter, keine Erweiterung.
+- Menü (Drei-Punkte) > Hochladen > "Ordner vom Handy …" öffnet das Blatt "Ordner vom Handy" (`OrdnerBlatt`): Liste der verbundenen Ordner (Name, bei Rückstand eine Zeile "N Dateien noch nicht am PC"), Wischen "Trennen", Knopf "Ordner verbinden …" (`fileImporter`, `[.folder]`). Ganz unten: "Neue Dateien gehen an den PC, wenn Heimcloud geöffnet wird oder Fotos abgleicht."
+- Speicher: Lesezeichen je Ordner (`url.bookmarkData()`, auf iOS ohne `.withSecurityScope`; beim Lesen `startAccessingSecurityScopedResource`, veraltetes Lesezeichen wird neu gespeichert) plus Stand je Datei (relativer Pfad, Größe, Änderung in ganzen Sekunden) in `Application Support/Heimherz/ordner-abgleich.json` (`OrdnerAbgleich`).
+- Abgleich: beim Wechsel der App nach vorn, zu Beginn jedes Foto-Abgleichs (`FotosModell.beginne`) und gleich nach dem Verbinden. Je Ordner rekursiv lesen (ohne versteckte Dateien und Symlinks), Neues und Geändertes über `HeimClient.dateiHochladen` nach `Eingang/<Ordnername>/<relativer Pfad>`. Gelesen wird über `NSFileCoordinator` in eine Temp-Kopie (so lädt ein Datei-Anbieter wie Adobe Scan Dateien, die nur in seiner Cloud liegen, erst herunter); die Kopie wird danach gelöscht. Der Dienst legt unter `Eingang/` fehlende Ordner an (`legeEingangAn`, Symlinks nach draußen 403); anderswo bleibt es bei 404.
+- Geänderte Datei: der Dienst überschreibt nie, sie kommt als `name (2).ext`. Verschwindet etwas am Handy, passiert am PC nichts.
+- Grenzen: am Handy nie löschen oder verschieben. Fehler einer Datei brechen den Rest nicht ab, kein Dialog, nächstes Mal wieder; bei Netz-, Berechtigungs- oder Platzfehler hält der Lauf an und zählt den Rest als offen. Kein Hintergrund (BGTask), keine Erweiterung, kein PC zum Handy, kein Löschen spiegeln.
+
 ## Einstellungen (W-008, Runde 3)
 
 Tab "Einstellungen" (Symbol `gearshape.fill`, Typ `HeimherzTab.einstellungen`, Debug `-heimherzTab einstellungen`), `Module/Einstellungen/`. Gruppierte Liste (`insetGrouped`) wie die iOS-Einstellungen, Zeilen mit farbigen Symbolkacheln (`EinstellungsKachel`, `KachelTitel`, `heimherzEinstellungenListe` in `Design/Bausteine.swift`).

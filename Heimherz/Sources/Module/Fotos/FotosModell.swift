@@ -169,6 +169,7 @@ final class FotosModell {
         let abgleich = FotoAbgleich(client: client, quelle: FotoQuelleLive(), sender: HintergrundUpload.geteilt, netz: NetzartLive.geteilt, ablage: ablage) { neu in
             weiter.yield(neu)
         }
+        if senden { Task { await OrdnerAbgleich.geteilt.abgleichen(client: client) } }   // Ordner vom Handy (W-045): gleicher Anlass wie der Foto-Abgleich
         nutzerLauf = vomNutzer
         plantNachts = nachts
         nutzerHatAngehalten = false

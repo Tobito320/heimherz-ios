@@ -55,6 +55,22 @@ export class Dateien {
     return { ordner, name };
   }
 
+  // Nur unter "Eingang/" legt ein Upload fehlende Ordner an (Handy-Ordner kommen mit Unterordnern); sonst bleibt es bei 404.
+  // Schritt für Schritt, damit ein Symlink nach draußen nie zum Anlegen außerhalb führt (Verboten).
+  private legeEingangAn(pfad: string | null) {
+    const t = this.teile(pfad);
+    if (t.length < 2 || t[0] !== 'Eingang') return;
+    let akt = this.wurzel;
+    for (const s of t.slice(0, -1)) {
+      const ziel = join(akt, s);
+      let vorhanden = true;
+      try { lstatSync(ziel); } catch { vorhanden = false; }
+      if (!vorhanden) { mkdirSync(ziel, { mode: 0o700 }); akt = ziel; continue; }
+      akt = realpathSync(ziel);
+      if (!this.innen(akt)) throw new Verboten();
+    }
+  }
+
   private fehler(e: unknown): Response {
     if (e instanceof Verboten) return leer(403);
     if (e instanceof NichtDa) return leer(404);
@@ -156,7 +172,7 @@ export class Dateien {
 
   async hochladen(req: Request, pfad: string | null): Promise<Response> {
     let ziel: { ordner: string; name: string };
-    try { ziel = this.neuesZiel(pfad); } catch (e) { return this.fehler(e); }
+    try { this.legeEingangAn(pfad); ziel = this.neuesZiel(pfad); } catch (e) { return this.fehler(e); }
     if (ziel.name.startsWith('.heimherz-')) return leer(400);
     const abgelehnt = pruefeUpload(req, this.wurzel, this.mindestFrei);
     if (abgelehnt) return abgelehnt;

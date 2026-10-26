@@ -267,3 +267,45 @@ struct SuchBereiche: ViewModifier {
         }
     }
 }
+
+/// Verbundene Ordner vom Handy (W-045): Liste, Trennen per Wischen, neuen Ordner aus der Dateien-App verbinden.
+struct OrdnerBlatt: View {
+    @Environment(AppUmgebung.self) private var umgebung
+    @Environment(\.dismiss) private var schliesse
+    @State private var abgleich = OrdnerAbgleich.geteilt
+    @State private var waehle = false
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    ForEach(abgleich.ordner) { o in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Label(o.name, systemImage: "folder")
+                            if let n = o.offen, n > 0 {
+                                Text(n == 1 ? "1 Datei noch nicht am PC" : "\(n) Dateien noch nicht am PC")
+                                    .font(.footnote).foregroundStyle(.secondary)
+                            }
+                        }
+                        .swipeActions {
+                            Button("Trennen", role: .destructive) { abgleich.trenne(o.id) }
+                        }
+                    }
+                    Button("Ordner verbinden …", systemImage: "plus") { waehle = true }
+                } footer: {
+                    Text("Neue Dateien gehen an den PC, wenn Heimcloud geöffnet wird oder Fotos abgleicht.")
+                }
+            }
+            .navigationTitle("Ordner vom Handy")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) { Button("Fertig") { schliesse() } }
+            }
+            .fileImporter(isPresented: $waehle, allowedContentTypes: [.folder]) { ergebnis in
+                guard case .success(let url) = ergebnis, abgleich.verbinde(url), let client = try? umgebung.client() else { return }
+                Task { await abgleich.abgleichen(client: client) }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+}

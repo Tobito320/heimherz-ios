@@ -43,7 +43,10 @@ struct AppRootView: View {
         .onChange(of: aktionen.offen, initial: true) { _, aktion in if let aktion { tab = aktion.tab } }
         .onChange(of: phase) { _, neu in
             umgebung.sperre.szene(neu)
-            if neu == .active { FotosModell.geteilt.appIstVorn() }
+            if neu == .active {
+                FotosModell.geteilt.appIstVorn()
+                if !umgebung.istDemo, let client = try? umgebung.client() { Task { await OrdnerAbgleich.geteilt.abgleichen(client: client) } }
+            }
         }
         #if DEBUG
         .onAppear {

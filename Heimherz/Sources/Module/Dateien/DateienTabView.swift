@@ -64,6 +64,7 @@ struct OrdnerSeite: View {
     @AppStorage("heimherzDateienEingeklappt") private var eingeklappt = EingeklappteAbschnitte()
     @State private var zeigeImport = false
     @State private var zeigeFotos = false
+    @State private var zeigeOrdner = false
     @State private var fotoAuswahl: [PhotosPickerItem] = []
     @State private var frageWeg: Gewaehlt?
     @State private var info: Gewaehlt?
@@ -113,6 +114,7 @@ struct OrdnerSeite: View {
             .quickLookPreview($vorschau)
             .sheet(item: $info) { DateiInfoBlatt(gewaehlt: $0) }
             .sheet(item: $teilen) { TeilenBlatt(url: $0.url).presentationDetents([.medium, .large]) }
+            .sheet(isPresented: $zeigeOrdner) { OrdnerBlatt() }
             .fileImporter(isPresented: $zeigeImport, allowedContentTypes: [.item], allowsMultipleSelection: true) { ergebnis in
                 guard case .success(let urls) = ergebnis else { return }
                 Task { await ladeHoch(urls) }
@@ -360,6 +362,7 @@ struct OrdnerSeite: View {
             Section {
                 Button("Aus Dateien …", systemImage: "folder") { zeigeImport = true }
                 Button("Aus Fotos …", systemImage: "photo.on.rectangle") { zeigeFotos = true }
+                Button("Ordner vom Handy …", systemImage: "arrow.triangle.2.circlepath") { zeigeOrdner = true }
             }
             .disabled(modell.istDemo)
         } label: {
