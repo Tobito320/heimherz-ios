@@ -62,6 +62,7 @@ final class OrdnerAbgleich {
     private(set) var ordner: [VerbundenerOrdner]
     private(set) var laeuft = false
     private let datei: URL
+    private var seitSpeichern = 0
 
     init(datei: URL = URL.applicationSupportDirectory.appending(path: "Heimherz/ordner-abgleich.json")) {
         self.datei = datei
@@ -91,7 +92,14 @@ final class OrdnerAbgleich {
         defer { laeuft = false }
         for id in ordner.map(\.id) {
             guard let e = ordner.first(where: { $0.id == id }) else { continue }
-            let r = await Self.gleiche(e, client: client)
+            // Jede bestätigte Datei sofort merken (gespeichert alle 10): wird die App mitten im Lauf beendet, kommt nichts doppelt als "(2)" an den PC.
+            seitSpeichern = 0
+            let r = await Self.gleiche(e, client: client) { [weak self] rel, stand in
+                guard let self, let i = self.ordner.firstIndex(where: { $0.id == id }) else { return }
+                self.ordner[i].gesendet[rel] = stand
+                self.seitSpeichern += 1
+                if self.seitSpeichern % 10 == 0 { self.speichere() }
+            }
             guard let i = ordner.firstIndex(where: { $0.id == id }) else { continue }
             ordner[i].gesendet = r.gesendet
             ordner[i].offen = r.offen
@@ -112,11 +120,13 @@ final class OrdnerAbgleich {
     }
 
     @concurrent
-    private static func gleiche(_ e: VerbundenerOrdner, client: HeimClient) async -> Ergebnis {
+    private static func gleiche(_ e: VerbundenerOrdner, client: HeimClient, merke: @MainActor @Sendable (String, OrdnerDateiStand) -> Void) async -> Ergebnis {
         var veraltet = false
-        guard let wurzel = try? URL(resolvingBookmarkData: e.lesezeichen, options: [], relativeTo: nil, bookmarkDataIsStale: &veraltet),
-              wurzel.startAccessingSecurityScopedResource() else { return Ergebnis(gesendet: e.gesendet, offen: e.offen ?? 0) }
-        defer { wurzel.stopAccessingSecurityScopedResource() }
+        guard let wurzel = try? URL(resolvingBookmarkData: e.lesezeichen, options: [], relativeTo: nil, bookmarkDataIsStale: &veraltet) else {
+            return Ergebnis(gesendet: e.gesendet, offen: e.offen ?? 0)   // Ordner nicht mehr auflösbar: Eintrag bleibt, Nutzer trennt ihn
+        }
+        let zugriff = wurzel.startAccessingSecurityScopedResource()
+        defer { if zugriff { wurzel.stopAccessingSecurityScopedResource() } }
         var r = Ergebnis(gesendet: e.gesendet, offen: 0, lesezeichen: veraltet ? (try? wurzel.bookmarkData()) : nil)
         let gefunden = OrdnerRegeln.lies(wurzel)
         let neu = OrdnerRegeln.zuSenden(gefunden: gefunden.mapValues(\.stand), gemerkt: e.gesendet)
@@ -126,6 +136,7 @@ final class OrdnerAbgleich {
             do {
                 try await client.dateiHochladen(pfad: OrdnerRegeln.zielPfad(ordnerName: e.name, relativ: rel), von: kopie)
                 r.gesendet[rel] = g.stand
+                await merke(rel, g.stand)
             } catch let f as HeimFehler where f.istNetzproblem || f == .nichtBerechtigt || f == .speicherVoll {
                 r.offen += neu.count - n   // PC nicht erreichbar oder voll: der Rest wartet auf das nächste Mal
                 break
@@ -138,7 +149,7 @@ final class OrdnerAbgleich {
     }
 
     /// Kopie in den Temp-Ordner. Der Zugriff über `NSFileCoordinator` lädt Dateien, die ein Datei-Anbieter (Adobe Scan, iCloud) nur in seiner Cloud hält, erst herunter.
-    private static func kopiere(_ quelle: URL) async -> URL? {
+    nonisolated private static func kopiere(_ quelle: URL) async -> URL? {
         await withCheckedContinuation { weiter in
             DispatchQueue.global().async {
                 var fehler: NSError?
