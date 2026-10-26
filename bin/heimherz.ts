@@ -2,10 +2,12 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
-import { Meldung, eintraege, einrichtenBefehl, exportBitwarden, geraetWeg, importBitwarden, importCsv, koppelnBefehl, liste, status, totpSetzen, type Abh } from './befehle';
+import { Meldung, eintraege, einrichtenBefehl, exportBitwarden, geraetWeg, importBitwarden, importCsv, koppelnBefehl, liste, passwortSetzen, status, totpSetzen, type Abh } from './befehle';
 import { urlAusTailscale } from './koppeln';
 import { systemdCreds } from './schluessel';
+import { LOGIN_EXIT, leseGedaechtnis, liesFeld, loginAblauf, merkeSeite } from './login';
 import { eigenerTab, fuelleFeld, FuellFehler, handyHinweis, leseSchluessel, protokoll, waehle, wertVon, type Was } from './fuellen';
+import { einstellung } from './totp';
 import { erlaubt, modellVon, stufenText } from './stufen';
 import { fasseTempo, leseTempo } from './tempo';
 import { sicherung, wiederherstellen } from './sicherung';
@@ -22,6 +24,8 @@ heimherz geraet weg ID
 heimherz sicherung    (verschlüsselte Tresor-Sicherung nach ~/Heimherz/Dateien/Sicherung und nach Drive; Timer: server/heimherz-sicherung.timer)
 heimherz wiederherstellen DATEI   (Sicherung zusammenführen; auf neuem PC fragt es den Wiederherstellungscode von stdin)
 heimherz fuell TAB CSS benutzer|passwort|code [--konto K] [--rahmen IFRAME-CSS] [--enter] [--auftrag DATEI]
+heimherz login TAB --konto K [--code] [--auftrag DATEI]   (Benutzer, Passwort, Code, Absenden; Exit 0 eingeloggt, 8 falsches Passwort, 9 Code nötig, 10 Captcha, 11 unbekannt)
+heimherz merke TAB CSS --konto K [--rahmen IFRAME-CSS] [--auftrag DATEI]   (Passwort aus dem Feld, das Ahmed per Handy-Karte gefüllt hat, in den Eintrag)
 heimherz totp-setzen TAB --konto K [--feld CSS]   (Einrichtungsschlüssel der Seite in den Eintrag)
 heimherz erlaubt HOST [--auftrag DATEI]   (Exit 0 erlaubt, 7 verweigert)
 heimherz stufen`;
@@ -116,7 +120,7 @@ async function main(argv: string[]) {
   }
   if (cmd === 'wiederherstellen' && r[0]) return wiederherstellen(a, r[0], liesCode);
   if (cmd === 'geraet' && r[0] === 'weg' && r[1]) return geraetWeg(a, r[1]);
-  if (cmd === 'fuell' || cmd === 'totp-setzen' || cmd === 'erlaubt' || cmd === 'stufen') return fuellen(a, cmd, r);
+  if (cmd === 'fuell' || cmd === 'login' || cmd === 'merke' || cmd === 'totp-setzen' || cmd === 'erlaubt' || cmd === 'stufen') return fuellen(a, cmd, r);
   console.error(HILFE);
   process.exitCode = 2;
 }
@@ -126,6 +130,7 @@ async function fuellen(a: Abh, cmd: string, r: string[]) {
   const e = process.env, opt: Record<string, string | true> = {}, pos: string[] = [];
   for (let i = 0; i < r.length; i++) {
     if (r[i] === '--enter') opt.enter = true;
+    else if (r[i] === '--code') opt.code = true;
     else if (['--konto', '--rahmen', '--auftrag', '--feld'].includes(r[i]) && r[i + 1]) opt[r[i].slice(2)] = r[++i];
     else pos.push(r[i]);
   }
@@ -154,6 +159,39 @@ async function fuellen(a: Abh, cmd: string, r: string[]) {
         protokoll(state, { host, id: it.id, was: 'totp-setzen', stufe: u.stufe, modell, ok: true, grund: u.grund, auftrag });
         a.ausgabe(`${neu ? 'gesetzt' : 'war schon gesetzt'}: ${it.name} (${host})`);
       } finally { roh = ''; }
+    } catch (err) {
+      if (err instanceof FuellFehler) { console.error(`heimherz: ${err.message}`); process.exitCode = err.exit; return; }
+      throw err;
+    }
+    return;
+  }
+  if (cmd === 'login' || cmd === 'merke') {
+    if (!pos[0] || !opt.konto || (cmd === 'merke' && !pos[1])) { console.error(HILFE); process.exitCode = 2; return; }
+    try {
+      const t = eigenerTab(await ausgabeVon(['claude-chrome', 'tabs']), pos[0]);
+      const host = new URL(t.url).hostname, port = Number(e.HEIMHERZ_CDP_PORT ?? 9333);
+      const u = erlaubt(host, modell, auftrag, e);
+      if (!u.ok) { protokoll(state, { host, was: cmd, stufe: u.stufe, modell, ok: false, grund: u.grund, auftrag }); throw new FuellFehler(`verweigert: ${u.grund}`, 7); }
+      const it = waehle(await eintraege(a), t.url, cmd === 'login' ? 'passwort' : 'beliebig', opt.konto as string);
+      const name = `${it.name} (${it.benutzer || host})`;
+      if (u.stufe === 1) handyHinweis(e.XDG_RUNTIME_DIR ?? '', 'Sparkasse: Agent meldet sich an', `${modell}-Sitzung: ${cmd} auf ${host} (Auftrag ${auftrag?.split('/').pop()})`);
+      if (cmd === 'merke') {
+        let neu = await liesFeld({ port, tabId: t.id, css: pos[1], rahmen: opt.rahmen as string | undefined });
+        try {
+          if (neu === it.benutzer) throw new FuellFehler('Das Feld enthält den Benutzernamen, nicht das Passwort; nichts gespeichert');
+          const n = neu.length, geschrieben = await passwortSetzen(a, it.id, neu);
+          protokoll(state, { host, id: it.id, was: 'merke', stufe: u.stufe, modell, ok: true, grund: u.grund, auftrag });
+          a.ausgabe(`gespeichert, ${n} Zeichen: ${name}${geschrieben ? '' : ' (war schon so)'}`);
+        } finally { neu = ''; }
+        return;
+      }
+      const mitCode = !!opt.code && !!einstellung(it.totp), merk = leseGedaechtnis(state);
+      let r2 = await loginAblauf({ port, tabId: t.id, mitCode, bekannt: merk[host], wert: w => wertVon(it, w) });
+      merkeSeite(state, host, r2);
+      protokoll(state, { host, id: it.id, was: 'login', stufe: u.stufe, modell, ok: true, grund: `${u.grund}, ${r2.ergebnis}`, auftrag });
+      a.ausgabe(`${r2.ergebnis}: ${name} in ${host} (${r2.hinweis})`);
+      if (r2.ergebnis === 'falsches-passwort' && r2.passwortFeld) a.ausgabe(`Passwort neu: Karte mit handy_geheimnis auf Feld ${r2.passwortFeld}, dann heimherz merke ${pos[0]} ${r2.passwortFeld} --konto ${it.id.slice(0, 8)}`);
+      process.exitCode = LOGIN_EXIT[r2.ergebnis];
     } catch (err) {
       if (err instanceof FuellFehler) { console.error(`heimherz: ${err.message}`); process.exitCode = err.exit; return; }
       throw err;

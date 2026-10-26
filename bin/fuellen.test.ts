@@ -34,6 +34,7 @@ test('Doppelte: gleiche Person nimmt den mit TOTP, dann den neuesten; verschiede
   expect(waehle([ohne, fremd], 'https://amt.de/', 'passwort', 'kausar@beispiel.de').id).toBe('fremd');
   expect(waehle([ohne, fremd], 'https://amt.de/', 'passwort', 'fre').id).toBe('fremd');
   expect(() => waehle([ohne], 'https://amt.de/', 'code')).toThrow('TOTP');
+  expect(waehle([e({ id: 'leer', urls: ['https://amt.de'], benutzer: '', passwort: '' })], 'https://amt.de/', 'beliebig').id).toBe('leer');   // merke setzt das erste Passwort
 });
 
 test('Code wartet, wenn er gleich abläuft', async () => {

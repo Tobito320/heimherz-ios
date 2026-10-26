@@ -7,6 +7,7 @@ import { zusammenfuehren, type Tresor } from '../lib/zusammenfuehren';
 import { leseGeraete, schreibeGeraete } from '../server/geraete';
 import { nachBitwarden, vonBitwarden } from './bitwarden';
 import { mitTotp } from './fuellen';
+import { mitPasswort } from './login';
 import { koppeln, type KoppelAbh } from './koppeln';
 import { einrichten, ladeSchluessel, ladeToken, type Creds } from './schluessel';
 import { aendereTresor, holeStatus, ladeTresor, type Verbindung } from './tresorclient';
@@ -80,6 +81,18 @@ export async function totpSetzen(a: Abh, id: string, roh: string): Promise<boole
     const i = t.eintraege.findIndex(e => e.id === id && !e.geloescht);
     if (i < 0) throw new Meldung('Eintrag ist nicht mehr da, nichts gespeichert');
     const eintraege = [...t.eintraege]; eintraege[i] = mitTotp(t.eintraege[i], roh);
+    return { ...t, eintraege };
+  });
+  return r.geschrieben;
+}
+
+// `heimherz merke`: neues Passwort nur in den Speicher und in den Tresor, nie ausgeben.
+export async function passwortSetzen(a: Abh, id: string, neu: string): Promise<boolean> {
+  const { v, k } = await verbindung(a);
+  const r = await aendereTresor(v, k, t => {
+    const i = t.eintraege.findIndex(e => e.id === id && !e.geloescht);
+    if (i < 0) throw new Meldung('Eintrag ist nicht mehr da, nichts gespeichert');
+    const eintraege = [...t.eintraege]; eintraege[i] = mitPasswort(t.eintraege[i], neu);
     return { ...t, eintraege };
   });
   return r.geschrieben;

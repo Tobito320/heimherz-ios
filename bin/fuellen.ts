@@ -9,11 +9,11 @@ export class FuellFehler extends Error { constructor(m: string, public exit = 6)
 
 const hostVon = (u: string) => { try { return new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(u) ? u : `https://${u}`).hostname.toLowerCase(); } catch { return ''; } };
 const seite = (h: string) => h.replace(/^www\./, '').split('.').slice(-2).join('.');   // wie Bitwarden "Basis-Domain"
-const hatWert = (e: Eintrag, was: Was) => was === 'code' ? !!einstellung(e.totp) : was === 'passwort' ? !!e.passwort : !!e.benutzer;
+const hatWert = (e: Eintrag, was: Was | 'beliebig') => was === 'beliebig' ? true : was === 'code' ? !!einstellung(e.totp) : was === 'passwort' ? !!e.passwort : !!e.benutzer;
 export const zeile = (e: Eintrag) => [e.id.slice(0, 8), e.name, e.benutzer, [...new Set(e.urls.map(hostVon))].join(','), einstellung(e.totp) ? 'totp' : '-'].join(' | ');
 
 // Doppelte (Kausar: zwei Arbeitsagentur-Einträge, TOTP nur in einem; Apple dreimal): gleiche Person = der mit dem Wert, dann mit TOTP, dann der neueste.
-export function waehle(eintraege: Eintrag[], seitenUrl: string, was: Was, konto?: string): Eintrag {
+export function waehle(eintraege: Eintrag[], seitenUrl: string, was: Was | 'beliebig', konto?: string): Eintrag {
   const ziel = seite(hostVon(seitenUrl));
   let l = eintraege.filter(e => !e.geloescht && e.art === 'login' && e.urls.some(u => { const h = hostVon(u); return h && seite(h) === ziel; }));
   if (konto) { const k = konto.toLowerCase(); l = l.filter(e => e.id.toLowerCase().startsWith(k) || e.benutzer.toLowerCase() === k || e.name.toLowerCase().includes(k)); }
@@ -41,7 +41,7 @@ export function eigenerTab(tabsText: string, tab: string, httpsPflicht = true): 
   return { id: z[0], url };
 }
 
-async function cdp(port: number, tabId: string) {
+export async function cdp(port: number, tabId: string) {
   const t = ((await (await fetch(`http://127.0.0.1:${port}/json`)).json()) as any[]).find(x => x.id.startsWith(tabId) && x.type === 'page');
   if (!t) throw new FuellFehler('Tab ist weg', 5);
   const ws = new WebSocket(t.webSocketDebuggerUrl);
@@ -50,7 +50,7 @@ async function cdp(port: number, tabId: string) {
   ws.onmessage = m => { const d = JSON.parse(String(m.data)); offen[d.id]?.(d); delete offen[d.id]; };
   const send = (method: string, params = {}) => new Promise<any>((r, j) => {
     const i = ++n;
-    const uhr = setTimeout(() => { delete offen[i]; j(new FuellFehler('CDP Zeit', 4)); }, 10000);   // sonst hält der Zeitgeber den Prozess 10 s am Leben
+    const uhr = setTimeout(() => { delete offen[i]; j(new FuellFehler(`CDP Zeit (${method})`, 4)); }, 10000);   // sonst hält der Zeitgeber den Prozess 10 s am Leben
     offen[i] = d => { clearTimeout(uhr); d.error ? j(new FuellFehler('CDP: ' + String(d.error.message).slice(0, 80))) : r(d.result); };
     ws.send(JSON.stringify({ id: i, method, params }));
   });
