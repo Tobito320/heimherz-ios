@@ -36,7 +36,9 @@ test('Modell aus der Befehlszeile der Claude-Sitzung', () => {
 test('Auftrag-Datei: Ort, Alter und ausdrückliche Freigabe', () => {
   const env = { HOME: heim };
   expect(auftragGilt(datei('gut.md', `# Auftrag\n${FREIGABE}\n`), env).ok).toBe(true);
-  expect(auftragGilt(datei('ohne-allein.md', 'Sparkasse: melde dich an und lies die Umsätze'), env).ok).toBe(false);
+  expect(auftragGilt(datei('ohne-allein.md', 'Sparkasse: melde dich an und lies die Umsätze'), env).ok).toBe(true);   // Ahmed 27.10.: lesen reicht
+  expect(auftragGilt(datei('lesen.md', 'Ahmed: "sparkasse lesen"'), env).ok).toBe(true);
+  expect(auftragGilt(datei('ohne-lesen.md', 'Sparkasse: melde dich an'), env).ok).toBe(false);
   expect(auftragGilt(datei('selber.md', 'Sparkasse prüft. Und ich helfe bei der Anmeldung. Nur wenn es nötig ist. Er soll alles selber machen.'), env).ok).toBe(true);   // Ahmed 25.10.
   expect(auftragGilt(datei('andere-zeilen.md', 'Sparkasse prüfen\nich bin nicht zuhause, mach alles alleine\nmelde dich an'), env).ok).toBe(false);   // alles in einer Zeile
   const alt = datei('alt.md', FREIGABE); const t = Date.now() / 1000 - 25 * 3600; utimesSync(alt, t, t);
