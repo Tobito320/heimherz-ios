@@ -1,5 +1,5 @@
 // SPEC 28: Native-Messaging-Host für die Chrome-Erweiterung "Lumen Cloud" (W-051). Chrome startet ihn je Nachricht; Werte gehen nur an die Erweiterung, nie in Log oder argv.
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, readlinkSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { Eintrag } from '../lib/zusammenfuehren';
@@ -43,12 +43,13 @@ export function packe(o: unknown): Buffer {
   return Buffer.concat([k, j]);
 }
 
-// Nur Ahmeds eigenes Chrome: Aufruf von der Erweiterung, Elternprozess Chrome ohne Fernsteuerung (der Agenten-Chrome hat --remote-debugging-port).
-export function vonAhmedsChrome(argv: string[], elternCmdline: string): string | null {
+// Nur Ahmeds eigenes Chrome: Aufruf von der Erweiterung, Elternprozess ist wirklich Chrome (exe, nicht argv[0]), ohne Fernsteuerung,
+// und mit offenen Dateien im echten Profil ~/.config/google-chrome (fängt fremdes HOME ab; environ taugt nicht, Chrome überschreibt es mit dem Prozesstitel).
+export function vonAhmedsChrome(argv: string[], eltern: { exe: string; cmdline: string; dateien: string[] }, home: string): string | null {
   if (argv[0] !== `chrome-extension://${ERWEITERUNG_ID}/`) return 'Aufruf nicht von der Lumen-Erweiterung';
-  const teile = elternCmdline.split('\0');
-  if (!/\/chrome$/.test(teile[0] ?? '')) return 'Elternprozess ist nicht Chrome';
-  if (teile.some(t => /^--(remote-debugging-(port|pipe)|user-data-dir)/.test(t))) return 'Ferngesteuertes oder fremdes Chrome-Profil';
+  if (eltern.exe !== '/opt/google/chrome/chrome') return 'Elternprozess ist nicht Chrome';
+  if (eltern.cmdline.split('\0').some(t => /^--(remote-debugging|user-data-dir|load-extension|headless|disable-extensions-except)/.test(t))) return 'Ferngesteuertes oder fremdes Chrome-Profil';
+  if (!eltern.dateien.some(d => d.startsWith(`${home}/.config/google-chrome/`))) return 'Chrome mit fremdem Profilordner';
   return null;
 }
 
@@ -66,7 +67,10 @@ async function main() {
   const e = process.env, state = join(e.XDG_STATE_HOME ?? join(homedir(), '.local/state'), 'heimherz');
   const eingabe = await liesStdin();
   let m: Anfrage, raus: Record<string, unknown>;
-  const nein = vonAhmedsChrome(process.argv.slice(2), readFileSync(`/proc/${process.ppid}/cmdline`, 'latin1'));
+  const pp = `/proc/${process.ppid}`;
+  let nein: string | null;
+  try { nein = vonAhmedsChrome(process.argv.slice(2), { exe: readlinkSync(`${pp}/exe`), cmdline: readFileSync(`${pp}/cmdline`, 'latin1'), dateien: readdirSync(`${pp}/fd`).map(f => { try { return readlinkSync(`${pp}/fd/${f}`); } catch { return ''; } }) }, homedir()); }
+  catch { nein = 'Elternprozess nicht lesbar'; }
   try { m = liesNachricht(eingabe) as Anfrage; } catch (x) { process.stdout.write(packe({ fehler: String((x as Error).message) })); return; }
   const host = hostVon(String(m?.url ?? '')) || '-';
   if (nein) raus = { fehler: nein };

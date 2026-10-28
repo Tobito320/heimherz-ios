@@ -31,9 +31,12 @@ test('Rahmen: hin und zurück, zu groß abgelehnt', () => {
 });
 
 test('nur Ahmeds Chrome', () => {
-  const o = `chrome-extension://${ERWEITERUNG_ID}/`;
-  expect(vonAhmedsChrome([o], '/opt/google/chrome/chrome\0https://x.de/\0')).toBeNull();
-  expect(vonAhmedsChrome(['chrome-extension://andere/'], '/opt/google/chrome/chrome\0')).not.toBeNull();
-  expect(vonAhmedsChrome([o], '/opt/google/chrome/chrome\0--user-data-dir=/home/tobi/.cache/claude-browser-amt\0--remote-debugging-port=9333\0')).not.toBeNull();
-  expect(vonAhmedsChrome([o], '/usr/bin/bash\0')).not.toBeNull();
+  const o = `chrome-extension://${ERWEITERUNG_ID}/`, exe = '/opt/google/chrome/chrome', dateien = ['/dev/null', '/home/tobi/.config/google-chrome/Default/History'];
+  const ch = (x: Partial<{ exe: string; cmdline: string; dateien: string[] }>) => ({ exe, cmdline: `${exe}\0https://x.de/\0`, dateien, ...x });
+  expect(vonAhmedsChrome([o], ch({}), '/home/tobi')).toBeNull();
+  expect(vonAhmedsChrome(['chrome-extension://andere/'], ch({}), '/home/tobi')).not.toBeNull();
+  expect(vonAhmedsChrome([o], ch({ cmdline: `${exe}\0--user-data-dir=/home/tobi/.cache/claude-browser-amt\0--remote-debugging-port=9333\0` }), '/home/tobi')).not.toBeNull();
+  expect(vonAhmedsChrome([o], ch({ exe: '/usr/bin/bash', cmdline: `${exe}\0` }), '/home/tobi')).not.toBeNull();   // argv[0] gefälscht
+  expect(vonAhmedsChrome([o], ch({ dateien: ['/tmp/fremd/.config/google-chrome/Default/History'] }), '/home/tobi')).not.toBeNull();
+  expect(vonAhmedsChrome([o], ch({ cmdline: `${exe}\0--load-extension=/tmp/x\0` }), '/home/tobi')).not.toBeNull();
 });
