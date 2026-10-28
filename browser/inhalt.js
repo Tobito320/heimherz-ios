@@ -1,8 +1,13 @@
 // Lumen-Liste unter Login-Feldern, im Stil der Seite (hell/dunkel) und des Lumen-Kits; Klick oder Enter füllt Benutzer und Passwort (oder den 2FA-Code).
 (() => {
   const istPasswort = f => f.type === 'password';
-  const istCode = f => !istPasswort(f) && (f.autocomplete === 'one-time-code' || /otp|totp|2fa|mfa|token|verif|code/i.test(`${f.name} ${f.id} ${f.placeholder}`));
-  const istBenutzer = f => /^(text|email|tel|)$/.test(f.type) && (/username|email/.test(f.autocomplete) || /user|login|mail|benutzer|kennung|account|anmeld|phone|handy/i.test(`${f.name} ${f.id} ${f.placeholder} ${f.getAttribute('aria-label') || ''}`));
+  // Beschriftung aus allen Quellen: name, id, placeholder, aria-label, <label>, aria-labelledby (viele Seiten haben nur ein schwebendes Label)
+  const text = f => [f.name, f.id, f.placeholder, f.getAttribute('aria-label'), ...[...(f.labels || [])].map(l => l.textContent),
+    ...(f.getAttribute('aria-labelledby') || '').split(/\s+/).map(i => i && f.getRootNode().getElementById?.(i)?.textContent)].filter(Boolean).join(' ');
+  const istCode = f => !istPasswort(f) && (f.autocomplete === 'one-time-code'
+    || /otp|totp|2fa|mfa|token|verif|code|sicherheits|bestätigung|authenticat/i.test(text(f))
+    || (f.inputMode === 'numeric' && f.maxLength >= 6 && f.maxLength <= 8));
+  const istBenutzer = f => /^(text|email|tel|)$/.test(f.type) && (/username|email/.test(f.autocomplete) || /user|login|mail|benutzer|kennung|account|anmeld|phone|handy|nutzer/i.test(text(f)));
   const sichtbar = f => f.getClientRects().length > 0 && !f.disabled && !f.readOnly;
   const felder = wurzel => [...(wurzel || document).querySelectorAll('input')].filter(sichtbar);
   const frage = m => new Promise(r => chrome.runtime.sendMessage(m, x => r(x || { fehler: chrome.runtime.lastError?.message })));
@@ -72,12 +77,14 @@
     if (document.activeElement !== f && f.getRootNode().activeElement !== f) return;   // Fokus ist schon weiter
     const l = (c.eintraege || []).filter(e => art === 'code' ? e.code : true);
     if (c.fehler) console.debug('Lumen Cloud:', c.fehler);
-    if (!l.length) { if (c.fehler) cache = null; return zu(); }   // nichts Passendes: leise bleiben
+    const ohneCode = art === 'code' && !l.length && (c.eintraege || []).length;   // Konten da, aber kein 2FA-Schlüssel: sagen statt schweigen
+    if (!l.length && !ohneCode) { if (c.fehler) cache = null; return zu(); }   // nichts Passendes: leise bleiben
     zu(); feld = f;
     box = document.createElement('div');
     const s = box.attachShadow({ mode: 'closed' });   // Seite kann die Liste nicht lesen
     s.innerHTML = `<style>${CSS}</style><div class="k ${dunkel(f) ? 'd' : 'h'}" role=listbox><div class=kopf><span class=logo></span>Lumen Cloud</div></div>`;
     k = s.querySelector('.k');
+    if (ohneCode) { const p = document.createElement('div'); p.className = 'leise'; p.textContent = `Für ${location.hostname.replace(/^www\./, '')} ist noch kein 2FA-Code in Lumen Cloud gespeichert.`; k.append(p); }
     for (const e of l) {
       const b = art === 'code' ? zeile('Code einsetzen', e.benutzer || e.name, e.name) : zeile(e.benutzer || e.name, e.name, e.name);
       b.addEventListener('click', () => fuelle(f, e, art));
@@ -104,7 +111,7 @@
     if (!box) { if (ev.key === 'ArrowDown' && ev.composedPath()[0] instanceof HTMLInputElement) zeige(ev.composedPath()[0]); return; }
     if (ev.key === 'Escape') zu();
     else if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') { ev.preventDefault(); markiere(wahl + (ev.key === 'ArrowDown' ? 1 : -1)); }
-    else if (ev.key === 'Enter') { ev.preventDefault(); ev.stopPropagation(); knoepfe()[wahl]?.click(); }
+    else if (ev.key === 'Enter' && knoepfe().length) { ev.preventDefault(); ev.stopPropagation(); knoepfe()[wahl]?.click(); }
     else if (ev.key === 'Tab') zu();
   }, true);
   document.addEventListener('input', ev => { if (box && ev.isTrusted) zu(); }, true);   // wer selbst tippt, will die Liste nicht

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Lumen Cloud",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Logins aus Lumen Cloud ausfüllen",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvab1ejgxzwjWV5VxfkrdA5G3wZCwbP4BeMT4JG0nbLgh9XBB6ryCvwiSQYed5m8OjqFis1EVsU2hYqQC7NJe9HNqMfcPU2DUQBBSiVpjZpaRqmmK4DQG1VD+wOo4IPLrbFp+rXdG9AC226WaMA6JOFjzWpBPzzzBMK+170q8wMAKB1BetVAP16efzXcSfb4wGRZHxD/y42AddYEoO0snrNiKyTk9YB8Rrl2ao6jSht4Yxz7KLG0Ozqg6R/Fy0lcvpK5durhQn42CEtnif2s/yDd78lcMyQmSjWUMLpZx69u4jNJI7f2+l0YgsT0FUl12uUZWw5t4xzwL2f5imBXgBwIDAQAB",
   "permissions": [
