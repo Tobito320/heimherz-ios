@@ -103,7 +103,23 @@
     const benutzer = !istPasswort(f) ? f : alle.slice(0, Math.max(0, i)).reverse().find(x => /^(text|email|tel)$/.test(x.type));
     if (benutzer && e.benutzer) setze(benutzer, e.benutzer);   // Benutzer steht schon in der Liste, keine eigene Anfrage
     if (pw && e.passwort) { const r = await frage({ typ: 'wert', id: e.id, was: 'passwort' }); if (r.wert) setze(pw, r.wert); }
+    else if (e.passwort) frage({ typ: 'merke', id: e.id });   // Passwort kommt erst auf der nächsten Seite (Google, Microsoft): dort von selbst füllen
   }
+
+  // Gewähltes Konto, Passwortfeld erscheint später (gleicher Tab, gleiche Seite, 3 min): ohne Klick füllen. Der Host prüft die Seite erneut.
+  let warte = false;
+  const passwortNachher = async () => {
+    if (warte) return;
+    const pw = felder().find(f => istPasswort(f) && !f.value && !/new-password/.test(f.autocomplete));
+    if (!pw) return;
+    warte = true;
+    const g = await frage({ typ: 'gewaehlt' });
+    if (g.id) { const r = await frage({ typ: 'wert', id: g.id, was: 'passwort' }); if (r.wert && !pw.value) setze(pw, r.wert); }
+    warte = false;
+  };
+  let uhr = 0;
+  new MutationObserver(() => { clearTimeout(uhr); uhr = setTimeout(passwortNachher, 250); }).observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['type', 'style', 'class', 'hidden'] });
+  passwortNachher();
 
   document.addEventListener('focusin', ev => { const f = ev.composedPath()[0]; if (f instanceof HTMLInputElement && sichtbar(f)) zeige(f); }, true);
   document.addEventListener('mousedown', ev => { if (!box || ev.composedPath().includes(box)) return; if (ev.composedPath()[0] !== feld) zu(); }, true);
