@@ -562,3 +562,13 @@ Ahmed (28.10.): "get rid of bitwarden überall" und "ich brauche dann mein web e
 - Grenzen: Basis-Domain wie `heimherz fuell` (letzte zwei Teile, `co.uk` zu grob); kein Speichern neuer Logins; keine Passkeys; nur dieser PC
 - Installation ohne Klick: Policy `ExtensionInstallForcelist` (`/etc/opt/chrome/policies/managed/claude-agent.json`, Eintrag `ID;http://127.0.0.1:8797/update.xml`), Dienst `lumen-erweiterung.service` liefert `~/.local/share/lumen-erweiterung/web/` (crx, update.xml) nur an 127.0.0.1; Schlüssel `~/.local/share/lumen-erweiterung/schluessel.pem` (nie ins Repo). Update: `version` erhöhen, `browser/ausliefern.sh`. Der Agenten-Chrome bekommt die Erweiterung über dieselbe Policy, der Host weist ihn ab
 - Prüfung: `bun test bin/browser.test.ts`; Seitenlogik mit Stub im Agenten-Chrome (Benutzer, Passwort, Code gefüllt); echter Weg erst nach dem Laden der Erweiterung in Ahmeds Chrome
+
+## 29. Modul `tippen` (W-053, 28.10.2026)
+
+Ahmed 28.10. (Vesktop-Login ohne Autofill): "ich will einfach überall das machen können." Die Chrome-Erweiterung (W-051) hilft nur in Chrome.
+
+- `heimherz tippe`, Taste Alt+Strg+P (`~/.config/hypr/hyprland.conf` und `hyprland.lua`): merkt das aktive Fenster (`hyprctl -j activewindow`, Klasse und Titel), zeigt alle Login-Einträge mit Passwort in `fuzzel --dmenu`. Oben stehen Einträge, deren Seite (z. B. `discord` aus discord.com) oder Name im Titel oder in der Klasse vorkommt. Einträge mit TOTP haben eine zweite Zeile "Code".
+- Auswahl: tippt Benutzer, Tab, Passwort (ohne Benutzer nur Passwort) oder den TOTP-Code mit `wtype -` über stdin ins Fenster. Kein Enter. Werte nie in argv, stdout, Log. Esc = nichts.
+- Protokoll `fuell.log` mit `was: tippe`, `modell: ahmed`, Klasse als Host. Fehler als Desktop-Meldung (`notify-send`).
+- Nur Ahmed: die Geheimnis-Wache lässt `heimherz tippe` für Agenten nicht durch (nicht in der Erlaubt-Liste), sonst könnte ein Agent Werte ins eigene Terminal tippen lassen. Stufen (§23) gelten hier nicht, sie sind für Agenten.
+- Prüfung: `bun test bin/tippen.test.ts` (Sortierung, Code-Zeile, keine Werte in den Zeilen, Auswahl).
