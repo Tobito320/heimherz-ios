@@ -44,7 +44,7 @@ def main():
     gi.require_version('Atspi', '2.0'); gi.require_version('Gtk', '3.0'); gi.require_version('GtkLayerShell', '0.1')
     from gi.repository import Atspi, Gtk, GtkLayerShell, GLib, Gdk
 
-    stand = {'eintraege': [], 'geladen': 0.0, 'laedt': False, 'feld': None, 'fenster': None}
+    stand = {'eintraege': [], 'geladen': 0.0, 'laedt': False, 'feld': None, 'fenster': None, 'warm': None}
 
     def lade():
         if stand['laedt']:
@@ -85,17 +85,35 @@ def main():
     box.get_style_context().add_class('kasten')
     win.add(box)
 
+    def warm_zu():
+        p, stand['warm'] = stand['warm'], None
+        if p and p.poll() is None:
+            try:
+                p.stdin.close()   # EOF: `tippe --bereit` endet ohne zu tippen
+            except OSError:
+                pass
+
     def verstecke(*_):
         stand['feld'] = None
+        warm_zu()
         win.hide()
         return False
 
     def waehle(_knopf, e, passwortfeld):
+        art = 'code' if e['zeile_code'] else 'nur-passwort' if passwortfeld else ''
+        p, stand['warm'] = stand['warm'], None
+        try:   # vorgewärmt: Tresor ist schon offen, tippt sofort
+            p.stdin.write(f"{e['id']} {art}\n".encode()); p.stdin.close()
+        except (AttributeError, OSError):   # kein oder toter Vorlauf: kalt starten (rund 1,5 s)
+            subprocess.Popen([HEIMHERZ, 'tippe', '--id', e['id']] + ([f'--{art}'] if art else []), stdin=subprocess.DEVNULL,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
         verstecke()
-        arg = [HEIMHERZ, 'tippe', '--id', e['id']] + (['--code'] if e['zeile_code'] else ['--nur-passwort'] if passwortfeld else [])
-        subprocess.Popen(arg, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        stand['geladen'] = 0.0   # Reihenfolge nach Nutzung: beim nächsten Feld neu laden
 
     def zeige(x, y, breite, liste, passwortfeld):
+        if not stand['warm'] or stand['warm'].poll() is not None:   # Tresor schon beim Zeigen öffnen, damit der Klick sofort tippt
+            stand['warm'] = subprocess.Popen([HEIMHERZ, 'tippe', '--bereit'], stdin=subprocess.PIPE, stdout=subprocess.DEVNULL,
+                                             stderr=subprocess.DEVNULL, start_new_session=True)
         for k in box.get_children():
             box.remove(k)
         kopf = Gtk.Label(label='Lumen Cloud', xalign=0)
@@ -105,11 +123,14 @@ def main():
             b = Gtk.Button()
             b.get_style_context().add_class('zeile')
             innen = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-            n = Gtk.Label(label=e['name'] + ('  ·  Code' if e['zeile_code'] else ''), xalign=0)
+            # gross das Konto (Ahmed 28.10.: "directly show the itsdragonven"), klein die Seite, die er ohnehin kennt
+            gross = 'Code' if e['zeile_code'] else e['benutzer'] or e['name']
+            klein = e['name'] if gross != e['name'] else ('nur Passwort' if not e['benutzer'] else '')
+            n = Gtk.Label(label=gross, xalign=0)
             n.get_style_context().add_class('name')
             innen.pack_start(n, False, False, 0)
-            if e['benutzer'] and not e['zeile_code']:
-                u = Gtk.Label(label=e['benutzer'], xalign=0)
+            if klein:
+                u = Gtk.Label(label=klein, xalign=0)
                 u.get_style_context().add_class('benutzer')
                 innen.pack_start(u, False, False, 0)
             b.add(innen)

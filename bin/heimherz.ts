@@ -11,7 +11,7 @@ import { einstellung } from './totp';
 import { erlaubt, modellVon, stufenText } from './stufen';
 import { fasseTempo, leseTempo } from './tempo';
 import { sicherung, wiederherstellen } from './sicherung';
-import { gewaehlt, vorschlaege, wahlen, zeilen, type Wahl } from './tippen';
+import { gewaehlt, nutzung, vorschlaege, wahlen, zeilen, type Wahl } from './tippen';
 
 const HILFE = `heimherz einrichten
 heimherz koppeln [NAME]
@@ -30,7 +30,7 @@ heimherz merke TAB CSS --konto K [--rahmen IFRAME-CSS] [--auftrag DATEI]   (Pass
 heimherz totp-setzen TAB --konto K [--feld CSS]   (Einrichtungsschlüssel der Seite in den Eintrag)
 heimherz erlaubt HOST [--auftrag DATEI]   (Exit 0 erlaubt, 7 verweigert)
 heimherz stufen
-heimherz tippe [--id ID [--code|--nur-passwort]]    (Taste Alt+Strg+P: Konto wählen, tippt Benutzer, Tab, Passwort oder Code ins aktive Fenster, jede App; --id ohne Auswahl, für Lumen-Vorschlag)
+heimherz tippe [--id ID [--code|--nur-passwort] | --bereit]    (Taste Alt+Strg+P: Konto wählen, tippt Benutzer, Tab, Passwort oder Code ins aktive Fenster, jede App; --id ohne Auswahl, für Lumen-Vorschlag)
 heimherz vorschlag    (Einträge ohne Werte als JSON, für Lumen-Vorschlag)`;
 
 async function ausgabeVon(argv: string[], env?: Record<string, string | undefined>, stdin?: string): Promise<string> {
@@ -123,8 +123,8 @@ async function main(argv: string[]) {
   }
   if (cmd === 'wiederherstellen' && r[0]) return wiederherstellen(a, r[0], liesCode);
   if (cmd === 'geraet' && r[0] === 'weg' && r[1]) return geraetWeg(a, r[1]);
-  if (cmd === 'tippe') return tippe(a, r);
-  if (cmd === 'vorschlag') { a.ausgabe(JSON.stringify(vorschlaege(await eintraege(a)))); return; }
+  if (cmd === 'tippe') { await tippe(a, r); if (r.includes('--bereit')) process.exit(process.exitCode ?? 0); return; }   // offener stdin-Leser und Zeitgeber halten sonst bis 60 s
+  if (cmd === 'vorschlag') { a.ausgabe(JSON.stringify(vorschlaege(await eintraege(a), nutzungJetzt()))); return; }
   if (cmd === 'fuell' || cmd === 'login' || cmd === 'merke' || cmd === 'totp-setzen' || cmd === 'erlaubt' || cmd === 'stufen') return fuellen(a, cmd, r);
   console.error(HILFE);
   process.exitCode = 2;
@@ -224,6 +224,14 @@ async function fuellen(a: Abh, cmd: string, r: string[]) {
   }
 }
 
+async function ersteZeile(ms: number): Promise<string> {
+  let text = '';
+  const lesen = (async () => { for await (const t of Bun.stdin.stream()) { text += Buffer.from(t).toString(); if (text.includes('\n')) break; } return text.split('\n')[0]; })();
+  return Promise.race([lesen, Bun.sleep(ms).then(() => '')]);
+}
+
+const nutzungJetzt = () => { try { return nutzung(readFileSync(join(process.env.XDG_STATE_HOME ?? join(homedir(), '.local/state'), 'heimherz', 'fuell.log'), 'utf8')); } catch { return new Map<string, number>(); } };
+
 // SPEC 29/30: nur Ahmeds Taste und Lumen-Vorschlag (Geheimnis-Wache sperrt `tippe` für Agenten). Fehler als Desktop-Meldung, es gibt kein Terminal.
 async function tippe(a: Abh, r: string[]) {
   const melde = (t: string) => Bun.spawn(['notify-send', '-a', 'Lumen Cloud', 'Lumen Cloud', t], { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore' });
@@ -234,11 +242,16 @@ async function tippe(a: Abh, r: string[]) {
   };
   try {
     const f = JSON.parse(await ausgabeVon(['hyprctl', '-j', 'activewindow']));
-    const w = wahlen(await eintraege(a), `${f.class ?? ''} ${f.title ?? ''}`);
+    const w = wahlen(await eintraege(a), `${f.class ?? ''} ${f.title ?? ''}`, nutzungJetzt());
     if (!w.length) { melde('Keine Einträge mit Passwort'); return; }
-    const id = r.includes('--id') ? r[r.indexOf('--id') + 1] : undefined, nurPasswort = r.includes('--nur-passwort');
+    let id = r.includes('--id') ? r[r.indexOf('--id') + 1] : undefined, code = r.includes('--code'), nurPasswort = r.includes('--nur-passwort');
+    if (r.includes('--bereit')) {   // Lumen-Vorschlag startet uns schon beim Zeigen des Kästchens: Tresor offen, der Klick schickt nur "ID [code|nur-passwort]"
+      const z = (await ersteZeile(60_000)).trim().split(/\s+/);
+      if (!z[0]) process.exit(0);   // Kästchen ohne Klick zu (EOF) oder Zeit um
+      [id, code, nurPasswort] = [z[0], z.includes('code'), z.includes('nur-passwort')];
+    }
     let x: Wahl | undefined;
-    if (id) x = w.find(v => v.e.id === id && v.code === r.includes('--code'));
+    if (id) x = w.find(v => v.e.id === id && v.code === code);
     else {
       let antwort = '';
       try { antwort = await ausgabeVon(['fuzzel', '--dmenu', '--prompt', 'Lumen Cloud: ', '--width', '60'], undefined, zeilen(w)); } catch { return; }   // Esc
