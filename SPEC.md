@@ -558,4 +558,5 @@ Ahmed (28.10.): "get rid of bitwarden überall" und "ich brauche dann mein web e
 - Protokoll ohne Werte in `~/.local/state/heimherz/fuell.log` (`modell` = `ahmed-chrome`, `stufe 0`)
 - Seite: Liste in geschlossenem Shadow-DOM unter dem fokussierten Login-Feld; Klick füllt Benutzer und Passwort im selben Formular, bei Code-Feldern den TOTP-Code
 - Grenzen: Basis-Domain wie `heimherz fuell` (letzte zwei Teile, `co.uk` zu grob); kein Speichern neuer Logins; keine Passkeys; nur dieser PC
+- Installation ohne Klick: Policy `ExtensionInstallForcelist` (`/etc/opt/chrome/policies/managed/claude-agent.json`, Eintrag `ID;http://127.0.0.1:8797/update.xml`), Dienst `lumen-erweiterung.service` liefert `~/.local/share/lumen-erweiterung/web/` (crx, update.xml) nur an 127.0.0.1; Schlüssel `~/.local/share/lumen-erweiterung/schluessel.pem` (nie ins Repo). Update: `version` erhöhen, `browser/ausliefern.sh`. Der Agenten-Chrome bekommt die Erweiterung über dieselbe Policy, der Host weist ihn ab
 - Prüfung: `bun test bin/browser.test.ts`; Seitenlogik mit Stub im Agenten-Chrome (Benutzer, Passwort, Code gefüllt); echter Weg erst nach dem Laden der Erweiterung in Ahmeds Chrome

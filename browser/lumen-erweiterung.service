@@ -1,0 +1,9 @@
+[Unit]
+Description=Lumen Cloud: Chrome-Erweiterung lokal ausliefern (W-051, nur 127.0.0.1; Policy ExtensionInstallForcelist)
+
+[Service]
+ExecStart=/usr/bin/python3 -m http.server 8797 --bind 127.0.0.1 --directory %h/.local/share/lumen-erweiterung/web
+Restart=always
+
+[Install]
+WantedBy=default.target
