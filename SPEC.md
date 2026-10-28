@@ -546,3 +546,16 @@ Stufen und Host-Prüfung unverändert (§23, Protokoll `fuell.log` mit `login` u
 
 ## 27. AutoFill-Reihenfolge nach Nutzung (W-030, 26.10.2026)
 Ahmed 26.10.: "Favoriten automatisch erkennen durch am meisten genutzt die Reihenfolge bauen". Kein Pflegen von Hand: `AutoFillIdentitaeten.rang` = 10 Punkte je Benutzung (Zähler `Nutzung.anzahl` je Konto-id in der App Group, wächst bei jedem Ausfüllen oder Kopieren) plus Frische (zuletzt in 7 Tagen 9, in 30 Tagen 5, sonst 0, aus `Nutzung.zuletzt`, das es seit W-020 gibt, damit die Reihenfolge nicht bei null anfängt). Ein von Hand gesetzter Favorit gibt nur +1 (Gleichstand). Das System sortiert die Vorschläge der Seite nach `rank`; die Identitäten werden bei jedem Abgleich (`TresorStore`) und nach dem Entsperren der Erweiterung neu gesetzt, die neue Reihenfolge gilt also ab dem nächsten Öffnen der App. Eine Seite je Eintrag nur einmal (`ohneUnterdomains`). Test: `AutoFillIdentitaetenTests`.
+
+## 28. Modul `chrome-erweiterung` (W-051, 28.10.2026)
+
+Ahmed (28.10.): "get rid of bitwarden überall" und "ich brauche dann mein web extension für mein lumen cloud autofill für chrome."
+
+- Ziel: Logins aus Lumen Cloud in Ahmeds eigenem Chrome am PC ausfüllen (Benutzer, Passwort, 2FA-Code), Ersatz für die Bitwarden-Erweiterung
+- Aufbau: `browser/` (Manifest V3, feste ID `mdjdbdlhjflakglpihdkaipkfnfeding` über `key`) spricht per Native Messaging mit `browser/host` → `bin/browser.ts`. Der Host lädt den Tresor wie `heimherz fuell` (Schlüssel in `systemd-creds`); im Browser liegt kein Schlüssel und kein Tresor
+- Anfragen: `liste` (Einträge der Seite, ohne Passwort und TOTP), `wert` (`benutzer|passwort|code` für eine ID). Die Seiten-URL setzt die Erweiterung aus `sender.url`, der Host prüft die Seite (Basis-Domain, nur https) bei jedem `wert` neu
+- Nur Ahmeds Chrome: Origin muss die Erweiterung sein, der Elternprozess `/…/chrome` ohne `--remote-debugging-*` und ohne `--user-data-dir` (der Agenten-Chrome hat beides). Host-Datei nur in `~/.config/google-chrome/NativeMessagingHosts/com.lumen.cloud.json` (`browser/einrichten.sh`)
+- Protokoll ohne Werte in `~/.local/state/heimherz/fuell.log` (`modell` = `ahmed-chrome`, `stufe 0`)
+- Seite: Liste in geschlossenem Shadow-DOM unter dem fokussierten Login-Feld; Klick füllt Benutzer und Passwort im selben Formular, bei Code-Feldern den TOTP-Code
+- Grenzen: Basis-Domain wie `heimherz fuell` (letzte zwei Teile, `co.uk` zu grob); kein Speichern neuer Logins; keine Passkeys; nur dieser PC
+- Prüfung: `bun test bin/browser.test.ts`; Seitenlogik mit Stub im Agenten-Chrome (Benutzer, Passwort, Code gefüllt); echter Weg erst nach dem Laden der Erweiterung in Ahmeds Chrome

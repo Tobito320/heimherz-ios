@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Native-Messaging-Host "com.lumen.cloud" (SPEC 28); Chrome startet ihn, nie von Hand.
+exec /home/tobi/.bun/bin/bun "$(dirname "$(readlink -f "$0")")/../bin/browser.ts" "$@"

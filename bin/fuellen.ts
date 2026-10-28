@@ -7,8 +7,8 @@ import { code, einstellung, restSekunden } from './totp';
 export type Was = 'benutzer' | 'passwort' | 'code';
 export class FuellFehler extends Error { constructor(m: string, public exit = 6) { super(m); } }
 
-const hostVon = (u: string) => { try { return new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(u) ? u : `https://${u}`).hostname.toLowerCase(); } catch { return ''; } };
-const seite = (h: string) => h.replace(/^www\./, '').split('.').slice(-2).join('.');   // wie Bitwarden "Basis-Domain"
+export const hostVon = (u: string) => { try { return new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(u) ? u : `https://${u}`).hostname.toLowerCase(); } catch { return ''; } };
+export const seite = (h: string) => h.replace(/^www\./, '').split('.').slice(-2).join('.');   // wie Bitwarden "Basis-Domain"
 const hatWert = (e: Eintrag, was: Was | 'beliebig') => was === 'beliebig' ? true : was === 'code' ? !!einstellung(e.totp) : was === 'passwort' ? !!e.passwort : !!e.benutzer;
 export const zeile = (e: Eintrag) => [e.id.slice(0, 8), e.name, e.benutzer, [...new Set(e.urls.map(hostVon))].join(','), einstellung(e.totp) ? 'totp' : '-'].join(' | ');
 
