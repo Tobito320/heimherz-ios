@@ -2,6 +2,7 @@
 import { ausCsv, uebernimm } from './apple';
 import { Database } from 'bun:sqlite';
 import { closeSync, existsSync, openSync, writeSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { zusammenfuehren, type Tresor } from '../lib/zusammenfuehren';
 import { leseGeraete, schreibeGeraete } from '../server/geraete';
@@ -94,6 +95,36 @@ export async function passwortSetzen(a: Abh, id: string, neu: string): Promise<b
     if (i < 0) throw new Meldung('Eintrag ist nicht mehr da, nichts gespeichert');
     const eintraege = [...t.eintraege]; eintraege[i] = mitPasswort(t.eintraege[i], neu);
     return { ...t, eintraege };
+  });
+  return r.geschrieben;
+}
+
+// `heimherz weg ID...`: weich löschen wie die App (Felder bleiben, 30 Tage wiederherstellbar).
+export const alsGeloescht = <T extends { geloescht: boolean; geaendert: string }>(e: T, jetzt = new Date()): T => ({ ...e, geloescht: true, geaendert: jetzt.toISOString() });
+// Löschen braucht Ahmeds Ja in der Notch, auch für Agenten: eine Frage, genau die Konten, "Löschen" oder "Nein" (Ahmed 28.10.2026:
+// "one time are you sure you wanna delete the login ... yes no. yes removes it instantly"). Antworten kann nur Ahmed, nicht der Agent.
+export function zappyFreigabe(titel: string, text: string): boolean {
+  const r = spawnSync('insel', ['bitte', 'erlaubnis', '--titel', titel, '--text', text, '--optionen', 'Löschen,Nein', '--warte', '120'], { encoding: 'utf8' });
+  return r.status === 0 && r.stdout.trim() === 'erlauben';   // Knopf Löschen oder gesagtes Ja kommen als erlauben (insel WORT)
+}
+export async function eintragWeg(a: Abh, ids: string[], frei: (titel: string, text: string) => boolean = zappyFreigabe): Promise<boolean> {
+  const { v, k } = await verbindung(a);
+  const namen = (await ladeTresor(v, k)).tresor.eintraege.filter(e => ids.includes(e.id) && !e.geloescht).map(e => `${e.benutzer || 'ohne Benutzer'} · ${e.name}`);
+  if (namen.length !== ids.length) throw new Meldung('Nicht jede id passt zu einem Eintrag, nichts gelöscht');
+  if (!frei(namen.length === 1 ? 'Login löschen?' : `${namen.length} Logins löschen?`, namen.join('\n'))) throw new Meldung('Ahmed hat nicht Löschen gewählt, nichts gelöscht');
+  const r = await aendereTresor(v, k, t => {
+    for (const id of ids) if (!t.eintraege.some(e => e.id === id && !e.geloescht)) throw new Meldung(`Eintrag ${id} ist nicht da, nichts gespeichert`);
+    return { ...t, eintraege: t.eintraege.map(e => ids.includes(e.id) ? alsGeloescht(e) : e) };
+  });
+  return r.geschrieben;
+}
+
+// `heimherz weg --zurueck ID...`: weich gelöschte Einträge wieder da (ohne Frage, nichts geht verloren).
+export async function eintragZurueck(a: Abh, ids: string[]): Promise<boolean> {
+  const { v, k } = await verbindung(a);
+  const r = await aendereTresor(v, k, t => {
+    for (const id of ids) if (!t.eintraege.some(e => e.id === id && e.geloescht)) throw new Meldung(`Eintrag ${id} ist nicht gelöscht, nichts gespeichert`);
+    return { ...t, eintraege: t.eintraege.map(e => ids.includes(e.id) ? { ...e, geloescht: false, geaendert: new Date().toISOString() } : e) };
   });
   return r.geschrieben;
 }

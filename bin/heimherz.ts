@@ -2,7 +2,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
-import { Meldung, eintraege, einrichtenBefehl, exportBitwarden, geraetWeg, importBitwarden, importCsv, koppelnBefehl, liste, passwortSetzen, status, totpSetzen, type Abh } from './befehle';
+import { Meldung, eintraege, einrichtenBefehl, exportBitwarden, geraetWeg, importBitwarden, importCsv, eintragWeg, eintragZurueck, koppelnBefehl, liste, passwortSetzen, status, totpSetzen, type Abh } from './befehle';
 import { urlAusTailscale } from './koppeln';
 import { systemdCreds } from './schluessel';
 import { LOGIN_EXIT, leseGedaechtnis, liesFeld, loginAblauf, merkeSeite } from './login';
@@ -19,6 +19,8 @@ heimherz import bitwarden
 heimherz import csv DATEI     (Apple Passwörter oder Chrome)
 heimherz export bitwarden DATEI
 heimherz liste [SUCHE]
+heimherz weg ID|kasten:N [...]    (weich löschen nach Ahmeds Ja in der Notch, 30 Tage wiederherstellbar; kasten:2 = Zeile 2 im zuletzt gezeigten Lumen-Kästchen)
+heimherz weg --zurueck ID [...]    (gelöschte Einträge wiederherstellen)
 heimherz status
 heimherz tempo [MINUTEN]    (Foto-Abgleich: wo hängt die Zeit, Standard 10)
 heimherz geraet weg ID
@@ -110,6 +112,11 @@ async function main(argv: string[]) {
   if (cmd === 'import' && r[0] === 'csv' && r[1]) return importCsv(a, r[1]);
   if (cmd === 'export' && r[0] === 'bitwarden' && r[1]) return exportBitwarden(a, r[1]);
   if (cmd === 'liste') return liste(a, r[0]);
+  if (cmd === 'weg' && r[0]) {
+    if (r[0] === '--zurueck') { if (!(await eintragZurueck(a, r.slice(1)))) process.exitCode = 1; else a.ausgabe('wiederhergestellt'); return; }
+    if (!(await eintragWeg(a, r.map(x => kastenId(x))))) process.exitCode = 1; else a.ausgabe('gelöscht (30 Tage wiederherstellbar)');
+    return;
+  }
   if (cmd === 'status') return status(a);
   if (cmd === 'tempo') { for (const z of fasseTempo(leseTempo(a.daten), Number(r[0]) > 0 ? Number(r[0]) : 10)) a.ausgabe(z); return; }
   if (cmd === 'sicherung') {
@@ -228,6 +235,17 @@ async function ersteZeile(ms: number): Promise<string> {
   let text = '';
   const lesen = (async () => { for await (const t of Bun.stdin.stream()) { text += Buffer.from(t).toString(); if (text.includes('\n')) break; } return text.split('\n')[0]; })();
   return Promise.race([lesen, Bun.sleep(ms).then(() => '')]);
+}
+
+// kasten:N -> id der Zeile N im Lumen-Kästchen (der Dienst schreibt beim Zeigen $XDG_RUNTIME_DIR/lumen-vorschlag.json), höchstens 15 min alt.
+function kastenId(x: string): string {
+  const m = /^kasten:(\d+)$/.exec(x);
+  if (!m) return x;
+  const k = JSON.parse(readFileSync(join(process.env.XDG_RUNTIME_DIR ?? '', 'lumen-vorschlag.json'), 'utf8'));
+  if (Date.now() / 1000 - k.zeit > 900) throw new Meldung('Das Lumen-Kästchen ist älter als 15 min, nichts gelöscht');
+  const z = k.zeilen[Number(m[1]) - 1];
+  if (!z) throw new Meldung(`Das Kästchen hatte keine Zeile ${m[1]}, nichts gelöscht`);
+  return z.id;
 }
 
 const nutzungJetzt = () => { try { return nutzung(readFileSync(join(process.env.XDG_STATE_HOME ?? join(homedir(), '.local/state'), 'heimherz', 'fuell.log'), 'utf8')); } catch { return new Map<string, number>(); } };

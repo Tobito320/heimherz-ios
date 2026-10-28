@@ -119,6 +119,15 @@ def main():
         kopf = Gtk.Label(label='Lumen Cloud', xalign=0)
         kopf.get_style_context().add_class('kopf')
         box.pack_start(kopf, False, False, 0)
+        # Zeilen merken, damit "lösch den zweiten" (Zappy, Agent) genau dieses Konto trifft: heimherz weg kasten:2
+        try:
+            ziel = os.path.join(os.environ.get('XDG_RUNTIME_DIR', '/tmp'), 'lumen-vorschlag.json')
+            with open(ziel + '.neu', 'w') as d:
+                json.dump({'zeit': time.time(), 'zeilen': [{'nr': i + 1, 'id': e['id'], 'name': e['name'], 'benutzer': e['benutzer']}
+                                                          for i, e in enumerate(liste[:6])]}, d)
+            os.replace(ziel + '.neu', ziel)
+        except OSError:
+            pass
         for e in liste[:6]:
             b = Gtk.Button()
             b.get_style_context().add_class('zeile')
