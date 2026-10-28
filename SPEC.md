@@ -572,3 +572,16 @@ Ahmed 28.10. (Vesktop-Login ohne Autofill): "ich will einfach überall das mache
 - Protokoll `fuell.log` mit `was: tippe`, `modell: ahmed`, Klasse als Host. Fehler als Desktop-Meldung (`notify-send`).
 - Nur Ahmed: die Geheimnis-Wache lässt `heimherz tippe` für Agenten nicht durch (nicht in der Erlaubt-Liste), sonst könnte ein Agent Werte ins eigene Terminal tippen lassen. Stufen (§23) gelten hier nicht, sie sind für Agenten.
 - Prüfung: `bun test bin/tippen.test.ts` (Sortierung, Code-Zeile, keine Werte in den Zeilen, Auswahl).
+
+## 30. Modul `lumen-vorschlag` (W-054, 28.10.2026)
+
+Ahmed 28.10.: "ich will aber trotzdem so wie chrome hier bekommen." Kästchen unter dem Login-Feld in Apps (Vesktop, GTK, Qt), nicht nur per Taste (§29).
+
+- Dienst `bin/lumen-vorschlag.py` (systemd --user `server/lumen-vorschlag.service`): hört per AT-SPI auf Fokus (`object:state-changed:focused`). Ist das Feld editierbar (`entry`, `password text`, `text`) und das aktive Fenster kein Browser oder Terminal, zeigt er ein Layer-Shell-Popup (Overlay, ohne Tastaturfokus) direkt unter dem Feld (Fenster `at` aus hyprctl plus Feld-Ausmaße in Fensterkoordinaten): Kopf "Lumen Cloud", bis 6 passende Konten (Name, Benutzer).
+- Passend wie §29: Seite oder Name im Fenstertitel oder in der Klasse. Kein Treffer = kein Kästchen. Im Feld mit Code-Namen (code, 2fa, otp, auth, verif) nur TOTP-Zeilen.
+- Klick: Popup zu, `heimherz tippe --id ID` (Benutzer, Tab, Passwort), im Passwortfeld `--nur-passwort`, Code-Zeile `--code`. Das Feld behält den Fokus, wtype tippt hinein.
+- Zu bei: Fokus woanders, Tippen ins Feld, Wechsel des aktiven Fensters (Abfrage alle 400 ms, solange offen).
+- Daten: `heimherz vorschlag` gibt nur id, Name, Benutzer, Wörter und ob TOTP da ist (nie Passwort oder Schlüssel). Der Dienst lädt beim Start und danach höchstens alle 10 min neu. Für Agenten gesperrt wie `tippe` (Geheimnis-Wache).
+- Electron-Apps zeigen ihre Felder nur mit `--force-renderer-accessibility` (für Vesktop in `~/.config/vesktop-flags.conf`).
+- Grenze: ein Monitor bei 0,0; Steam und andere CEF-Apps ungeprüft.
+- Prüfung: `python3 -I bin/lumen-vorschlag.py --selbsttest`, `bun test bin/tippen.test.ts` (`vorschlaege` ohne Werte), echter Lauf mit Wegwerf-Tresor in Vesktop.

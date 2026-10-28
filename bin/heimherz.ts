@@ -11,7 +11,7 @@ import { einstellung } from './totp';
 import { erlaubt, modellVon, stufenText } from './stufen';
 import { fasseTempo, leseTempo } from './tempo';
 import { sicherung, wiederherstellen } from './sicherung';
-import { gewaehlt, wahlen, zeilen } from './tippen';
+import { gewaehlt, vorschlaege, wahlen, zeilen, type Wahl } from './tippen';
 
 const HILFE = `heimherz einrichten
 heimherz koppeln [NAME]
@@ -30,7 +30,8 @@ heimherz merke TAB CSS --konto K [--rahmen IFRAME-CSS] [--auftrag DATEI]   (Pass
 heimherz totp-setzen TAB --konto K [--feld CSS]   (Einrichtungsschlüssel der Seite in den Eintrag)
 heimherz erlaubt HOST [--auftrag DATEI]   (Exit 0 erlaubt, 7 verweigert)
 heimherz stufen
-heimherz tippe    (Taste Alt+Strg+P: Konto wählen, tippt Benutzer, Tab, Passwort oder Code ins aktive Fenster, jede App)`;
+heimherz tippe [--id ID [--code|--nur-passwort]]    (Taste Alt+Strg+P: Konto wählen, tippt Benutzer, Tab, Passwort oder Code ins aktive Fenster, jede App; --id ohne Auswahl, für Lumen-Vorschlag)
+heimherz vorschlag    (Einträge ohne Werte als JSON, für Lumen-Vorschlag)`;
 
 async function ausgabeVon(argv: string[], env?: Record<string, string | undefined>, stdin?: string): Promise<string> {
   const p = Bun.spawn(argv, { stdin: stdin === undefined ? 'ignore' : 'pipe', stdout: 'pipe', stderr: 'ignore', env: env ?? process.env });
@@ -122,7 +123,8 @@ async function main(argv: string[]) {
   }
   if (cmd === 'wiederherstellen' && r[0]) return wiederherstellen(a, r[0], liesCode);
   if (cmd === 'geraet' && r[0] === 'weg' && r[1]) return geraetWeg(a, r[1]);
-  if (cmd === 'tippe') return tippe(a);
+  if (cmd === 'tippe') return tippe(a, r);
+  if (cmd === 'vorschlag') { a.ausgabe(JSON.stringify(vorschlaege(await eintraege(a)))); return; }
   if (cmd === 'fuell' || cmd === 'login' || cmd === 'merke' || cmd === 'totp-setzen' || cmd === 'erlaubt' || cmd === 'stufen') return fuellen(a, cmd, r);
   console.error(HILFE);
   process.exitCode = 2;
@@ -222,8 +224,8 @@ async function fuellen(a: Abh, cmd: string, r: string[]) {
   }
 }
 
-// SPEC 29: nur Ahmeds Taste (Geheimnis-Wache sperrt `tippe` für Agenten). Fehler als Desktop-Meldung, es gibt kein Terminal.
-async function tippe(a: Abh) {
+// SPEC 29/30: nur Ahmeds Taste und Lumen-Vorschlag (Geheimnis-Wache sperrt `tippe` für Agenten). Fehler als Desktop-Meldung, es gibt kein Terminal.
+async function tippe(a: Abh, r: string[]) {
   const melde = (t: string) => Bun.spawn(['notify-send', '-a', 'Lumen Cloud', 'Lumen Cloud', t], { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore' });
   const schreibe = async (text: string) => {
     const p = Bun.spawn(['wtype', '-'], { stdin: 'pipe', stdout: 'ignore', stderr: 'ignore' });
@@ -234,18 +236,23 @@ async function tippe(a: Abh) {
     const f = JSON.parse(await ausgabeVon(['hyprctl', '-j', 'activewindow']));
     const w = wahlen(await eintraege(a), `${f.class ?? ''} ${f.title ?? ''}`);
     if (!w.length) { melde('Keine Einträge mit Passwort'); return; }
-    let antwort = '';
-    try { antwort = await ausgabeVon(['fuzzel', '--dmenu', '--prompt', 'Lumen Cloud: ', '--width', '60'], undefined, zeilen(w)); } catch { return; }   // Esc
-    const x = gewaehlt(w, antwort);
+    const id = r.includes('--id') ? r[r.indexOf('--id') + 1] : undefined, nurPasswort = r.includes('--nur-passwort');
+    let x: Wahl | undefined;
+    if (id) x = w.find(v => v.e.id === id && v.code === r.includes('--code'));
+    else {
+      let antwort = '';
+      try { antwort = await ausgabeVon(['fuzzel', '--dmenu', '--prompt', 'Lumen Cloud: ', '--width', '60'], undefined, zeilen(w)); } catch { return; }   // Esc
+      x = gewaehlt(w, antwort);
+      await Bun.sleep(150);   // fuzzel zu, Fokus zurück im Fenster
+    }
     if (!x) return;
-    await Bun.sleep(150);   // fuzzel zu, Fokus zurück im Fenster
     if (x.code) await schreibe(await wertVon(x.e, 'code'));
     else {
-      if (x.e.benutzer) { await schreibe(x.e.benutzer); await lauf(['wtype', '-k', 'Tab']); }
+      if (x.e.benutzer && !nurPasswort) { await schreibe(x.e.benutzer); await lauf(['wtype', '-k', 'Tab']); }
       await schreibe(x.e.passwort);
     }
     const state = join(process.env.XDG_STATE_HOME ?? join(homedir(), '.local/state'), 'heimherz');
-    protokoll(state, { host: String(f.class ?? '?'), id: x.e.id, was: x.code ? 'tippe code' : 'tippe', stufe: 0, modell: 'ahmed', ok: true, grund: 'Taste' });
+    protokoll(state, { host: String(f.class ?? '?'), id: x.e.id, was: x.code ? 'tippe code' : 'tippe', stufe: 0, modell: 'ahmed', ok: true, grund: id ? 'Vorschlag' : 'Taste' });
   } catch (err: any) { melde(`Fehler: ${err?.message ?? err}`); process.exitCode = 1; }
 }
 

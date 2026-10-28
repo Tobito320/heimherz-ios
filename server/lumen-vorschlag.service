@@ -1,0 +1,12 @@
+# Lumen-Vorschlag (SPEC 30): Kästchen unter Login-Feldern in Apps. Installieren: Link nach ~/.config/systemd/user/, dann systemctl --user enable --now lumen-vorschlag
+[Unit]
+Description=Lumen Cloud: Login-Vorschlag in Apps (AT-SPI)
+After=insel.service
+
+[Service]
+ExecStart=/usr/bin/python3 -I %h/projects/heimherz-ios/bin/lumen-vorschlag.py
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=default.target
