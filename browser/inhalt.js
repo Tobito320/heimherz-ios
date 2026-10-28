@@ -35,6 +35,7 @@
     button{all:unset;display:flex;align-items:center;gap:10px;box-sizing:border-box;width:100%;padding:8px;border-radius:10px;cursor:pointer}
     button.an,button:hover{background:var(--chip)}
     .av{flex:none;font-family:-apple-system,system-ui,"Segoe UI",Roboto,sans-serif;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-weight:600;font-size:13px;color:#fff;background:linear-gradient(135deg,#3D8BFF,#6E4BFF)}
+    .av.bild{background:var(--chip)}.av img{width:18px;height:18px;border-radius:4px}
     .t{min-width:0}.t b,.t small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .t b{font-weight:500}.t small{font-size:12px;color:var(--tinte2);margin-top:1px}
     .leise{padding:6px 8px 4px;font-size:12px;color:var(--tinte2)}`;
@@ -52,10 +53,13 @@
     k.style.top = `${unten + hoch > innerHeight && r.top - hoch - 6 > 0 ? r.top - hoch - 6 : unten}px`;
   };
 
+  const symbol = document.querySelector('link[rel~="icon"],link[rel="apple-touch-icon"]')?.href || `${location.origin}/favicon.ico`;
   const zeile = (titel, unter, buchstabe) => {
     const b = document.createElement('button');
     b.innerHTML = '<span class=av></span><span class=t><b></b><small></small></span>';
-    b.querySelector('.av').textContent = (buchstabe || '?').slice(0, 1).toUpperCase();
+    const av = b.querySelector('.av'), bild = document.createElement('img');
+    av.textContent = (buchstabe || '?').slice(0, 1).toUpperCase();
+    bild.src = symbol; bild.onload = () => { av.textContent = ''; av.classList.add('bild'); av.append(bild); };   // Symbol der Seite selbst, keine fremde Anfrage
     b.querySelector('b').textContent = titel; b.querySelector('small').textContent = unter;
     b.addEventListener('mousedown', ev => ev.preventDefault());   // Fokus bleibt im Feld
     return b;
@@ -64,11 +68,11 @@
   async function zeige(f) {
     const art = istCode(f) ? 'code' : istPasswort(f) || istBenutzer(f) ? 'login' : null;
     if (!art) return zu();
-    cache ??= await frage({ typ: 'liste' });
+    const c = await (cache ??= frage({ typ: 'liste' }));
     if (document.activeElement !== f && f.getRootNode().activeElement !== f) return;   // Fokus ist schon weiter
-    const l = (cache.eintraege || []).filter(e => art === 'code' ? e.code : true);
-    if (cache.fehler) console.debug('Lumen Cloud:', cache.fehler);
-    if (!l.length) { if (cache.fehler) cache = null; return zu(); }   // nichts Passendes: leise bleiben
+    const l = (c.eintraege || []).filter(e => art === 'code' ? e.code : true);
+    if (c.fehler) console.debug('Lumen Cloud:', c.fehler);
+    if (!l.length) { if (c.fehler) cache = null; return zu(); }   // nichts Passendes: leise bleiben
     zu(); feld = f;
     box = document.createElement('div');
     const s = box.attachShadow({ mode: 'closed' });   // Seite kann die Liste nicht lesen
@@ -105,4 +109,7 @@
   }, true);
   document.addEventListener('input', ev => { if (box && ev.isTrusted) zu(); }, true);   // wer selbst tippt, will die Liste nicht
   addEventListener('scroll', lege, true); addEventListener('resize', lege);
+  // Vorab laden, sobald Login-Felder da sind (auch wenn die Seite sie erst später zeichnet): die Liste steht dann beim Klick sofort
+  const vorab = () => { if (!cache && felder().some(f => istPasswort(f) || istBenutzer(f) || istCode(f))) cache = frage({ typ: 'liste' }).then(r => { if (r.fehler) cache = null; return r; }); };
+  vorab(); for (const ms of [500, 1500, 4000]) setTimeout(vorab, ms);
 })();

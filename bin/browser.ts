@@ -3,9 +3,9 @@ import { readdirSync, readFileSync, readlinkSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { Eintrag } from '../lib/zusammenfuehren';
-import { eintraege, type Abh } from './befehle';
 import { hostVon, protokoll, seite, wertVon, type Was } from './fuellen';
-import { systemdCreds } from './schluessel';
+import { ladeSchluessel, ladeToken, systemdCreds } from './schluessel';
+import { ladeTresor, type Verbindung } from './tresorclient';
 import { einstellung } from './totp';
 
 export const ERWEITERUNG_ID = 'mdjdbdlhjflakglpihdkaipkfnfeding';   // aus "key" in browser/manifest.json
@@ -53,33 +53,37 @@ export function vonAhmedsChrome(argv: string[], eltern: { exe: string; cmdline: 
   return null;
 }
 
-// Chrome lässt stdin offen: nur genau eine Nachricht lesen, nicht bis EOF.
-async function liesStdin(): Promise<Buffer> {
-  let b = Buffer.alloc(0);
-  for await (const t of Bun.stdin.stream()) {
-    b = Buffer.concat([b, Buffer.from(t)]);
-    if (b.length >= 4 && b.length >= 4 + b.readUInt32LE(0)) break;
-  }
-  return b;
-}
-
+// Dauerverbindung (connectNative): Schlüssel und Token einmal laden (systemd-creds kostet ~1 s), den Tresor je Anfrage frisch vom Dienst.
 async function main() {
   const e = process.env, state = join(e.XDG_STATE_HOME ?? join(homedir(), '.local/state'), 'heimherz');
-  const eingabe = await liesStdin();
-  let m: Anfrage, raus: Record<string, unknown>;
   const pp = `/proc/${process.ppid}`;
   let nein: string | null;
   try { nein = vonAhmedsChrome(process.argv.slice(2), { exe: readlinkSync(`${pp}/exe`), cmdline: readFileSync(`${pp}/cmdline`, 'latin1'), dateien: readdirSync(`${pp}/fd`).map(f => { try { return readlinkSync(`${pp}/fd/${f}`); } catch { return ''; } }) }, homedir()); }
   catch { nein = 'Elternprozess nicht lesbar'; }
-  try { m = liesNachricht(eingabe) as Anfrage; } catch (x) { process.stdout.write(packe({ fehler: String((x as Error).message) })); return; }
-  const host = hostVon(String(m?.url ?? '')) || '-';
-  if (nein) raus = { fehler: nein };
-  else {
-    const a: Abh = { daten: e.HEIMHERZ_DATEN ?? join(homedir(), '.local/share/heimherz'), fotos: '', dateien: '', dienstUrl: `http://127.0.0.1:${e.HEIMHERZ_PORT ?? 8790}`, creds: systemdCreds, ausgabe: () => {} };
-    try { raus = await antwort(m, await eintraege(a)); } catch (x) { raus = { fehler: `Lumen Cloud nicht erreichbar: ${String((x as Error).message).slice(0, 80)}` }; }
+  const daten = e.HEIMHERZ_DATEN ?? join(homedir(), '.local/share/heimherz');
+  let zugang: Promise<{ v: Verbindung; k: Uint8Array }> | null = null;
+  const verbinde = () => zugang ??= (async () => ({ v: { url: `http://127.0.0.1:${e.HEIMHERZ_PORT ?? 8790}`, token: await ladeToken(daten, systemdCreds) }, k: await ladeSchluessel(daten, systemdCreds) }))().catch(x => { zugang = null; throw x; });
+  if (!nein) verbinde().catch(() => {});   // gleich vorwärmen
+
+  const beantworte = async (m: Anfrage & { nr?: number }) => {
+    let raus: Record<string, unknown>;
+    if (nein) raus = { fehler: nein };
+    else try { const { v, k } = await verbinde(); raus = await antwort(m, (await ladeTresor(v, k)).tresor.eintraege); }
+    catch (x) { raus = { fehler: `Lumen Cloud nicht erreichbar: ${String((x as Error).message).slice(0, 80)}` }; }
+    if (m?.typ === 'wert') protokoll(state, { host: hostVon(String(m.url ?? '')) || '-', id: m.id, was: `browser ${m.was}`, stufe: 0, modell: 'ahmed-chrome', ok: 'wert' in raus, grund: String(raus.fehler ?? 'Erweiterung') });
+    process.stdout.write(packe({ nr: m?.nr, ...raus }));
+  };
+
+  let b = Buffer.alloc(0);
+  for await (const t of Bun.stdin.stream()) {   // Ende von stdin = Chrome hat die Verbindung zu, Host endet
+    b = Buffer.concat([b, Buffer.from(t)]);
+    while (b.length >= 4 && b.length >= 4 + b.readUInt32LE(0)) {
+      let m: any;
+      try { m = liesNachricht(b); } catch (x) { process.stdout.write(packe({ fehler: String((x as Error).message) })); return; }
+      b = b.subarray(4 + b.readUInt32LE(0));
+      beantworte(m);
+    }
   }
-  if (m?.typ === 'wert') protokoll(state, { host, id: (m as any).id, was: `browser ${(m as any).was}`, stufe: 0, modell: 'ahmed-chrome', ok: 'wert' in raus, grund: String(raus.fehler ?? 'Erweiterung') });
-  process.stdout.write(packe(raus));
 }
 
 if (import.meta.main) await main();
