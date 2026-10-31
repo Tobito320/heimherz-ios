@@ -46,7 +46,7 @@ final class SyncRegelnTests: XCTestCase {
 }
 
 final class HeimClientSyncTests: XCTestCase {
-    private let zeile = #"{"id":"a1","eltern":"","name":"x.txt","ordner":false,"groesse":3,"geaendert":"2026-10-31T10:00:00.000Z","fassung":"1-3"}"#
+    private static let zeile = #"{"id":"a1","eltern":"","name":"x.txt","ordner":false,"groesse":3,"geaendert":"2026-10-31T10:00:00.000Z","fassung":"1-3"}"#
 
     private func client(_ h: @escaping FakeNetz.Handler) -> HeimClient {
         let (sitzung, basis) = FakeNetz.neu(h)
@@ -77,15 +77,15 @@ final class HeimClientSyncTests: XCTestCase {
     func testKinderEintragOrdnerUmbenennenPapierkorb() async throws {
         let c = client { r, b in
             switch r.url?.path {
-            case "/v1/dateien/kinder": XCTAssertEqual(r.url?.query, "id=p"); return .json("[\(self.zeile)]")
-            case "/v1/dateien/eintrag": return .json(self.zeile)
+            case "/v1/dateien/kinder": XCTAssertEqual(r.url?.query, "id=p"); return .json("[\(Self.zeile)]")
+            case "/v1/dateien/eintrag": return .json(Self.zeile)
             case "/v1/dateien/ordner":
                 XCTAssertEqual(r.httpMethod, "POST")
                 XCTAssertEqual(try? JSONDecoder().decode([String: String].self, from: b), ["eltern": "", "name": "N"])
-                return .json(self.zeile)
+                return .json(Self.zeile)
             case "/v1/dateien/umbenennen":
                 XCTAssertEqual(try? JSONDecoder().decode([String: String].self, from: b), ["id": "a1", "name": "y.txt"])
-                return .json(self.zeile)
+                return .json(Self.zeile)
             case "/v1/dateien/papierkorb":
                 XCTAssertEqual(try? JSONDecoder().decode([String: String].self, from: b), ["id": "a1", "fassung": "1-3"])
                 return .json("{}")
@@ -107,12 +107,12 @@ final class HeimClientSyncTests: XCTestCase {
         let konflikt = client { r, _ in
             XCTAssertEqual(r.httpMethod, "PUT")
             XCTAssertEqual(r.url?.query, "id=a1&fassung=alt")
-            return .json(self.zeile, status: 409)
+            return .json(Self.zeile, status: 409)
         }
         let e1 = try await konflikt.syncErsetzen(id: "a1", fassung: "alt", von: datei)
         guard case .konflikt(let aktuell) = e1 else { return XCTFail("Konflikt erwartet") }
         XCTAssertEqual(aktuell?.fassung, "1-3")
-        let gut = client { _, _ in .json(self.zeile) }
+        let gut = client { _, _ in .json(Self.zeile) }
         let e2 = try await gut.syncErsetzen(id: "a1", fassung: "1-3", von: datei)
         guard case .ersetzt(let neu) = e2 else { return XCTFail("ersetzt erwartet") }
         XCTAssertEqual(neu.id, "a1")
