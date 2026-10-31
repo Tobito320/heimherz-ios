@@ -1,6 +1,7 @@
 // Heimherz-Dienst am PC (SPEC 6). Nur Loopback; nach außen macht das `tailscale serve`.
 import { join } from 'node:path';
 import { Dateien } from './dateien';
+import { DateiSync } from './dateisync';
 import { Fotos } from './fotos';
 import { Geraete } from './geraete';
 import { json, leer } from './http';
@@ -16,6 +17,7 @@ export type Optionen = {
   papierkorb?: string[]; verlaufMax?: number; mindestFrei?: number;
   symbole?: SymbolOptionen; // Tests: Auflöser und Holer austauschen
   vorschau?: VorschauOptionen; // Tests: Erzeuger austauschen (kein echtes magick nötig)
+  sync?: { frischMs?: number; maxLog?: number; maxEintraege?: number }; // Tests: Dateien-Sync mit kleinen Grenzen
 };
 
 const FOTO_OPTIONS = /^\/v1\/fotos\/([A-Za-z0-9_-]{1,128})\/([A-Za-z0-9_-]{1,128})$/;
@@ -29,6 +31,8 @@ export function starte(o: Optionen) {
   const fotos = new Fotos(o.fotos, o.daten, o.mindestFrei);
   const symbole = new Symbole(o.daten, o.symbole);
   const dateien = new Dateien(o.dateien, o.papierkorb ?? ['trash-put'], o.mindestFrei, join(o.daten, 'vorschau'), o.vorschau);
+
+  const sync = new DateiSync(dateien, o.sync);
 
   async function route(req: Request): Promise<Response> {
     const url = new URL(req.url);
@@ -60,6 +64,15 @@ export function starte(o: Optionen) {
       if (m === 'PUT') return dateien.hochladen(req, pfad);
     }
     if (p === '/v1/datei/papierkorb' && m === 'POST') return dateien.inPapierkorb(req);
+    // Dateien-Sync für die Dateien-App (SPEC 31): Kennungen statt Pfade
+    if (p === '/v1/dateien/aenderungen' && m === 'GET') return sync.aenderungen(url.searchParams.get('anker'));
+    if (p === '/v1/dateien/kinder' && m === 'GET') return sync.kinder(url.searchParams.get('id'));
+    if (p === '/v1/dateien/eintrag' && m === 'GET') return sync.eintrag(url.searchParams.get('id'));
+    if (p === '/v1/dateien/neu' && m === 'PUT') return sync.neu(req, dateien, url.searchParams.get('eltern'), url.searchParams.get('name'));
+    if (p === '/v1/dateien/ordner' && m === 'POST') return sync.ordner(req);
+    if (p === '/v1/dateien/umbenennen' && m === 'POST') return sync.umbenennen(req);
+    if (p === '/v1/dateien/ersetzen' && m === 'PUT') return sync.ersetzen(req, url.searchParams.get('id'), url.searchParams.get('fassung'));
+    if (p === '/v1/dateien/papierkorb' && m === 'POST') return sync.papierkorb(req);
     return leer(404);
   }
 

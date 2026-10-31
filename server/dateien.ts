@@ -12,15 +12,15 @@ const MAX_BESUCHT = 200_000;
 // Groß/klein und Umlaute egal: ä = ae, ö = oe, ü = ue, ß = ss; zerlegte Zeichen (Mac) zuerst zusammensetzen.
 export const normalisiere = (s: string) => s.normalize('NFC').toLowerCase().replaceAll('ä', 'ae').replaceAll('ö', 'oe').replaceAll('ü', 'ue').replaceAll('ß', 'ss');
 
-class Verboten extends Error {}
-class NichtDa extends Error {}
+export class Verboten extends Error {}
+export class NichtDa extends Error {}
 
 export class Dateien {
-  private wurzel: string;
+  readonly wurzel: string;
 
   private vorschauen: Vorschauen;
 
-  constructor(ordner: string, private papierkorb: string[], private mindestFrei = MINDEST_FREI, vorschauOrdner = join(ordner, '..', 'vorschau'), vorschau?: VorschauOptionen) {
+  constructor(ordner: string, private papierkorb: string[], readonly mindestFrei = MINDEST_FREI, vorschauOrdner = join(ordner, '..', 'vorschau'), vorschau?: VorschauOptionen) {
     mkdirSync(ordner, { recursive: true, mode: 0o700 });
     this.wurzel = realpathSync(ordner);
     this.vorschauen = new Vorschauen(vorschauOrdner, vorschau);
@@ -29,7 +29,7 @@ export class Dateien {
   private innen(p: string) { return p === this.wurzel || p.startsWith(this.wurzel + sep); }
 
   // Relativer Pfad -> absoluter Pfad. Wirft Verboten bei "..", absolut, NUL; die Symlink-Prüfung macht der Aufrufer per realpath.
-  private teile(pfad: string | null): string[] {
+  teile(pfad: string | null): string[] {
     const p = pfad ?? '';
     if (p.includes('\0') || p.startsWith('/')) throw new Verboten();
     const t = p.split('/').filter(s => s !== '' && s !== '.');
@@ -37,7 +37,7 @@ export class Dateien {
     return t;
   }
 
-  private aufloesen(pfad: string | null): string {
+  aufloesen(pfad: string | null): string {
     const ziel = join(this.wurzel, ...this.teile(pfad));
     let echt: string;
     try { echt = realpathSync(ziel); } catch { throw new NichtDa(); }
@@ -46,7 +46,7 @@ export class Dateien {
   }
 
   // Ziel muss nicht existieren, der Elternordner schon und echt innerhalb liegen.
-  private neuesZiel(pfad: string | null): { ordner: string; name: string } {
+  neuesZiel(pfad: string | null): { ordner: string; name: string } {
     const t = this.teile(pfad);
     const name = t.pop();
     if (!name) throw new Verboten();
@@ -191,14 +191,17 @@ export class Dateien {
     let pfad: unknown;
     try { pfad = JSON.parse(new TextDecoder().decode(await liesBegrenzt(req, 64 * 1024))).pfad; } catch { return leer(400); }
     if (typeof pfad !== 'string') return leer(400);
+    try { return await this.nachPapierkorb(pfad); } catch (e) { return this.fehler(e); }
+  }
+
+  // Wirft Verboten/NichtDa. Auch der Dateien-Sync (Kennung statt Pfad) geht hier durch, mit derselben Prüfung.
+  async nachPapierkorb(pfad: string): Promise<Response> {
+    const { ordner, name } = this.neuesZiel(pfad);
+    const ziel = join(ordner, name);
+    try { lstatSync(ziel); } catch { return leer(404); } // ein Symlink selbst darf in den Papierkorb, sein Ziel bleibt unberührt
     try {
-      const { ordner, name } = this.neuesZiel(pfad);
-      const ziel = join(ordner, name);
-      try { lstatSync(ziel); } catch { return leer(404); } // ein Symlink selbst darf in den Papierkorb, sein Ziel bleibt unberührt
-      try {
-        const p = Bun.spawn([...this.papierkorb, ziel], { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore' });
-        return leer(await p.exited === 0 ? 200 : 500);
-      } catch { return leer(500); } // Papierkorb-Befehl fehlt
-    } catch (e) { return this.fehler(e); }
+      const p = Bun.spawn([...this.papierkorb, ziel], { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore' });
+      return leer(await p.exited === 0 ? 200 : 500);
+    } catch { return leer(500); } // Papierkorb-Befehl fehlt
   }
 }
