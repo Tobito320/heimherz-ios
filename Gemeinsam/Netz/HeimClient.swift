@@ -192,7 +192,7 @@ struct HeimClient: Sendable {
 
     // MARK: Senden
 
-    private func sende(_ r: URLRequest, daten: Data? = nil) async throws -> (Data, Int) {
+    func sende(_ r: URLRequest, daten: Data? = nil) async throws -> (Data, Int) {
         do {
             let antwort: Data
             let meta: URLResponse
@@ -208,11 +208,11 @@ struct HeimClient: Sendable {
         }
     }
 
-    private func dekodiere<T: Decodable>(_ typ: T.Type, _ daten: Data) throws -> T {
+    func dekodiere<T: Decodable>(_ typ: T.Type, _ daten: Data) throws -> T {
         do { return try JSONDecoder().decode(typ, from: daten) } catch { throw HeimFehler.ungueltigeAntwort }
     }
 
-    private static func pruefe(_ status: Int) throws {
+    static func pruefe(_ status: Int) throws {
         guard (200...299).contains(status) else { throw HeimFehler.aus(status: status) }
     }
 

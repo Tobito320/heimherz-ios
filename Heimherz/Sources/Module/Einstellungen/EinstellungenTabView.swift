@@ -295,7 +295,7 @@ struct EinstellungenTabView: View {
         } header: {
             GruppenText(text: "Dateien")
         } footer: {
-            GruppenText(text: "Hier liegen Dateien kurz, die du angesehen oder geteilt hast.", fuss: true)
+            GruppenText(text: "Hier liegen Dateien kurz, die du angesehen oder geteilt hast. Lumen Cloud steht auch in der Dateien-App unter Durchsuchen. Fehlt es dort: Durchsuchen, drei Punkte, Bearbeiten, Lumen Cloud einschalten.", fuss: true)
         }
     }
 

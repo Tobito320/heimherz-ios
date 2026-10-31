@@ -65,6 +65,15 @@ test('Voll-Liste: alles außer Symlinks, Versteckten und Temp-Dateien; Eltern vo
   expect(new Set(a.eintraege.map(e => e.id)).size).toBe(a.eintraege.length);
 });
 
+test('kurz=1 liefert nur den Anker, ohne Baum', async () => {
+  const r = (await (await t.f('/v1/dateien/aenderungen?kurz=1')).json()) as Aend;
+  expect([r.eintraege, r.weg]).toEqual([[], []]);
+  expect((await aend(r.anker)).eintraege).toEqual([]);
+  writeFileSync(P('kurz.txt'), 'k');
+  expect((await aend(r.anker)).eintraege.map(e => e.name)).toEqual(['kurz.txt']);
+  rmSync(P('kurz.txt'));
+});
+
 test('Anker: ohne Änderung leer, neu und geändert erscheinen, gelöscht steht in weg', async () => {
   const a0 = await aend();
   const leer = await aend(a0.anker);

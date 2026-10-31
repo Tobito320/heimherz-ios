@@ -155,10 +155,12 @@ export class DateiSync {
 
   // ---------- Routen ----------
 
-  aenderungen(anker: string | null): Response {
+  // kurz: nur den aktuellen Anker (für `currentSyncAnchor` am Handy), ohne den Baum zu schicken
+  aenderungen(anker: string | null, kurz = false): Response {
     try {
       this.frisch();
       const aktuell = `${this.epoche}.${this.n}`;
+      if (kurz) return json({ anker: aktuell, voll: true, eintraege: [], weg: [] });
       if (anker === null) return json({ anker: aktuell, voll: true, eintraege: this.sortiert([...this.stand.values()]), weg: [] });
       const m = ANKER_FORM.exec(anker);
       if (!m || m[1] !== this.epoche) return leer(410);

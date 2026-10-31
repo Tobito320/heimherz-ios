@@ -65,7 +65,7 @@ export function starte(o: Optionen) {
     }
     if (p === '/v1/datei/papierkorb' && m === 'POST') return dateien.inPapierkorb(req);
     // Dateien-Sync für die Dateien-App (SPEC 31): Kennungen statt Pfade
-    if (p === '/v1/dateien/aenderungen' && m === 'GET') return sync.aenderungen(url.searchParams.get('anker'));
+    if (p === '/v1/dateien/aenderungen' && m === 'GET') return sync.aenderungen(url.searchParams.get('anker'), url.searchParams.get('kurz') === '1');
     if (p === '/v1/dateien/kinder' && m === 'GET') return sync.kinder(url.searchParams.get('id'));
     if (p === '/v1/dateien/eintrag' && m === 'GET') return sync.eintrag(url.searchParams.get('id'));
     if (p === '/v1/dateien/neu' && m === 'PUT') return sync.neu(req, dateien, url.searchParams.get('eltern'), url.searchParams.get('name'));

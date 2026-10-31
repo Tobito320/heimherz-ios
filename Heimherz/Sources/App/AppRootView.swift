@@ -47,11 +47,14 @@ struct AppRootView: View {
             umgebung.sperre.szene(neu)
             if neu == .active {
                 FotosModell.geteilt.appIstVorn()
+                if !umgebung.istDemo, umgebung.istGekoppelt { Task { await DateienDomain.melde() } }   // Dateien-App fragt nach Änderungen am PC
                 if !umgebung.istDemo, let client = try? umgebung.client() { Task { await OrdnerAbgleich.geteilt.abgleichen(client: client) } }
             } else if neu == .background {
                 FotosModell.geteilt.appGehtInHintergrund()
             }
         }
+        // Lumen Cloud in der Dateien-App (SPEC 31): Domain anlegen, sobald gekoppelt, und beim Entkoppeln entfernen.
+        .task(id: umgebung.istGekoppelt) { if !umgebung.istDemo { await DateienDomain.abgleichen(gekoppelt: umgebung.istGekoppelt) } }
         // Kaltstart: onChange feuert erst beim Wechsel, darum hier einmal; Fotos laufen beim Öffnen von selbst (SPEC 31).
         .task { FotosModell.geteilt.appIstVorn() }
         #if DEBUG

@@ -22,6 +22,7 @@ Heimherz/Info.plist
 HeimherzAutoFill/Info.plist
 HeimherzFotos/Info.plist
 HeimherzTeilen/Info.plist
+HeimherzDateien/Info.plist
 /screenshots/
 # Signier-Helfer und Profile (nie ins Git)
 signing/

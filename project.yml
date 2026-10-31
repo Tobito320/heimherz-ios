@@ -34,6 +34,9 @@ targets:
       - target: HeimherzTeilen
         embed: true
         codeSign: true
+      - target: HeimherzDateien
+        embed: true
+        codeSign: true
     info:
       path: Heimherz/Info.plist
       properties:
@@ -198,6 +201,38 @@ targets:
           CODE_SIGN_STYLE: Manual
           CODE_SIGN_IDENTITY: "Apple Distribution"
           PROVISIONING_PROFILE_SPECIFIER: $(HEIMHERZ_TEILEN_PROFILE)
+  # Datei-Anbieter (SPEC 31): "Lumen Cloud" als Speicherort in der Dateien-App, Inhalt vom PC (NSFileProviderReplicatedExtension, iOS 16+).
+  HeimherzDateien:
+    type: app-extension
+    platform: iOS
+    sources:
+      - HeimherzDateien/Sources
+      - Gemeinsam
+    info:
+      path: HeimherzDateien/Info.plist
+      properties:
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        # Quelle: Apples Beispiel "Synchronizing files using file provider extensions" und Forum 671751 (Hauptklasse mit Modulname).
+        NSExtension:
+          NSExtensionFileProviderDocumentGroup: group.com.onlyus.heimherz
+          NSExtensionFileProviderSupportsEnumeration: true
+          NSExtensionPointIdentifier: com.apple.fileprovider-nonui
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).DateienErweiterung
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.onlyus.heimherz.dateien
+        PRODUCT_NAME: HeimherzDateien
+        SWIFT_OPTIMIZATION_LEVEL: "-O"
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Lumen Cloud
+        SKIP_INSTALL: YES
+        CODE_SIGN_ENTITLEMENTS: HeimherzDateien/HeimherzDateien.entitlements
+      configs:
+        Release:
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: "Apple Distribution"
+          PROVISIONING_PROFILE_SPECIFIER: $(HEIMHERZ_DATEIEN_PROFILE)
   HeimherzTests:
     type: bundle.unit-test
     platform: iOS
@@ -219,6 +254,7 @@ schemes:
         HeimherzAutoFill: all
         HeimherzFotos: all
         HeimherzTeilen: all
+        HeimherzDateien: all
         HeimherzTests: [test]
     test:
       targets:

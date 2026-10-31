@@ -38,10 +38,10 @@ jobs:
               echo "::error::$datei: nur application-groups, keychain-access-groups und autofill-credential-provider erlaubt"; fail=1
             fi
           done < <(git ls-files '*.entitlements')
-          if git grep -n -E 'try!|fatalError\(' -- Heimherz/Sources HeimherzAutoFill/Sources HeimherzFotos/Sources HeimherzTeilen/Sources Gemeinsam; then
+          if git grep -n -E 'try!|fatalError\(' -- Heimherz/Sources HeimherzAutoFill/Sources HeimherzFotos/Sources HeimherzTeilen/Sources HeimherzDateien/Sources Gemeinsam; then
             echo "::error::try! und fatalError sind im Produktionscode nicht erlaubt (CONSTRAINTS.md)"; fail=1
           fi
-          if git grep -n -E '@preconcurrency|nonisolated\(unsafe\)' -- Heimherz/Sources HeimherzAutoFill/Sources HeimherzFotos/Sources HeimherzTeilen/Sources Gemeinsam | grep -v 'shortcut:'; then
+          if git grep -n -E '@preconcurrency|nonisolated\(unsafe\)' -- Heimherz/Sources HeimherzAutoFill/Sources HeimherzFotos/Sources HeimherzTeilen/Sources HeimherzDateien/Sources Gemeinsam | grep -v 'shortcut:'; then
             echo "::error::@preconcurrency und nonisolated(unsafe) nur mit Kommentar 'shortcut:' in derselben Zeile (CONSTRAINTS.md)"; fail=1
           fi
           exit "$fail"
@@ -214,3 +214,4 @@ jobs:
           test -d "$APP/Extensions/HeimherzFotos.appex"
           test -d "$APP/PlugIns/HeimherzAutoFill.appex"
           test -d "$APP/PlugIns/HeimherzTeilen.appex"
+          test -d "$APP/PlugIns/HeimherzDateien.appex"
