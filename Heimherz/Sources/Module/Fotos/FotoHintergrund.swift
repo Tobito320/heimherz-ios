@@ -7,7 +7,7 @@ import Foundation
 enum FotoHintergrund {
     /// Vom Nutzer gestartete Arbeit (iOS 26): läuft mit Fortschrittsanzeige im System weiter, wenn die App in den Hintergrund geht. Kennung mit Bundle-ID-Präfix.
     static let abgleichKennung = "com.onlyus.heimherz.fotos-abgleich"
-    /// Nachts mit Strom und Netz: macht den Rest, wenn der Nutzer den Abgleich nicht angehalten hat.
+    /// Nachts mit Netz (Strom nicht nötig): macht den Rest, wenn der Nutzer den Abgleich nicht angehalten hat.
     static let nachtKennung = "com.onlyus.heimherz.fotos-nacht"
 
     /// BGTask ist nicht Sendable. Die Box wird nur auf dem MainActor benutzt, der Launch-Handler läuft auf einer Hintergrund-Queue.
@@ -36,7 +36,7 @@ enum FotoHintergrund {
     static func planeNacht() {
         guard !AppUmgebung.istTestHost else { return }
         let anfrage = BGProcessingTaskRequest(identifier: nachtKennung)
-        anfrage.requiresExternalPower = true
+        anfrage.requiresExternalPower = false   // SPEC 31: auch ohne Strom; ob und wann er läuft, entscheidet iOS. Stromsparmodus: `FotoRegeln.nachtlaufErlaubt`
         anfrage.requiresNetworkConnectivity = true
         try? BGTaskScheduler.shared.submit(anfrage)
     }

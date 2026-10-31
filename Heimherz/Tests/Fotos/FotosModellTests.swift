@@ -36,4 +36,25 @@ final class FotosModellTests: XCTestCase {
         XCTAssertFalse(m.nurWLAN)
         XCTAssertEqual(ablage.lade().nurWLAN, false, "die Erweiterung liest denselben Wert")
     }
+
+    func testAnhaltenDesNutzersUndStartenHebenDasMerkenAufUndAn() throws {
+        let ablage = FotoStandAblage(ordner: try tempOrdner())
+        let m = FotosModell(istDemo: true, ablage: ablage)
+        XCTAssertFalse(m.vomNutzerAngehalten)
+        m.merkeAngehalten(true)
+        XCTAssertTrue(m.vomNutzerAngehalten)
+        XCTAssertEqual(ablage.lade().angehaltenVomNutzer, true, "dauerhaft, auch nach Neustart der App")
+        XCTAssertTrue(FotosModell(istDemo: true, ablage: ablage).vomNutzerAngehalten, "ein neues Modell liest es aus der Ablage")
+        m.merkeAngehalten(false)
+        XCTAssertEqual(ablage.lade().angehaltenVomNutzer, false)
+    }
+
+    func testErweiterungAusWirdGemerktAuchInDerDemoNichtImSystem() throws {
+        let ablage = FotoStandAblage(ordner: try tempOrdner())
+        let m = FotosModell(istDemo: true, ablage: ablage)
+        m.merkeErweiterungAus(true)
+        XCTAssertEqual(ablage.lade().erweiterungAus, true)
+        m.merkeErweiterungAus(false)
+        XCTAssertEqual(ablage.lade().erweiterungAus, false)
+    }
 }

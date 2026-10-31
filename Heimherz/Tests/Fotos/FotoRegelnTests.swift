@@ -41,4 +41,30 @@ final class FotoRegelnTests: XCTestCase {
             XCTAssertNil(FotoRegeln.schluessel(pfad: schlecht), schlecht)
         }
     }
+
+    // MARK: Fotos von selbst (SPEC 31)
+
+    func testAbgleichStartetBeimOeffnenNurWennAllesPasstUndNichtAngehalten() {
+        func start(gekoppelt: Bool = true, voll: Bool = true, laeuft: Bool = false, angehalten: Bool = false) -> Bool {
+            FotoRegeln.startetVonSelbst(gekoppelt: gekoppelt, erlaubnisVoll: voll, laeuft: laeuft, vomNutzerAngehalten: angehalten)
+        }
+        XCTAssertTrue(start())
+        XCTAssertFalse(start(gekoppelt: false), "ohne Kopplung gibt es kein Token")
+        XCTAssertFalse(start(voll: false), "ohne volle Erlaubnis sieht die App nicht alle Fotos")
+        XCTAssertFalse(start(laeuft: true), "nie zwei Läufe")
+        XCTAssertFalse(start(angehalten: true), "W-003: nach Anhalten läuft nichts von selbst wieder an")
+    }
+
+    func testErweiterungIstStandardAnUndRespektiertDenSchalterDesNutzers() {
+        XCTAssertTrue(FotoRegeln.erweiterungSollAn(gekoppelt: true, erlaubnisVoll: true, nutzerHatAusgeschaltet: false))
+        XCTAssertFalse(FotoRegeln.erweiterungSollAn(gekoppelt: true, erlaubnisVoll: true, nutzerHatAusgeschaltet: true))
+        XCTAssertFalse(FotoRegeln.erweiterungSollAn(gekoppelt: false, erlaubnisVoll: true, nutzerHatAusgeschaltet: false), "ohne Kopplung gäbe es Jobs ohne Zugang")
+        XCTAssertFalse(FotoRegeln.erweiterungSollAn(gekoppelt: true, erlaubnisVoll: false, nutzerHatAusgeschaltet: false), "Apple verlangt volle Erlaubnis")
+    }
+
+    func testNachtlaufAuchOhneStromAberNichtImStromsparmodusAufDemAkku() {
+        XCTAssertTrue(FotoRegeln.nachtlaufErlaubt(stromsparmodus: false, amStrom: false))
+        XCTAssertTrue(FotoRegeln.nachtlaufErlaubt(stromsparmodus: true, amStrom: true))
+        XCTAssertFalse(FotoRegeln.nachtlaufErlaubt(stromsparmodus: true, amStrom: false))
+    }
 }

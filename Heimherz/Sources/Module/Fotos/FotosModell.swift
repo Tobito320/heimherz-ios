@@ -99,7 +99,22 @@ final class FotosModell {
         if erlaubnis == .voll { schalteHintergrund(true) }
     }
 
+    var vomNutzerAngehalten: Bool { stand.nutzerHatAngehalten }
+
+    /// "Anhalten" gedrückt (an) oder "Abgleich starten" (aus): dauerhaft gemerkt, auch nach Neustart der App (SPEC 31).
+    func merkeAngehalten(_ an: Bool) {
+        stand.angehaltenVomNutzer = an
+        ablage.aendere { $0.angehaltenVomNutzer = an }
+    }
+
+    /// Ahmed schaltet die Foto-Erweiterung selbst aus oder wieder an: die App respektiert es und schaltet sie nicht von selbst wieder ein.
+    func merkeErweiterungAus(_ aus: Bool) {
+        stand.erweiterungAus = aus
+        ablage.aendere { $0.erweiterungAus = aus }
+    }
+
     func schalteHintergrund(_ an: Bool) {
+        merkeErweiterungAus(!an)
         guard !istDemo, erlaubnis == .voll else { return }
         try? PHPhotoLibrary.shared().setUploadJobExtensionEnabled(an)
         hintergrundAn = PHPhotoLibrary.shared().uploadJobExtensionEnabled
@@ -119,14 +134,20 @@ final class FotosModell {
         if !gekoppelt { halteAn() }   // ein laufender Abgleich trägt noch das alte Token
         stand = ablage.lade()
         erlaubnis = Self.lese(PHPhotoLibrary.authorizationStatus(for: .readWrite))
-        if erlaubnis == .voll {
-            if gekoppelt { try? PHPhotoLibrary.shared().setUploadJobExtensionEnabled(true) }
-            hintergrundAn = PHPhotoLibrary.shared().uploadJobExtensionEnabled
-        }
+        richteErweiterungEin(gekoppelt: gekoppelt)
         if lauf == nil {
             anzeige.fertig = stand.fertig
             await raeumeTempAuf()
         }
+    }
+
+    /// Erweiterung Standard an (nur gekoppelt, volle Erlaubnis), außer Ahmed hat sie selbst ausgeschaltet. Liest danach, was iOS sagt.
+    private func richteErweiterungEin(gekoppelt: Bool) {
+        guard erlaubnis == .voll else { return }
+        if FotoRegeln.erweiterungSollAn(gekoppelt: gekoppelt, erlaubnisVoll: true, nutzerHatAusgeschaltet: stand.nutzerHatErweiterungAusgeschaltet) {
+            try? PHPhotoLibrary.shared().setUploadJobExtensionEnabled(true)
+        }
+        hintergrundAn = PHPhotoLibrary.shared().uploadJobExtensionEnabled
     }
 
     private func raeumeTempAuf() async {
@@ -144,6 +165,7 @@ final class FotosModell {
     /// "Abgleich starten": sendet alles Offene, neueste zuerst, und macht dort weiter, wo der letzte Lauf aufgehört hat.
     func starte(client: HeimClient) {
         guard !istDemo, erlaubnis == .voll else { return }
+        merkeAngehalten(false)   // "Abgleich starten" hebt das Anhalten auf (SPEC 31)
         if lauf != nil {
             guard !anzeige.laeuft else { return }
             vorgemerkt = client
@@ -188,6 +210,13 @@ final class FotosModell {
             await arbeit.value
             await self.laufBeendet()
         }
+    }
+
+    /// Der Knopf "Anhalten": wie `halteAn`, und der Abgleich startet danach nicht mehr von selbst, bis Ahmed ihn wieder startet.
+    func halteAnVomNutzer() {
+        guard !istDemo else { return }
+        merkeAngehalten(true)
+        halteAn()
     }
 
     /// "Anhalten": bricht den Lauf sauber ab. Fertige Dateien zählen, laufende Übertragungen und halbe Exporte werden verworfen,
@@ -262,11 +291,26 @@ final class FotosModell {
         halteAn(nachtAbsagen: false)
     }
 
-    /// Die App kommt nach vorn: ein Lauf, den iOS im Hintergrund beendet hat, geht weiter (der Nutzer hatte ihn gestartet und nicht angehalten).
+    /// Die App wird geöffnet oder kommt nach vorn (SPEC 31): Erweiterung einschalten, Nachtlauf einplanen und den Abgleich von selbst starten,
+    /// wenn Ahmed nicht angehalten hat. Das deckt auch einen Lauf ab, den iOS im Hintergrund beendet hat. Kein Fortsetzungs-Task und keine
+    /// Mitteilungsfrage: Apple verlangt dafür eine Handlung des Nutzers.
     func appIstVorn() {
-        guard systemHatAngehalten, !nutzerHatAngehalten, lauf == nil, let client = try? AppUmgebung.geteilt.client() else { return }
+        guard !istDemo else { return }
+        erlaubnis = Self.lese(PHPhotoLibrary.authorizationStatus(for: .readWrite))
+        stand = lauf == nil ? ablage.lade() : stand
+        let client = try? AppUmgebung.geteilt.client()
+        richteErweiterungEin(gekoppelt: client != nil)
+        guard client != nil, erlaubnis == .voll, !vomNutzerAngehalten else { return }
+        FotoHintergrund.planeNacht()
+        guard FotoRegeln.startetVonSelbst(gekoppelt: true, erlaubnisVoll: true, laeuft: lauf != nil, vomNutzerAngehalten: false), let client else { return }
         systemHatAngehalten = false
-        starte(client: client)
+        beginne(client: client, senden: true, nur: nil, vomNutzer: false, nachts: true)
+    }
+
+    /// App geht in den Hintergrund: Nachtlauf einplanen, solange Ahmed nicht angehalten hat (Apple: Aufgaben beim Wechsel in den Hintergrund einreichen).
+    func appGehtInHintergrund() {
+        guard !istDemo, erlaubnis == .voll, !vomNutzerAngehalten, (try? AppUmgebung.geteilt.client()) != nil else { return }
+        FotoHintergrund.planeNacht()
     }
 
     private func spiegele(_ a: FotoAnzeige) {
@@ -279,8 +323,9 @@ final class FotosModell {
 
     /// Nachts mit Strom und Netz (BGProcessingTask): macht den Rest, ohne dass die App offen ist.
     func nachtlauf(_ box: FotoHintergrund.AufgabenBox) async {
-        if (anzeige.zahlen?.offen ?? 1) > 0 { FotoHintergrund.planeNacht() }   // gleich wieder einplanen, falls dieser Lauf nicht reicht (Apple); nichts mehr offen: Schluss
-        guard kannStarten, let client = try? AppUmgebung.geteilt.client() else {
+        if !vomNutzerAngehalten { FotoHintergrund.planeNacht() }   // gleich wieder einplanen (Apple); neue Fotos kommen auch nach "nichts mehr offen" dazu
+        guard FotoRegeln.nachtlaufErlaubt(stromsparmodus: ProcessInfo.processInfo.isLowPowerModeEnabled, amStrom: BildschirmWach.amStrom),
+              !vomNutzerAngehalten, kannStarten, let client = try? AppUmgebung.geteilt.client() else {
             box.task.setTaskCompleted(success: true)
             return
         }

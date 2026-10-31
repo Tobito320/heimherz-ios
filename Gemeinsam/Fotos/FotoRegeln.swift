@@ -77,6 +77,19 @@ enum FotoRegeln {
         }
     }
 
+    /// Beim Öffnen der App startet der Abgleich von selbst (SPEC 31, Ziel 2): gekoppelt, volle Erlaubnis, kein Lauf, und der Nutzer hat nicht angehalten.
+    static func startetVonSelbst(gekoppelt: Bool, erlaubnisVoll: Bool, laeuft: Bool, vomNutzerAngehalten: Bool) -> Bool {
+        gekoppelt && erlaubnisVoll && !laeuft && !vomNutzerAngehalten
+    }
+
+    /// Die Foto-Erweiterung ist Standard an, sobald gekoppelt und die volle Erlaubnis da ist, außer der Nutzer hat sie selbst ausgeschaltet.
+    static func erweiterungSollAn(gekoppelt: Bool, erlaubnisVoll: Bool, nutzerHatAusgeschaltet: Bool) -> Bool {
+        gekoppelt && erlaubnisVoll && !nutzerHatAusgeschaltet
+    }
+
+    /// Der Nachtlauf braucht keinen Strom mehr; im Stromsparmodus läuft er nur am Ladegerät.
+    static func nachtlaufErlaubt(stromsparmodus: Bool, amStrom: Bool) -> Bool { !stromsparmodus || amStrom }
+
     static func kopf(assetId: String, istVideo: Bool = false) -> FotoKopf { FotoKopf(assetId: assetId, kennung: kennung(assetId: assetId), istVideo: istVideo) }
 }
 

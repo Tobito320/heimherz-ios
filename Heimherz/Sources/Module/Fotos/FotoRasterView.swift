@@ -197,7 +197,7 @@ struct FotoStartKnopf: View {
 
     var body: some View {
         if modell.laeuft {
-            Button { modell.halteAn() } label: {
+            Button { modell.halteAnVomNutzer() } label: {
                 Label("Anhalten", systemImage: "pause.fill")
                     .frame(maxWidth: kompakt ? nil : .infinity, minHeight: Abstand.tippflaeche)
             }

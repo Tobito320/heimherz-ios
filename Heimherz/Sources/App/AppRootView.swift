@@ -48,8 +48,12 @@ struct AppRootView: View {
             if neu == .active {
                 FotosModell.geteilt.appIstVorn()
                 if !umgebung.istDemo, let client = try? umgebung.client() { Task { await OrdnerAbgleich.geteilt.abgleichen(client: client) } }
+            } else if neu == .background {
+                FotosModell.geteilt.appGehtInHintergrund()
             }
         }
+        // Kaltstart: onChange feuert erst beim Wechsel, darum hier einmal; Fotos laufen beim Öffnen von selbst (SPEC 31).
+        .task { FotosModell.geteilt.appIstVorn() }
         #if DEBUG
         .onAppear {
             if let name = UserDefaults.standard.string(forKey: "heimherzAktion"), let aktion = Schnellaktion.demo(name) { aktionen.lege(aktion) }

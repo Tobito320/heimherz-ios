@@ -18,7 +18,13 @@ struct FotoStand: Codable, Sendable, Equatable {
     var gesamt: Int?
     /// Originale aus iCloud laden, wenn sie nicht auf dem Handy liegen. nil = Standard (ja).
     var iCloudLaden: Bool?
+    /// Ahmed hat zuletzt "Anhalten" gedrückt (SPEC 31, W-003): dann startet der Abgleich nicht von selbst; "Abgleich starten" hebt es auf. nil = nein.
+    var angehaltenVomNutzer: Bool?
+    /// Ahmed hat die Foto-Erweiterung selbst ausgeschaltet: die App schaltet sie dann nicht wieder ein. nil = nein (Standard an).
+    var erweiterungAus: Bool?
 
+    var nutzerHatAngehalten: Bool { angehaltenVomNutzer ?? false }
+    var nutzerHatErweiterungAusgeschaltet: Bool { erweiterungAus ?? false }
     var wlanNoetig: Bool { nurWLAN ?? true }
     var iCloudErlaubt: Bool { iCloudLaden ?? true }
 

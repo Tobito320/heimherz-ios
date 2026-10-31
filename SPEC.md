@@ -354,7 +354,7 @@ Geteilte Werte liegen als `@State`-Kopie in der Ansicht und werden mit `.onChang
 
 - Passkeys (`ASPasskeyCredentialRequest`, P-256): eigener Schritt nach 2 Wochen ohne Fehler.
 - Import aus iCloud-Passwörtern per Credential Exchange (`ASCredentialImportManager`): nur wenn iOS Heimherz als Ziel anbietet.
-- File Provider (Heimherz in der Dateien-App), Offline-Ordner.
+- Offline-Ordner mit eigener Verwaltung (File Provider selbst ist gebaut, siehe §31).
 - Google Drive einmal holen (`rclone copy`).
 - Agent füllt aus Heimherz statt Bitwarden (`claude-bw` umstellen).
 - Offsite-Sicherung (restic, Kauf macht Ahmed).
@@ -588,3 +588,42 @@ Ahmed 28.10.: "ich will aber trotzdem so wie chrome hier bekommen." Kästchen un
 - Grenze: ein Monitor bei 0,0; Steam und andere CEF-Apps ungeprüft.
 - Prüfung: `python3 -I bin/lumen-vorschlag.py --selbsttest`, `bun test bin/tippen.test.ts` (`vorschlaege` ohne Werte), echter Lauf mit Wegwerf-Tresor in Vesktop.
 - Löschen per Zappy (Ahmed 28.10.: "i told zappy delete the second login. it should just do in background and then one time are you sure ... yes no"): Der Dienst schreibt beim Zeigen die Zeilen nach `$XDG_RUNTIME_DIR/lumen-vorschlag.json`. `heimherz weg kasten:2` trifft genau Zeile 2 (höchstens 15 min alt). `heimherz weg` fragt einmal in der Notch (`insel bitte erlaubnis`, Knöpfe "Löschen" und "Nein", Text je Konto `BENUTZER · SEITE`), nur Ahmed kann antworten; Löschen = weich (30 Tage), sofort. Passt eine id nicht, wird nichts gelöscht. `heimherz weg --zurueck ID` holt gelöschte zurück. Anlass: ein Agent hatte am 28.10. beide Discord-Einträge gelöscht statt nur den zweiten; der gute ist wiederhergestellt.
+
+## 31. Modul `dateien-sync` (31.10.2026): Lumen Cloud in der Dateien-App, Fotos immer automatisch
+
+Ahmed 31.10.: "Guck in lumen cloud es gibt neue Ordner heißt lumen cloud. Das habe ich auf mein pc gelegt. Ich möchte alle lumen cloud sachen darein. Das wird under „iCloud drive“ Oder wie schlagst du vor. Habe es dann mit lumen cloud connected. Wenn connected dann sollte es automatisch sync. Genauso wie fotos sollte immer automatisch sync." Auftrag: `~/.claude/buero-stand/lumen-dateien-sync-31-10.md`.
+
+Entscheidung: kein Spiegel in iCloud Drive (kostet iCloud-Speicher, zwei Clouds streiten um dieselben Dateien, iOS lässt keine App im Hintergrund in fremde Ordner schreiben, und alles unter `Eingang/` würde der Sortier-Lauf wegsortieren). Stattdessen ein eigener Speicherort "Lumen Cloud" in der Dateien-App neben iCloud Drive (File Provider, Apple-Weg wie Dropbox). `~/Heimherz/Dateien` bleibt die eine Wahrheit.
+
+### Ziel 2: Fotos laufen von selbst (zuerst gebaut)
+- Beim Öffnen der App (Kaltstart und jedes Nach-vorn-Kommen) startet der Abgleich von selbst, wenn: gekoppelt, volle Foto-Erlaubnis, kein Lauf, und Ahmed zuletzt nicht "Anhalten" gedrückt hat. "Anhalten" wird dauerhaft gemerkt (`FotoStand.angehaltenVomNutzer`, App Group), "Abgleich starten" hebt es auf. So bleibt die Regel aus W-003 (nach "Anhalten" läuft nichts von selbst wieder an) erfüllt. Das Anhalten durch iOS (Systemaufgabe abgelaufen) und `lade(gekoppelt: false)` zählen nicht als Anhalten.
+- Der Automatikstart reicht keine `BGContinuedProcessingTask` ein (Apple: Auslöser muss eine Handlung des Nutzers sein) und fragt keine Mitteilungserlaubnis.
+- Foto-Erweiterung: wird beim Öffnen der App eingeschaltet (nicht mehr nur, wenn der Tab Fotos offen war), sobald gekoppelt und volle Erlaubnis da ist, außer Ahmed hat sie selbst ausgeschaltet (`FotoStand.erweiterungAus`, dauerhaft gemerkt).
+- Nachtlauf (`BGProcessingTask`): wird beim Öffnen und beim Wechsel in den Hintergrund eingeplant, solange nichts angehalten ist (vorher nur nach einem Lauf per Knopf), ohne `requiresExternalPower` (mit Netz); bei Stromsparmodus und ohne Ladegerät läuft er nicht. Videos bleiben immer nur WLAN.
+- Grenzen, die iOS entscheidet: Wann ein `BGProcessingTask` läuft, bestimmt das System (Apple: "when conditions allow", nach Netz, Strom, Gerätenutzung); eine aus dem App-Umschalter weggewischte App startet iOS im Hintergrund nicht mehr; die Foto-Erweiterung arbeitet Upload-Jobs ab, wann, entscheidet iOS. Beleg: developer.apple.com/documentation/photokit/uploading-asset-resources-in-the-background, backgroundtasks/bgprocessingtaskrequest.
+
+### Ziel 1: Speicherort in der Dateien-App
+Quellen (gelesen 31.10.): developer.apple.com/documentation/fileprovider (NSFileProviderReplicatedExtension, iOS 16.0; NSFileProviderEnumerating; NSFileProviderManager; NSFileProviderDomain; NSFileProviderError.Code; NSFileProviderContentPolicy, iOS 16.0), Beispiel "Synchronizing files using file provider extensions" (FruitBasket).
+- Ziel `HeimherzDateien` (app-extension, `com.apple.fileprovider-nonui`, Bundle-ID `com.onlyus.heimherz.dateien`, `NSExtensionFileProviderSupportsEnumeration`), Klasse `NSFileProviderReplicatedExtension`. Eine Domain "Lumen Cloud" (`NSFileProviderDomain(identifier:displayName:)`), die die App beim Start anlegt (`NSFileProviderManager.add`), sobald gekoppelt, und beim Entkoppeln entfernt (`remove`; auf iOS löscht das die lokalen Kopien). Zugang wie die Geschwister: App Group `group.com.onlyus.heimherz`, Schlüsselbund-Gruppe `$(AppIdentifierPrefix)com.onlyus.heimherz`, keine neue Kopplung.
+- Kennungen: stabile Item-Kennung = Inode plus Geburtszeit der Datei am PC (`<ino>.<birthMs>`), Umbenennen und Verschieben am PC oder vom Handy ändert sie nicht (ext4 geprüft). Wurzel = leere Kennung. Symlinks, Versteckte (`.`), `*.teil` erscheinen nie.
+- Fassung (`fassung`) = `<mtimeMs>-<Größe>`; Ordner nur `<mtimeMs>`.
+- Neue Routen (alle mit Token, alle Pfade durch dieselbe `realpath`-Prüfung):
+
+| Methode und Pfad | Zweck |
+|---|---|
+| `GET /v1/dateien/aenderungen?anker=` | Änderungen seit dem Anker: `{anker, voll, eintraege:[Eintrag], weg:[id]}`; ohne Anker alles (`voll: true`); fremder oder zu alter Anker = 410 |
+| `GET /v1/dateien/kinder?id=` | Inhalt eines Ordners (leer = Wurzel) mit Kennungen |
+| `GET /v1/dateien/eintrag?id=` | ein Eintrag samt `pfad` (für `GET /v1/datei?pfad=`) |
+| `POST /v1/dateien/ordner` `{eltern, name}` | Ordner anlegen (0700); vorhanden = 409 |
+| `POST /v1/dateien/umbenennen` `{id, eltern?, name?}` | umbenennen und/oder verschieben; Ziel vorhanden = 409, in sich selbst = 400 |
+| `PUT /v1/dateien/ersetzen?id=&fassung=` | Inhalt ersetzen, nur wenn `fassung` noch die aktuelle ist, sonst 409 mit dem aktuellen Eintrag; die Kennung bleibt |
+| `POST /v1/dateien/papierkorb` `{id, fassung?}` | in den Papierkorb (`trash-put`), stimmt eine angegebene `fassung` nicht, 409 |
+
+  Eintrag = `{id, eltern, name, ordner, groesse, geaendert, fassung}`. `PUT /v1/datei?pfad=` (neu anlegen, nie überschreiben, ` (2)`) liefert zusätzlich dieselben Felder. Bestehende Routen bleiben unverändert.
+- Änderungsabfrage: der Dienst vergleicht bei jeder Anfrage den Baum mit dem letzten Stand (höchstens alle 2 s neu gelesen), nummeriert Änderungen fortlaufend (`Anker = <Epoche>.<n>`), Protokoll der letzten 20.000 Änderungen in `dateisync.json` im Datenordner. Beim Umbenennen am PC mit `mv` bleibt die Kennung, der Eintrag erscheint verändert.
+- Konflikt: beide Seiten geändert = die Fassung vom Handy wird als `name (2).ext` neu angelegt, der Eintrag des PCs bleibt und wird nachgeladen; keine Seite geht verloren.
+- Kein PC erreichbar: `NSFileProviderError.serverUnreachable`, iOS wiederholt später selbst.
+- Was iOS erlaubt (belegt aus Apples Seiten): Die Erweiterung läuft nur, wenn das System sie braucht (Ordner öffnen, Datei laden, Änderung vom Handy). Änderungen am PC meldet Apple ohne eigenen Push so: die App ruft `signalEnumerator(for: .workingSet)` beim Öffnen; der Weg per PushKit-Typ `fileProvider` braucht einen Push-Absender (APNs) und damit ein neues Konto und ist nicht gebaut. Wann Files von selbst nachfragt, entscheidet iOS. "Immer behalten" bietet Files nach Apples Doku über `NSFileProviderContentPolicy` (iOS 16) an; ob Files es für Lumen Cloud zeigt, ist nur am Gerät prüfbar.
+- Bestehendes bleibt: Dateien-Tab, "Ordner verbinden", Teilen-Erweiterung, Sortier-Lauf für `Eingang/`.
+- Signieren: neue Bundle-ID `com.onlyus.heimherz.dateien` mit App Group, Profil `Heimherz Dateien App Store`, Secret `APPSTORE_DATEIEN_PROFILE_BASE64`; `testflight.yml` und `ios-ci.yml` kennen das Ziel.
+

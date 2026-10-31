@@ -28,6 +28,20 @@ final class FotoStandTests: XCTestCase {
         XCTAssertTrue(s.wlanNoetig, "Standard: nur WLAN")
         XCTAssertNil(s.iCloudLaden)
         XCTAssertTrue(s.iCloudErlaubt, "Standard: Originale aus iCloud laden")
+        XCTAssertNil(s.angehaltenVomNutzer)
+        XCTAssertFalse(s.nutzerHatAngehalten, "Standard: nicht angehalten, der Abgleich darf von selbst laufen")
+        XCTAssertNil(s.erweiterungAus)
+        XCTAssertFalse(s.nutzerHatErweiterungAusgeschaltet)
+    }
+
+    func testAngehaltenUndErweiterungAusBleibenDauerhaftGespeichert() throws {
+        let ablage = FotoStandAblage(ordner: try tempOrdner())
+        ablage.aendere { $0.angehaltenVomNutzer = true; $0.erweiterungAus = true }
+        let neu = ablage.lade()
+        XCTAssertTrue(neu.nutzerHatAngehalten)
+        XCTAssertTrue(neu.nutzerHatErweiterungAusgeschaltet)
+        ablage.aendere { $0.angehaltenVomNutzer = false }
+        XCTAssertFalse(ablage.lade().nutzerHatAngehalten, "\"Abgleich starten\" hebt es auf")
     }
 
     func testKaputteDateiGibtLeerenStand() throws {
