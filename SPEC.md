@@ -628,3 +628,7 @@ Quellen (gelesen 31.10.): developer.apple.com/documentation/fileprovider (NSFile
 - Bestehendes bleibt: Dateien-Tab, "Ordner verbinden", Teilen-Erweiterung, Sortier-Lauf für `Eingang/`.
 - Signieren: neue Bundle-ID `com.onlyus.heimherz.dateien` mit App Group, Profil `Heimherz Dateien App Store`, Secret `APPSTORE_DATEIEN_PROFILE_BASE64`; `testflight.yml` und `ios-ci.yml` kennen das Ziel.
 
+### Gebaut (31.10.2026)
+- Ziel 2 und Ziel 1 sind im Code; Swift ist nur in der CI übersetzt, am Gerät ungeprüft.
+- Ersetzen läuft an Ort und Stelle (`copyFileSync`, Kennung bleibt); shortcut: ein Leser am PC sieht kurz eine halb geschriebene Datei, bei Bedarf später Temp-Datei plus Tausch (ändert die Kennung).
+- Signieren: Bundle-ID `com.onlyus.heimherz.dateien` (Apple-ID `L3LD6ULT97`) und Fähigkeit `APP_GROUPS` per API angelegt, Profil `Heimherz Dateien App Store` erzeugt. Das Profil enthält die App Group `group.com.onlyus.heimherz` NICHT: Zuweisung geht nur im Apple-Portal (Identifiers, `com.onlyus.heimherz.dateien`, App Groups, Edit). Deshalb ist `APPSTORE_DATEIEN_PROFILE_BASE64` noch nicht gesetzt; danach Profil neu erzeugen und Secret setzen, erst dann läuft `testflight.yml`.
