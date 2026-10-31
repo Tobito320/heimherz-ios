@@ -291,6 +291,30 @@ test('Ersetzen: gleiche Fassung ersetzt in derselben Datei (Kennung und Inode bl
   rmSync(P('doc.txt'));
 });
 
+test('Ersetzen: es bleibt keine versteckte Kopie liegen, der Inhalt stimmt', async () => {
+  writeFileSync(P('ordner/kopie.txt'), 'alt');
+  const e = await idVon('ordner/kopie.txt');
+  const r = await t.f(`/v1/dateien/ersetzen?id=${q(e.id)}&fassung=${q(e.fassung)}`, { method: 'PUT', body: 'neu' });
+  expect(r.status).toBe(200);
+  expect(readFileSync(P('ordner/kopie.txt'), 'utf8')).toBe('neu');
+  expect(readdirSync(P('ordner')).filter(n => n.startsWith('.'))).toEqual([]);
+});
+
+test('Geschützte Ordner in der Wurzel: umbenennen, verschieben, löschen = 403, Inhalt bleibt erreichbar; gleicher Name tiefer ist frei', async () => {
+  for (const n of ['Aboherz', 'Bürokratie', 'Eingang', 'Projekte', 'Sicherung', 'Weitere']) {
+    mkdirSync(P(n), { recursive: true });
+    const e = await idVon(n);
+    expect((await post('/v1/dateien/umbenennen', { id: e.id, name: `${n}2` })).status).toBe(403);
+    expect((await post('/v1/dateien/umbenennen', { id: e.id, eltern: (await idVon('ordner')).id })).status).toBe(403);
+    expect((await post('/v1/dateien/papierkorb', { id: e.id })).status).toBe(403);
+    expect(existsSync(P(n))).toBe(true);
+  }
+  writeFileSync(P('Weitere/drin.txt'), 'x');
+  expect((await post('/v1/dateien/papierkorb', { id: (await idVon('Weitere/drin.txt')).id })).status).toBe(200);
+  mkdirSync(P('ordner/Eingang'));
+  expect((await post('/v1/dateien/papierkorb', { id: (await idVon('ordner/Eingang')).id })).status).toBe(200);
+});
+
 test('Ersetzen: wenig Platz 507, ohne Länge 411, nichts bleibt liegen', async () => {
   const x = baue({ sync: { frischMs: 0 }, mindestFrei: Number.MAX_SAFE_INTEGER });
   try {

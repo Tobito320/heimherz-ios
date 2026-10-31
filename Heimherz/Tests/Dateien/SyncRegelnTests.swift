@@ -4,6 +4,16 @@ import XCTest
 final class SyncRegelnTests: XCTestCase {
     private let eintrag = SyncEintrag(id: "a1", eltern: "", name: "x.txt", ordner: false, groesse: 3, geaendert: "2026-10-31T10:00:00.000Z", fassung: "1793440800000-3")
 
+    func testGeschuetzteOrdnerNurInDerWurzelUndNurAlsOrdner() {
+        func e(_ name: String, eltern: String = "", ordner: Bool = true) -> SyncEintrag {
+            SyncEintrag(id: "a1", eltern: eltern, name: name, ordner: ordner, groesse: 0, geaendert: "2026-10-31T10:00:00.000Z", fassung: "1")
+        }
+        for name in ["Aboherz", "Bürokratie", "Eingang", "Projekte", "Sicherung", "Weitere"] { XCTAssertTrue(SyncRegeln.istGeschuetzt(e(name)), name) }
+        XCTAssertFalse(SyncRegeln.istGeschuetzt(e("Eingang", eltern: "b2")))
+        XCTAssertFalse(SyncRegeln.istGeschuetzt(e("Eingang", ordner: false)))
+        XCTAssertFalse(SyncRegeln.istGeschuetzt(e("Neuer Ordner")))
+    }
+
     func testFehlerArten() {
         XCTAssertEqual(SyncRegeln.fehlerArt(HeimFehler.nichtErreichbar), .serverUnreachable)
         XCTAssertEqual(SyncRegeln.fehlerArt(URLError(.notConnectedToInternet)), .serverUnreachable)

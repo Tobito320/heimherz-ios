@@ -49,6 +49,10 @@ enum SyncFehlerArt: Equatable, Sendable {
 
 /// Reine Regeln der Datei-Anbieter-Erweiterung "Lumen Cloud" (SPEC 31). Liegen in `Gemeinsam/`, damit die Tests sie sehen.
 enum SyncRegeln {
+    /// Ordner in der Wurzel, auf die Werkzeuge am PC zählen: vom Handy nicht umbenennen, verschieben, löschen. Gleiche Liste wie `GESCHUETZT` in `server/dateisync.ts`.
+    static let geschuetzteOrdner: Set<String> = ["Aboherz", "Bürokratie", "Eingang", "Projekte", "Sicherung", "Weitere"]
+    static func istGeschuetzt(_ e: SyncEintrag) -> Bool { e.ordner && e.eltern.isEmpty && geschuetzteOrdner.contains(e.name) }
+
     static func fehlerArt(_ fehler: Error) -> SyncFehlerArt {
         if fehler is CancellationError { return .abgebrochen }
         if let u = fehler as? URLError { return u.code == .cancelled ? .abgebrochen : .serverUnreachable }

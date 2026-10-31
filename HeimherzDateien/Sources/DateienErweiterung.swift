@@ -28,7 +28,8 @@ final class DateiPosten: NSObject, NSFileProviderItem, @unchecked Sendable {   /
         return UTType(filenameExtension: (eintrag.name as NSString).pathExtension) ?? .data
     }
     var capabilities: NSFileProviderItemCapabilities {
-        eintrag.ordner
+        if SyncRegeln.istGeschuetzt(eintrag) { return [.allowsReading, .allowsContentEnumerating, .allowsAddingSubItems] }
+        return eintrag.ordner
             ? [.allowsReading, .allowsContentEnumerating, .allowsAddingSubItems, .allowsRenaming, .allowsReparenting, .allowsDeleting]
             : [.allowsReading, .allowsWriting, .allowsRenaming, .allowsReparenting, .allowsDeleting]
     }
@@ -108,6 +109,7 @@ final class DateienErweiterung: NSObject, NSFileProviderReplicatedExtension, @un
         let ruf = Rueckruf(completionHandler)
         return laufe {
             if identifier == .rootContainer { return ruf.wert(WurzelPosten(), nil) }
+            if identifier == .trashContainer || identifier == .workingSet { return ruf.wert(nil, NSFileProviderError(.noSuchItem)) }   // keine Kennungen des PCs
             do {
                 let e = try await Self.client().syncEintrag(id: identifier.rawValue)
                 ruf.wert(DateiPosten(e), nil)

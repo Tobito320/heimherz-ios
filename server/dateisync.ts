@@ -11,6 +11,8 @@ const MAX_EINTRAEGE = 200_000; // shortcut: bei mehr Einträgen bricht die Abfra
 const MAX_LOG = 50_000;
 const FRISCH_MS = 2_000; // so oft höchstens liest der Dienst den Baum neu
 const MAX_NAME_BYTES = 200;
+// Ordner, auf die Werkzeuge am PC zählen (Sortier-Lauf, Sicherung, Lumen Wallet) oder die die App als Kategorie zeigt: vom Handy nicht umbenennen, verschieben, löschen. Gleiche Liste: `SyncRegeln.geschuetzteOrdner`.
+const GESCHUETZT = new Set(['Aboherz', 'Bürokratie', 'Eingang', 'Projekte', 'Sicherung', 'Weitere']);
 
 class Konflikt extends Error { constructor(public aktuell?: Eintrag) { super('Konflikt'); } }
 class Schlecht extends Error {}
@@ -222,6 +224,7 @@ export class DateiSync {
     try {
       const b = await this.lieseJson(req);
       const alt = this.loese(DateiSync.idFeld(b.id, false));
+      if (GESCHUETZT.has(alt)) throw new Verboten();
       const { ordner: altOrdner, name: altName } = this.d.neuesZiel(alt);
       const neuerOrdner = b.eltern === undefined ? altOrdner : this.d.aufloesen(this.ordnerPfad(DateiSync.idFeld(b.eltern, true)));
       const neuerName = b.name === undefined ? altName : DateiSync.name(b.name);
@@ -236,7 +239,7 @@ export class DateiSync {
   }
 
   async ersetzen(req: Request, id: string | null, fassung: string | null): Promise<Response> {
-    let temp = '';
+    let temp = '', alt = '';
     try {
       if (!id || !fassung) return leer(400);
       const rel = this.loese(id);
@@ -250,17 +253,21 @@ export class DateiSync {
       try { await streameInDatei(req, temp); } catch (e) { return ablegeFehler(e) ?? leer(400); }
       const nochmal = this.lies(rel);
       if (nochmal.id !== id || nochmal.fassung !== fassung) throw new Konflikt(oeffentlich(nochmal)); // während des Uploads geändert
-      // In dieselbe Datei schreiben (Inode und damit die Kennung bleiben). shortcut: kurzes Fenster mit halb geschriebener Datei bei Absturz mitten im Kopieren; bei Bedarf Sicherungskopie.
-      copyFileSync(temp, join(ordner, name));
+      // In dieselbe Datei schreiben (Inode und damit die Kennung bleiben). Vorher Kopie: scheitert das Schreiben, kommt die alte Fassung zurück; stürzt der Rechner ab, bleibt sie als versteckte .alt-Datei liegen.
+      const ziel = join(ordner, name);
+      alt = join(ordner, `.heimherz-${crypto.randomUUID()}.alt`);
+      copyFileSync(ziel, alt);
+      try { copyFileSync(temp, ziel); } catch (e) { copyFileSync(alt, ziel); throw e; }
       this.veraltet();
       return json(oeffentlich(this.lies(rel)));
-    } catch (e) { return this.fehler(e); } finally { if (temp) loescheLeise(temp); }
+    } catch (e) { return this.fehler(e); } finally { if (temp) loescheLeise(temp); if (alt) loescheLeise(alt); }
   }
 
   async papierkorb(req: Request): Promise<Response> {
     try {
       const b = await this.lieseJson(req);
       const rel = this.loese(DateiSync.idFeld(b.id, false));
+      if (GESCHUETZT.has(rel)) throw new Verboten();
       if (b.fassung !== undefined) {
         const jetzt = this.lies(rel);
         if (b.fassung !== jetzt.fassung) throw new Konflikt(oeffentlich(jetzt));
