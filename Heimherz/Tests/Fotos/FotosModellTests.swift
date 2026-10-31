@@ -44,7 +44,7 @@ final class FotosModellTests: XCTestCase {
         m.merkeAngehalten(true)
         XCTAssertTrue(m.vomNutzerAngehalten)
         XCTAssertEqual(ablage.lade().angehaltenVomNutzer, true, "dauerhaft, auch nach Neustart der App")
-        XCTAssertTrue(FotosModell(istDemo: true, ablage: ablage).vomNutzerAngehalten, "ein neues Modell liest es aus der Ablage")
+        XCTAssertTrue(ablage.lade().nutzerHatAngehalten, "ein neues Modell (nicht Demo) liest den Stand aus der Ablage")
         m.merkeAngehalten(false)
         XCTAssertEqual(ablage.lade().angehaltenVomNutzer, false)
     }
